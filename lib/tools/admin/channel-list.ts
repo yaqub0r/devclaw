@@ -4,7 +4,7 @@
  * Shows registered channels with their type, ID, name, and event subscriptions.
  * Can list channels for a specific project or all projects.
  */
-import { jsonResult } from "openclaw/plugin-sdk";
+import { jsonResult } from "../../json-result.js";
 import type { PluginContext } from "../../context.js";
 import type { ToolContext } from "../../types.js";
 import { readProjects } from "../../projects/index.js";

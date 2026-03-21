@@ -195,6 +195,7 @@ function parseWorkerState(worker: Record<string, unknown>, role: string): RoleWo
  * 3. Old level names in worker state
  * 4. Old slot-based format → per-level format
  * 5. Missing channel field defaults to "telegram"
+ * 6. Telegram: legacy topicId → messageThreadId; topicId removed from stored shape
  */
 /**
  * Returns true if any migration was applied (caller should persist).
@@ -230,22 +231,16 @@ export function migrateProject(project: Project): boolean {
     project.workers = {};
   }
 
-  // Normalize channel topic fields for Telegram channels:
-  // - Migrate legacy groupId -> channelId (handled below)
-  // - Migrate legacy topicId -> messageThreadId when messageThreadId is missing
+  // Telegram channels: legacy topicId → messageThreadId; drop topicId (canonical field only)
   if (project.channels) {
     for (const ch of project.channels) {
       const rawCh = ch as unknown as Record<string, unknown> & Channel;
-
-      // Normalize legacy Telegram topic field: topicId -> messageThreadId
-      if (
-        rawCh.channel === "telegram" &&
-        rawCh.topicId != null &&
-        rawCh.messageThreadId == null
-      ) {
+      if (rawCh.channel !== "telegram" || rawCh.topicId == null) continue;
+      if (rawCh.messageThreadId == null) {
         rawCh.messageThreadId = Number(rawCh.topicId);
-        changed = true;
       }
+      delete rawCh.topicId;
+      changed = true;
     }
   }
 

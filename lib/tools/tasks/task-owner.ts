@@ -5,7 +5,7 @@
  * owns them for queue scanning and dispatch. Supports claiming a
  * single issue or all unclaimed queued issues for a project.
  */
-import { jsonResult } from "openclaw/plugin-sdk";
+import { jsonResult } from "../../json-result.js";
 import type { PluginContext } from "../../context.js";
 import type { ToolContext } from "../../types.js";
 import { requireWorkspaceDir, resolveChannelId, resolveProject, resolveProvider } from "../helpers.js";

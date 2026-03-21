@@ -5,7 +5,7 @@
  * exists and prevents removing the last channel from a project (projects must
  * have at least one notification endpoint).
  */
-import { jsonResult } from "openclaw/plugin-sdk";
+import { jsonResult } from "../../json-result.js";
 import type { PluginContext } from "../../context.js";
 import type { ToolContext } from "../../types.js";
 import { readProjects, writeProjects } from "../../projects/index.js";

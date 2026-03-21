@@ -299,6 +299,7 @@ export async function dispatchTask(
     dispatchTimeoutMs: timeouts.dispatchMs,
     extraSystemPrompt: roleInstructions.trim() || undefined,
     runCommand: rc,
+    notifyTarget,
   });
 
   // Step 5: Update worker state

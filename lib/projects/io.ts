@@ -7,7 +7,7 @@ import { homedir } from "node:os";
 import { migrateProject } from "./migrations.js";
 import { ensureWorkspaceMigrated, DATA_DIR } from "../setup/migrate-layout.js";
 import { isLegacySchema, migrateLegacySchema } from "./schema-migration.js";
-import type { ProjectsData, Project, Channel } from "./types.js";
+import type { ProjectsData, Project } from "./types.js";
 import { emptySlot } from "./slots.js";
 
 
@@ -117,22 +117,6 @@ export function resolveProjectChannelScope(opts: {
 }
 
 /**
- * Normalize a channel's topic-related fields for resolution.
- * - For Telegram, map legacy topicId into messageThreadId when needed.
- * - Leaves non-Telegram channels unchanged (they are effectively root-scope).
- */
-function normalizeChannelTopic(ch: Channel): Channel {
-  if (ch.channel !== "telegram") {
-    return ch;
-  }
-  const legacy = ch as Channel & { topicId?: number };
-  if (ch.messageThreadId == null && legacy.topicId != null) {
-    ch.messageThreadId = legacy.topicId;
-  }
-  return ch;
-}
-
-/**
  * Resolve a project by slug or channel scope (for backward compatibility).
  * When given a bare string, treats it as slug or channelId (legacy behavior).
  * When given a scope object, performs topic-aware resolution.
@@ -177,8 +161,7 @@ export function resolveProjectSlug(
   let fallbackSlug: string | undefined;
 
   for (const [slug, project] of Object.entries(data.projects)) {
-    for (const rawCh of project.channels) {
-      const ch = normalizeChannelTopic(rawCh);
+    for (const ch of project.channels) {
       const scopeKey = resolveProjectChannelScope({
         channel: ch.channel,
         channelId: ch.channelId,

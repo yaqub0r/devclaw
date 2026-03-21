@@ -6,8 +6,7 @@
  *
  * Replaces the manual steps of running glab/gh label create + editing projects.json.
  */
-import { jsonResult } from "openclaw/plugin-sdk";
-import * as pluginSdk from "openclaw/plugin-sdk";
+import { jsonResult } from "../../json-result.js";
 import type { ToolContext } from "../../types.js";
 import type { PluginContext } from "../../context.js";
 import fs from "node:fs/promises";
@@ -131,29 +130,6 @@ export function createProjectRegisterTool(ctx: PluginContext) {
     },
 
     async execute(_id: string, params: Record<string, unknown>) {
-      // #region debug log agent log
-      void fetch("http://127.0.0.1:7466/ingest/5d97a7af-7976-4064-b520-dc7c79f3b068", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Debug-Session-Id": "052428",
-        },
-        body: JSON.stringify({
-          sessionId: "052428",
-          runId: "attach-topic-precheck",
-          hypothesisId: "H1-jsonResult-export-mismatch",
-          location: "devclaw/lib/tools/admin/project-register.ts:execute",
-          message: "Verify openclaw/plugin-sdk.jsonResult at runtime",
-          data: {
-            jsonResultType: typeof jsonResult,
-            pluginSdkJsonResultType: typeof (pluginSdk as unknown as { jsonResult?: unknown }).jsonResult,
-            pluginSdkKeys: Object.keys(pluginSdk as Record<string, unknown>).slice(0, 30),
-          },
-          timestamp: Date.now(),
-        }),
-      }).catch(() => {});
-      // #endregion
-
       const channelId = params.channelId as string;
       const name = params.name as string;
       const repo = params.repo as string;
