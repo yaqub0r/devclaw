@@ -7,7 +7,7 @@
 import type { PluginContext } from "../../context.js";
 import type { ToolContext } from "../../types.js";
 import { log as auditLog } from "../../audit.js";
-import { requireWorkspaceDir, resolveChannelId, resolveProject, resolveProvider } from "../helpers.js";
+import { jsonResult, requireWorkspaceDir, resolveChannelId, resolveProject, resolveProvider } from "../helpers.js";
 import { loadWorkflow, StateType, findStateByLabel } from "../../workflow/index.js";
 
 export function createTaskListTool(ctx: PluginContext) {

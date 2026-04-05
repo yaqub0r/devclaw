@@ -18,7 +18,7 @@ import type { StateLabel } from "../../providers/provider.js";
 import { getRoleWorker, countActiveSlots } from "../../projects/index.js";
 import { dispatchTask } from "../../dispatch/index.js";
 import { log as auditLog } from "../../audit.js";
-import { requireWorkspaceDir, resolveChannelId, resolveProject, resolveProvider, autoAssignOwnerLabel, applyNotifyLabel } from "../helpers.js";
+import { jsonResult, requireWorkspaceDir, resolveChannelId, resolveProject, resolveProvider, autoAssignOwnerLabel, applyNotifyLabel } from "../helpers.js";
 import { loadConfig } from "../../config/index.js";
 import { getActiveLabel, loadWorkflow } from "../../workflow/index.js";
 import { selectLevel } from "../../roles/model-selector.js";

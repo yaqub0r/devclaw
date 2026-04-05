@@ -25,3 +25,4 @@ media/
 delivery-queue/
 devices/
 identity/device*.json
+.claude/

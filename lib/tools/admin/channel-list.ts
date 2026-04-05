@@ -7,7 +7,7 @@
 import type { PluginContext } from "../../context.js";
 import type { ToolContext } from "../../types.js";
 import { readProjects } from "../../projects/index.js";
-import { requireWorkspaceDir } from "../helpers.js";
+import { jsonResult, requireWorkspaceDir } from "../helpers.js";
 
 export function createChannelListTool(_ctx: PluginContext) {
   return (toolCtx: ToolContext) => ({

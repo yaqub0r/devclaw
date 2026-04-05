@@ -15,7 +15,7 @@ import { getRoleWorker, resolveRepoPath, findSlotByIssue } from "../../projects/
 import { executeCompletion, getRule } from "../../services/pipeline.js";
 import { log as auditLog } from "../../audit.js";
 import { DATA_DIR } from "../../setup/migrate-layout.js";
-import { requireWorkspaceDir, resolveChannelId, resolveProject, resolveProvider } from "../helpers.js";
+import { jsonResult, requireWorkspaceDir, resolveChannelId, resolveProject, resolveProvider } from "../helpers.js";
 import { getAllRoleIds, isValidResult, getCompletionResults } from "../../roles/index.js";
 import { loadWorkflow } from "../../workflow/index.js";
 import { GitHubProvider } from "../../providers/github.js";

@@ -7,7 +7,7 @@
  */
 import type { ToolContext } from "../../types.js";
 import type { PluginContext } from "../../context.js";
-import { requireWorkspaceDir, resolveChannelId, resolveProject } from "../helpers.js";
+import { jsonResult, requireWorkspaceDir, resolveChannelId, resolveProject } from "../helpers.js";
 import { ExecutionMode, StateType } from "../../workflow/index.js";
 import { loadConfig } from "../../config/index.js";
 import { loadInstanceName } from "../../instance.js";

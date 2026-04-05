@@ -10,7 +10,7 @@
  */
 import type { ToolContext } from "../../types.js";
 import type { PluginContext } from "../../context.js";
-import { requireWorkspaceDir } from "../helpers.js";
+import { jsonResult, requireWorkspaceDir } from "../helpers.js";
 import { readProjects, getProject } from "../../projects/index.js";
 import { createProvider } from "../../providers/index.js";
 import { loadConfig } from "../../config/index.js";

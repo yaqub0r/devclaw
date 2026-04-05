@@ -25,7 +25,7 @@ import {
 } from "../../workflow/index.js";
 import { getLevelsForRole } from "../../roles/index.js";
 import { loadConfig } from "../../config/index.js";
-import { requireWorkspaceDir, resolveChannelId, resolveProject, resolveProvider, autoAssignOwnerLabel, applyNotifyLabel } from "../helpers.js";
+import { jsonResult, requireWorkspaceDir, resolveChannelId, resolveProject, resolveProvider, autoAssignOwnerLabel, applyNotifyLabel } from "../helpers.js";
 
 export function createTaskStartTool(ctx: PluginContext) {
   return (toolCtx: ToolContext) => ({

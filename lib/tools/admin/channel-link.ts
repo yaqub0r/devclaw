@@ -10,7 +10,7 @@ import type { PluginContext } from "../../context.js";
 import type { ToolContext } from "../../types.js";
 import { readProjects, writeProjects, type Channel } from "../../projects/index.js";
 import { log as auditLog } from "../../audit.js";
-import { requireWorkspaceDir } from "../helpers.js";
+import { jsonResult, requireWorkspaceDir } from "../helpers.js";
 
 export function createChannelLinkTool(_ctx: PluginContext) {
   return (toolCtx: ToolContext) => ({
