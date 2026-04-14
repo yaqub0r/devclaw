@@ -10,6 +10,7 @@ import type {
   StateLabel,
   IssueComment,
   PrStatus,
+  IssuePrSummary,
 } from "../providers/provider.js";
 import { getStateLabels } from "../workflow/index.js";
 import { DEFAULT_WORKFLOW, type WorkflowConfig } from "../workflow/index.js";
@@ -64,6 +65,8 @@ export class TestProvider implements IssueProvider {
   labels = new Map<string, string>();
   /** PR status overrides per issue. Default: { state: "closed", url: null }. */
   prStatuses = new Map<number, PrStatus>();
+  /** Linked PR summaries per issue. */
+  issuePrs = new Map<number, IssuePrSummary[]>();
   /** Merged MR URLs per issue. */
   mergedMrUrls = new Map<number, string>();
   /** Issue IDs where mergePr should fail (simulates merge conflicts). */
@@ -103,6 +106,30 @@ export class TestProvider implements IssueProvider {
   /** Set PR status for an issue (used by review pass tests). */
   setPrStatus(issueId: number, status: PrStatus): void {
     this.prStatuses.set(issueId, status);
+    if (status.url) {
+      this.issuePrs.set(issueId, [{
+        url: status.url,
+        title: status.title,
+        sourceBranch: status.sourceBranch,
+        state: status.state,
+        mergeable: status.mergeable,
+        isCanonical: true,
+      }]);
+    }
+  }
+
+  setIssuePrs(issueId: number, prs: IssuePrSummary[]): void {
+    this.issuePrs.set(issueId, prs);
+    const canonical = prs.find((pr) => pr.isCanonical) ?? prs[0];
+    if (canonical) {
+      this.prStatuses.set(issueId, {
+        url: canonical.url,
+        title: canonical.title,
+        sourceBranch: canonical.sourceBranch,
+        state: canonical.state,
+        mergeable: canonical.mergeable,
+      });
+    }
   }
 
   /** Get calls filtered by method name. */
@@ -123,6 +150,7 @@ export class TestProvider implements IssueProvider {
     this.comments.clear();
     this.labels.clear();
     this.prStatuses.clear();
+    this.issuePrs.clear();
     this.mergedMrUrls.clear();
     this.mergePrFailures.clear();
     this.prDiffs.clear();
@@ -246,6 +274,10 @@ export class TestProvider implements IssueProvider {
   async getPrStatus(issueId: number): Promise<PrStatus> {
     this.calls.push({ method: "getPrStatus", args: { issueId } });
     return this.prStatuses.get(issueId) ?? { state: "closed", url: null };
+  }
+
+  async listPrsForIssue(issueId: number): Promise<IssuePrSummary[]> {
+    return this.issuePrs.get(issueId) ?? [];
   }
 
   async mergePr(issueId: number): Promise<void> {

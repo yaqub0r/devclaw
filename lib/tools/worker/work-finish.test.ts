@@ -72,11 +72,13 @@ describe("work_finish PR validation", () => {
         prHasReaction: () => Promise<boolean>;
         reactToPr: (_issueId: number, _emoji: string) => Promise<void>;
         getPrStatus: (_issueId: number) => Promise<any>;
+        listPrsForIssue: (_issueId: number) => Promise<any[]>;
       };
       let reacted = false;
       provider.prHasReaction = async () => false;
       provider.reactToPr = async () => { reacted = true; };
       provider.getPrStatus = async () => ({ state: PrState.CLOSED, url: null });
+      provider.listPrsForIssue = async () => [{ state: PrState.OPEN, url: "https://github.com/test/repo/pull/105", isCanonical: true }];
 
       const runCommand = async (args: string[]) => {
         if (args[0] === "git") return { stdout: "feature/existing-pr\n", stderr: "", exitCode: 0 };
@@ -106,6 +108,7 @@ describe("work_finish PR validation", () => {
         prHasReaction: () => Promise<boolean>;
         reactToPr: (_issueId: number, _emoji: string) => Promise<void>;
         getPrStatus: (_issueId: number) => Promise<any>;
+        listPrsForIssue: (_issueId: number) => Promise<any[]>;
       };
       let issueLookupCount = 0;
       provider.prHasReaction = async () => true;
@@ -114,6 +117,7 @@ describe("work_finish PR validation", () => {
         issueLookupCount++;
         return { state: PrState.CLOSED, url: null };
       };
+      provider.listPrsForIssue = async () => [{ state: PrState.OPEN, url: "https://github.com/test/repo/pull/105", isCanonical: true }];
 
       const runCommand = async (args: string[]) => {
         if (args[0] === "git") return { stdout: "feature/existing-pr\n", stderr: "", exitCode: 0 };
@@ -199,23 +203,17 @@ describe("work_finish PR validation", () => {
       assert.equal(provider.callsTo("getPrStatus").length, 1);
     });
 
-    it("rejects completion when multiple open PRs make the canonical PR ambiguous", async () => {
+    it("rejects completion when multiple active PRs are linked to the issue", async () => {
       const provider = new TestProvider();
-      provider.setPrStatus(42, {
-        state: PrState.OPEN,
-        url: "https://github.com/test/repo/pull/43",
-        ambiguous: true,
-        reason: "multiple_open_prs",
-        candidates: [
-          { url: "https://github.com/test/repo/pull/42", state: "OPEN", sourceBranch: "feature/42-a" },
-          { url: "https://github.com/test/repo/pull/43", state: "OPEN", sourceBranch: "feature/42-b" },
-        ],
-      });
+      provider.setIssuePrs(42, [
+        { state: PrState.OPEN, url: "https://github.com/test/repo/pull/38", sourceBranch: "feature/42-old", mergeable: false },
+        { state: PrState.OPEN, url: "https://github.com/test/repo/pull/39", sourceBranch: "feature/42-new", mergeable: true, isCanonical: true },
+      ]);
 
-      const runCommand = async () => ({ stdout: "feature/42-b\n", stderr: "", exitCode: 0 });
+      const runCommand = async () => ({ stdout: "feature/42-new\n", stderr: "", exitCode: 0 });
       await assert.rejects(
         () => validatePrExistsForDeveloper(42, tempDir, provider as any, runCommand as any, tempDir, "devclaw"),
-        /multiple PRs are linked to this issue/,
+        /multiple active PRs/,
       );
     });
 
@@ -226,10 +224,12 @@ describe("work_finish PR validation", () => {
         prHasReaction: () => Promise<boolean>;
         reactToPr: (_issueId: number, _emoji: string) => Promise<void>;
         getPrStatus: (_issueId: number) => Promise<any>;
+        listPrsForIssue: (_issueId: number) => Promise<any[]>;
       };
       provider.prHasReaction = async () => true;
       provider.reactToPr = async () => {};
       provider.getPrStatus = async () => ({ state: PrState.CLOSED, url: null });
+      provider.listPrsForIssue = async () => [{ state: PrState.OPEN, url: "https://github.com/test/repo/pull/105", isCanonical: true, mergeable: false }];
 
       const runCommand = async (args: string[]) => {
         if (args[0] === "git") return { stdout: "feature/existing-pr\n", stderr: "", exitCode: 0 };

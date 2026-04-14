@@ -17,6 +17,7 @@ import {
 import { detectStepRouting } from "../queue-scan.js";
 import type { RunCommand } from "../../context.js";
 import { log as auditLog } from "../../audit.js";
+import { summarizePrDrift } from "../../workflow/integrity.js";
 
 /**
  * Scan review-type states and transition issues whose PR check condition is met.
@@ -64,6 +65,18 @@ export async function reviewPass(opts: {
       // from historical comments.
       const isManaged = await provider.issueHasReaction(issue.iid, "eyes");
       if (!isManaged) continue;
+
+      const linkedPrs = await provider.listPrsForIssue(issue.iid);
+      const prDrift = summarizePrDrift(linkedPrs);
+      if (prDrift.hasMultipleActive && prDrift.canonical) {
+        await auditLog(workspaceDir, "review_drift_detected", {
+          project: projectName,
+          issueId: issue.iid,
+          reason: "multiple_active_prs",
+          canonicalPr: prDrift.canonical.url,
+          activePrs: prDrift.active.map((pr) => pr.url),
+        });
+      }
 
       const status = await provider.getPrStatus(issue.iid);
 

@@ -21,6 +21,7 @@ import { getAllRoleIds, isValidResult, getCompletionResults } from "../../roles/
 import { loadWorkflow } from "../../workflow/index.js";
 import { GitHubProvider } from "../../providers/github.js";
 import { PrState, type PrStatus } from "../../providers/provider.js";
+import { summarizePrDrift } from "../../workflow/integrity.js";
 
 /**
  * Get the current git branch name.
@@ -245,6 +246,24 @@ export async function validatePrExistsForDeveloper(
         `Please create a PR first:\n` +
         `  gh pr create --base main --head ${branchName} --title "..." --body "..."\n\n` +
         `Then call work_finish again.`,
+      );
+    }
+
+    const linkedPrs = await provider.listPrsForIssue(issueId);
+    const drift = summarizePrDrift(linkedPrs);
+    if (drift.hasMultipleActive && drift.canonical) {
+      await auditLog(workspaceDir, "work_finish_rejected", {
+        project: projectSlug,
+        issue: issueId,
+        reason: "multiple_active_prs",
+        canonicalPr: drift.canonical.url,
+        activePrs: drift.active.map((pr) => pr.url),
+      });
+      throw new Error(
+        `Cannot complete work_finish(done) while multiple active PRs are linked to issue #${issueId}.\n\n` +
+        `Canonical PR: ${drift.canonical.url}\n` +
+        `Active PRs:\n${drift.active.map((pr) => `  - ${pr.url} (${pr.state}${pr.mergeable === false ? ", conflicting" : ""})`).join("\n")}\n\n` +
+        `Please close or supersede the older PR before marking the issue done.`,
       );
     }
 

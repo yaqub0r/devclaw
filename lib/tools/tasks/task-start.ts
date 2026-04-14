@@ -90,6 +90,16 @@ Examples:
         await provider.transitionLabel(issueId, currentLabel, targetLabel);
       }
 
+      // Clear stale review/test routing labels when resuming from hold states.
+      // These are recomputed later from the canonical workflow path and can otherwise
+      // trap issues in contradictory review/test states.
+      if (currentState.type === StateType.HOLD) {
+        const staleRouting = issue.labels.filter((label) => label.startsWith("review:") || label.startsWith("test:"));
+        if (staleRouting.length > 0) {
+          await provider.removeLabels(issueId, staleRouting);
+        }
+      }
+
       // Apply level hint label if provided
       const targetRole = targetState.role;
       if (levelHint && targetRole) {

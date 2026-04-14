@@ -8,6 +8,7 @@ import {
   type IssueComment,
   type PrStatus,
   type PrReviewComment,
+  type IssuePrSummary,
   PrState,
 } from "./provider.js";
 import type { RunCommand } from "../context.js";
@@ -353,6 +354,50 @@ export class GitHubProvider implements IssueProvider {
     if (terminal.ambiguous || terminal.state !== PrState.MERGED) return terminal;
     const mergedPr = merged.find((pr) => pr.url === terminal.url);
     return { ...terminal, state: mergedPr?.reviewDecision === "APPROVED" ? PrState.APPROVED : PrState.MERGED };
+  }
+
+
+  async listPrsForIssue(issueId: number): Promise<IssuePrSummary[]> {
+    const summaries: IssuePrSummary[] = [];
+
+    type OpenPr = { title: string; body: string; headRefName: string; url: string; number: number; reviewDecision: string; mergeable: string };
+    const open = await this.findPrsForIssue<OpenPr>(issueId, "open", "title,body,headRefName,url,number,reviewDecision,mergeable");
+    for (const pr of open) {
+      let state: PrState;
+      if (pr.reviewDecision === "APPROVED") state = PrState.APPROVED;
+      else if (pr.reviewDecision === "CHANGES_REQUESTED") state = PrState.CHANGES_REQUESTED;
+      else if (await this.hasChangesRequestedReview(pr.number)) state = PrState.CHANGES_REQUESTED;
+      else if (await this.hasUnacknowledgedReviews(pr.number)) state = PrState.HAS_COMMENTS;
+      else state = (await this.hasConversationComments(pr.number)) ? PrState.HAS_COMMENTS : PrState.OPEN;
+
+      const mergeable = pr.mergeable === "CONFLICTING" ? false
+        : pr.mergeable === "MERGEABLE" ? true
+        : undefined;
+      summaries.push({ state, url: pr.url, title: pr.title, sourceBranch: pr.headRefName, mergeable });
+    }
+
+    type MergedPr = { title: string; body: string; headRefName: string; url: string; reviewDecision: string | null };
+    const merged = await this.findPrsForIssue<MergedPr>(issueId, "merged", "title,body,headRefName,url,reviewDecision");
+    for (const pr of merged) {
+      summaries.push({
+        state: pr.reviewDecision === "APPROVED" ? PrState.APPROVED : PrState.MERGED,
+        url: pr.url,
+        title: pr.title,
+        sourceBranch: pr.headRefName,
+      });
+    }
+
+    const allPrs = await this.findPrsViaTimeline(issueId, "all");
+    for (const pr of allPrs ?? []) {
+      if (pr.state === "CLOSED") summaries.push({ state: PrState.CLOSED, url: pr.url, title: pr.title, sourceBranch: pr.headRefName });
+    }
+
+    const seen = new Set<string>();
+    return summaries.filter((pr) => {
+      if (!pr.url || seen.has(pr.url)) return false;
+      seen.add(pr.url);
+      return true;
+    });
   }
 
   /**

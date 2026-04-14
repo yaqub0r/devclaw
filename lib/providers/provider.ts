@@ -63,6 +63,15 @@ export type PrStatus = {
   }>;
 };
 
+export type IssuePrSummary = {
+  url: string;
+  title?: string;
+  sourceBranch?: string;
+  state: PrState;
+  mergeable?: boolean;
+  isCanonical?: boolean;
+};
+
 /** A review comment on a PR/MR. */
 export type PrReviewComment = {
   id: number;
@@ -97,6 +106,7 @@ export interface IssueProvider {
   reopenIssue(issueId: number): Promise<void>;
   getMergedMRUrl(issueId: number): Promise<string | null>;
   getPrStatus(issueId: number): Promise<PrStatus>;
+  listPrsForIssue(issueId: number): Promise<IssuePrSummary[]>;
   mergePr(issueId: number): Promise<void>;
   getPrDiff(issueId: number): Promise<string | null>;
   /** Get review comments on the PR linked to an issue. */

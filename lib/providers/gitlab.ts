@@ -8,6 +8,7 @@ import {
   type IssueComment,
   type PrStatus,
   type PrReviewComment,
+  type IssuePrSummary,
   PrState,
 } from "./provider.js";
 import type { RunCommand } from "../context.js";
@@ -232,6 +233,32 @@ export class GitLabProvider implements IssueProvider {
         url: mr.web_url, title: mr.title, sourceBranch: mr.source_branch, state: "CLOSED", mergedAt: mr.merged_at, number: mr.iid,
       })),
     });
+  }
+
+
+  async listPrsForIssue(issueId: number): Promise<IssuePrSummary[]> {
+    const mrs = await this.getRelatedMRs(issueId);
+    const summaries: IssuePrSummary[] = [];
+    for (const mr of mrs) {
+      if (mr.state === "opened") {
+        const approved = await this.isMrApproved(mr.iid);
+        let state: PrState;
+        if (approved) state = PrState.APPROVED;
+        else if (await this.hasUnresolvedDiscussions(mr.iid)) state = PrState.CHANGES_REQUESTED;
+        else state = (await this.hasConversationComments(mr.iid)) ? PrState.HAS_COMMENTS : PrState.OPEN;
+        const mergeable = await this.isMrMergeable(mr.iid);
+        summaries.push({ state, url: mr.web_url, title: mr.title, sourceBranch: mr.source_branch, mergeable });
+        continue;
+      }
+      if (mr.state === "merged") {
+        summaries.push({ state: PrState.MERGED, url: mr.web_url, title: mr.title, sourceBranch: mr.source_branch });
+        continue;
+      }
+      if (mr.state === "closed") {
+        summaries.push({ state: PrState.CLOSED, url: mr.web_url, title: mr.title, sourceBranch: mr.source_branch });
+      }
+    }
+    return summaries;
   }
 
   /** Check if an MR has unresolved discussion threads (proxy for changes requested). */
