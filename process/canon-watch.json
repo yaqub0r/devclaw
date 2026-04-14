@@ -1,0 +1,15 @@
+{
+  "watch": [
+    "AGENTS.md",
+    "IDENTITY.md",
+    "SOUL.md",
+    "USER.md",
+    "CAPABILITIES.md",
+    "MEMORY.md",
+    "identity/current.md",
+    "soul/current.md",
+    "user/current.md",
+    "capabilities/github.md",
+    "process/canon-guardrails.md"
+  ]
+}

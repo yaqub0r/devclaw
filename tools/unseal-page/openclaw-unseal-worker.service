@@ -1,0 +1,15 @@
+[Unit]
+Description=OpenClaw unseal worker
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/sai/.openclaw/workspace/tools/unseal-page
+ExecStart=/usr/bin/bash /home/sai/.openclaw/workspace/tools/unseal-page/unlock-loop.sh
+Restart=always
+RestartSec=2
+Environment=UNSEAL_STATE_DIR=/home/sai/.openclaw/workspace/state/unseal
+Environment=LPASS_USER=sai@yaq.rip
+
+[Install]
+WantedBy=default.target
