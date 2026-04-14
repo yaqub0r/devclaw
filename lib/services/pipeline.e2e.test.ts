@@ -398,6 +398,37 @@ describe("E2E pipeline", () => {
       h.provider.seedIssue({ iid: 50, title: "Fix CSS", labels: ["Doing"] });
     });
 
+    it("should clear stale review and test residue when moving Doing → Refining", async () => {
+      h.provider.seedIssue({
+        iid: 51,
+        title: "Needs human input",
+        labels: ["Doing", "review:human", "test:skip", "developer:junior:Goldia"],
+      });
+
+      const output = await executeCompletion({
+        workspaceDir: h.workspaceDir,
+        projectSlug: h.project.slug,
+        channels: h.project.channels,
+        role: "developer",
+        result: "blocked",
+        issueId: 51,
+        summary: "Need product decision",
+        provider: h.provider,
+        repoPath: "/tmp/test-repo",
+        projectName: "test-project",
+        runCommand: h.runCommand,
+      });
+
+      assert.strictEqual(output.labelTransition, "Doing → Refining");
+      const issue = await h.provider.getIssue(51);
+      assert.ok(issue.labels.includes("Refining"));
+      assert.ok(!issue.labels.includes("review:human"));
+      assert.ok(!issue.labels.includes("test:skip"));
+      assert.ok(!issue.labels.some((label) => label.startsWith("developer:")));
+      const removeCalls = h.provider.callsTo("removeLabels");
+      assert.ok(removeCalls.some((call) => call.args.issueId === 51));
+    });
+
     it("should transition Doing → Refining, no close/reopen", async () => {
       const output = await executeCompletion({
         workspaceDir: h.workspaceDir,

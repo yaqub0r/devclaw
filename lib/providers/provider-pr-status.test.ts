@@ -82,6 +82,45 @@ describe("GitHubProvider.getPrStatus — closed PR handling", () => {
     assert.strictEqual(status.sourceBranch, "feature/7-some-work");
   });
 
+  it("uses the newest open PR as the canonical PR when multiple PRs exist", async () => {
+    const provider = new GitHubProvider({ repoPath: "/fake", runCommand: mockRunCommand });
+
+    (provider as any).findPrsForIssue = async (_id: number, state: string) => {
+      if (state === "open") {
+        return [
+          {
+            title: "feat: older pr",
+            body: "",
+            headRefName: "feature/42-first",
+            url: "https://github.com/owner/repo/pull/9",
+            number: 9,
+            reviewDecision: "",
+            mergeable: "MERGEABLE",
+          },
+          {
+            title: "feat: surviving pr",
+            body: "",
+            headRefName: "feature/42-second",
+            url: "https://github.com/owner/repo/pull/12",
+            number: 12,
+            reviewDecision: "",
+            mergeable: "MERGEABLE",
+          },
+        ];
+      }
+      return [];
+    };
+    (provider as any).hasChangesRequestedReview = async () => false;
+    (provider as any).hasUnacknowledgedReviews = async () => false;
+    (provider as any).hasConversationComments = async () => false;
+
+    const status = await provider.getPrStatus(42);
+
+    assert.strictEqual(status.state, PrState.OPEN);
+    assert.strictEqual(status.url, "https://github.com/owner/repo/pull/12");
+    assert.strictEqual(status.sourceBranch, "feature/42-second");
+  });
+
   it("prefers open PR over closed PR", async () => {
     const provider = new GitHubProvider({ repoPath: "/fake", runCommand: mockRunCommand });
 

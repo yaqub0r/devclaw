@@ -28,6 +28,18 @@ type GhIssue = {
   url: string;
 };
 
+function newestPrFirst<T extends { number?: number; url?: string }>(prs: T[]): T[] {
+  return [...prs].sort((a, b) => {
+    const num = (b.number ?? 0) - (a.number ?? 0);
+    if (num !== 0) return num;
+    return String(b.url ?? "").localeCompare(String(a.url ?? ""));
+  });
+}
+
+function canonicalPr<T extends { number?: number; url?: string }>(prs: T[]): T | undefined {
+  return newestPrFirst(prs)[0];
+}
+
 function toIssue(gh: GhIssue): Issue {
   return {
     iid: gh.number, title: gh.title, description: gh.body ?? "",
@@ -298,7 +310,7 @@ export class GitHubProvider implements IssueProvider {
   async getPrStatus(issueId: number): Promise<PrStatus> {
     // Check open PRs first — include mergeable for conflict detection
     type OpenPr = { title: string; body: string; headRefName: string; url: string; number: number; reviewDecision: string; mergeable: string };
-    const open = await this.findPrsForIssue<OpenPr>(issueId, "open", "title,body,headRefName,url,number,reviewDecision,mergeable");
+    const open = newestPrFirst(await this.findPrsForIssue<OpenPr>(issueId, "open", "title,body,headRefName,url,number,reviewDecision,mergeable"));
     if (open.length > 0) {
       const pr = open[0];
       let state: PrState;
@@ -333,7 +345,7 @@ export class GitHubProvider implements IssueProvider {
     }
     // Check merged PRs — also fetch reviewDecision to detect approved-then-merged vs self-merged.
     type MergedPr = { title: string; body: string; headRefName: string; url: string; reviewDecision: string | null };
-    const merged = await this.findPrsForIssue<MergedPr>(issueId, "merged", "title,body,headRefName,url,reviewDecision");
+    const merged = newestPrFirst(await this.findPrsForIssue<MergedPr>(issueId, "merged", "title,body,headRefName,url,reviewDecision"));
     if (merged.length > 0) {
       const pr = merged[0];
       const state = pr.reviewDecision === "APPROVED" ? PrState.APPROVED : PrState.MERGED;
@@ -438,25 +450,28 @@ export class GitHubProvider implements IssueProvider {
 
   async mergePr(issueId: number): Promise<void> {
     type OpenPr = { title: string; body: string; headRefName: string; url: string };
-    const prs = await this.findPrsForIssue<OpenPr>(issueId, "open", "title,body,headRefName,url");
-    if (prs.length === 0) throw new Error(`No open PR found for issue #${issueId}`);
-    await this.gh(["pr", "merge", prs[0].url, "--merge"]);
+    const prs = newestPrFirst(await this.findPrsForIssue<OpenPr>(issueId, "open", "title,body,headRefName,url,number"));
+    const pr = canonicalPr(prs);
+    if (!pr?.url) throw new Error(`No open PR found for issue #${issueId}`);
+    await this.gh(["pr", "merge", pr.url, "--merge"]);
   }
 
   async getPrDiff(issueId: number): Promise<string | null> {
     type OpenPr = { title: string; body: string; headRefName: string; number: number };
-    const prs = await this.findPrsForIssue<OpenPr>(issueId, "open", "title,body,headRefName,number");
-    if (prs.length === 0) return null;
+    const prs = newestPrFirst(await this.findPrsForIssue<OpenPr>(issueId, "open", "title,body,headRefName,number"));
+    const pr = canonicalPr(prs);
+    if (!pr?.number) return null;
     try {
-      return await this.gh(["pr", "diff", String(prs[0].number)]);
+      return await this.gh(["pr", "diff", String(pr.number)]);
     } catch { return null; }
   }
 
   async getPrReviewComments(issueId: number): Promise<PrReviewComment[]> {
     type OpenPr = { title: string; body: string; headRefName: string; number: number };
-    const prs = await this.findPrsForIssue<OpenPr>(issueId, "open", "title,body,headRefName,number");
-    if (prs.length === 0) return [];
-    const prNumber = prs[0].number;
+    const prs = newestPrFirst(await this.findPrsForIssue<OpenPr>(issueId, "open", "title,body,headRefName,number"));
+    const pr = canonicalPr(prs);
+    if (!pr?.number) return [];
+    const prNumber = pr.number;
     const comments: PrReviewComment[] = [];
 
     try {
@@ -546,10 +561,11 @@ export class GitHubProvider implements IssueProvider {
     try {
       // GitHub PRs are also issues — use the same reactions API with the PR number
       type OpenPr = { title: string; body: string; headRefName: string; number: number };
-      const prs = await this.findPrsForIssue<OpenPr>(issueId, "open", "title,body,headRefName,number");
-      if (prs.length === 0) return;
+      const prs = newestPrFirst(await this.findPrsForIssue<OpenPr>(issueId, "open", "title,body,headRefName,number"));
+      const pr = canonicalPr(prs);
+      if (!pr?.number) return;
       await this.gh([
-        "api", `repos/:owner/:repo/issues/${prs[0].number}/reactions`,
+        "api", `repos/:owner/:repo/issues/${pr.number}/reactions`,
         "--method", "POST",
         "--field", `content=${emoji}`,
       ]);
@@ -559,9 +575,10 @@ export class GitHubProvider implements IssueProvider {
   async prHasReaction(issueId: number, emoji: string): Promise<boolean> {
     try {
       type OpenPr = { title: string; body: string; headRefName: string; number: number };
-      const prs = await this.findPrsForIssue<OpenPr>(issueId, "open", "title,body,headRefName,number");
-      if (prs.length === 0) return false;
-      const raw = await this.gh(["api", `repos/:owner/:repo/issues/${prs[0].number}/reactions`]);
+      const prs = newestPrFirst(await this.findPrsForIssue<OpenPr>(issueId, "open", "title,body,headRefName,number"));
+      const pr = canonicalPr(prs);
+      if (!pr?.number) return false;
+      const raw = await this.gh(["api", `repos/:owner/:repo/issues/${pr.number}/reactions`]);
       const reactions = JSON.parse(raw) as Array<{ content: string }>;
       return reactions.some((r) => r.content === emoji);
     } catch { return false; }
@@ -598,12 +615,13 @@ export class GitHubProvider implements IssueProvider {
    */
   async reactToPrReview(issueId: number, reviewId: number, emoji: string): Promise<void> {
     try {
-      // We need the PR number, not the issue ID. Find the PR first.
+      // We need the PR number, not the issue ID. Find the canonical open PR first.
       type OpenPr = { title: string; body: string; headRefName: string; number: number };
-      const prs = await this.findPrsForIssue<OpenPr>(issueId, "open", "title,body,headRefName,number");
-      if (prs.length === 0) return;
+      const prs = newestPrFirst(await this.findPrsForIssue<OpenPr>(issueId, "open", "title,body,headRefName,number"));
+      const pr = canonicalPr(prs);
+      if (!pr?.number) return;
       await this.gh([
-        "api", `repos/:owner/:repo/pulls/${prs[0].number}/reviews/${reviewId}/reactions`,
+        "api", `repos/:owner/:repo/pulls/${pr.number}/reviews/${reviewId}/reactions`,
         "--method", "POST",
         "--field", `content=${emoji}`,
       ]);
@@ -629,10 +647,11 @@ export class GitHubProvider implements IssueProvider {
   async prReviewHasReaction(issueId: number, reviewId: number, emoji: string): Promise<boolean> {
     try {
       type OpenPr = { title: string; body: string; headRefName: string; number: number };
-      const prs = await this.findPrsForIssue<OpenPr>(issueId, "open", "title,body,headRefName,number");
-      if (prs.length === 0) return false;
+      const prs = newestPrFirst(await this.findPrsForIssue<OpenPr>(issueId, "open", "title,body,headRefName,number"));
+      const pr = canonicalPr(prs);
+      if (!pr?.number) return false;
       const raw = await this.gh([
-        "api", `repos/:owner/:repo/pulls/${prs[0].number}/reviews/${reviewId}/reactions`,
+        "api", `repos/:owner/:repo/pulls/${pr.number}/reviews/${reviewId}/reactions`,
       ]);
       const reactions = JSON.parse(raw) as Array<{ content: string }>;
       return reactions.some((r) => r.content === emoji);

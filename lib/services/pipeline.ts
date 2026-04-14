@@ -11,6 +11,7 @@ import { notify, getNotificationConfig } from "../dispatch/notify.js";
 import { log as auditLog } from "../audit.js";
 import { loadConfig } from "../config/index.js";
 import { detectStepRouting } from "./queue-scan.js";
+import { staleWorkflowLabelsForTransition } from "./workflow-normalization.js";
 import {
   DEFAULT_WORKFLOW,
   Action,
@@ -206,6 +207,12 @@ export async function executeCompletion(opts: {
   // Finally deactivate worker (last — ensures label is set even if deactivation fails)
   
   await provider.transitionLabel(issueId, rule.from as StateLabel, rule.to as StateLabel);
+
+  const staleLabels = staleWorkflowLabelsForTransition(issue.labels, rule.to as StateLabel, workflow);
+  if (staleLabels.length > 0) {
+    await provider.removeLabels(issueId, staleLabels);
+    issue.labels = issue.labels.filter((label) => !staleLabels.includes(label));
+  }
 
   // Execute post-transition actions
   for (const action of rule.actions) {
