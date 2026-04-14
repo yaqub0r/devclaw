@@ -138,6 +138,43 @@ describe("work_finish PR validation", () => {
       assert.equal(issueLookupCount, 0);
     });
 
+    it("accepts a branch-matched PR that is already merged externally", async () => {
+      const provider = Object.create(GitHubProvider.prototype) as GitHubProvider & {
+        prHasReaction: () => Promise<boolean>;
+        reactToPr: (_issueId: number, _emoji: string) => Promise<void>;
+        getPrStatus: (_issueId: number) => Promise<any>;
+      };
+      let issueLookupCount = 0;
+      provider.prHasReaction = async () => true;
+      provider.reactToPr = async () => {};
+      provider.getPrStatus = async () => {
+        issueLookupCount++;
+        return { state: PrState.CLOSED, url: null };
+      };
+
+      const runCommand = async (args: string[]) => {
+        if (args[0] === "git") return { stdout: "feature/existing-pr\n", stderr: "", exitCode: 0 };
+        if (args[0] === "gh" && args[1] === "pr" && args[2] === "list") {
+          return {
+            stdout: JSON.stringify([{
+              url: "https://github.com/test/repo/pull/105",
+              title: "existing pr",
+              state: "MERGED",
+              headRefName: "feature/existing-pr",
+              reviewDecision: "APPROVED",
+              mergeable: null,
+            }]),
+            stderr: "",
+            exitCode: 0,
+          };
+        }
+        throw new Error(`unexpected command: ${args.join(" ")}`);
+      };
+
+      await validatePrExistsForDeveloper(108, tempDir, provider, runCommand as any, tempDir, "devclaw");
+      assert.equal(issueLookupCount, 0, 'merged branch lookup should still be canonical without falling back to issue scan');
+    });
+
     it("validates explicit URLs for non-GitHub providers against the linked PR", async () => {
       const provider = new TestProvider();
       provider.setPrStatus(42, {
