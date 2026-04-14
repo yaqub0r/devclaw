@@ -25,6 +25,7 @@ import { getActiveLabel, loadWorkflow } from "../../workflow/index.js";
 import { selectLevel } from "../../roles/model-selector.js";
 import { resolveModel } from "../../roles/index.js";
 import { findDuplicateCandidates, buildDuplicateConfirmationMessage } from "../../services/issue-dedup.js";
+import { getDispatchStatus, summarizeDispatchStatus, upsertDispatchStatus } from "../../services/dispatch-status.js";
 
 /** Queue label for research tasks. */
 const TO_RESEARCH_LABEL = "To Research";
@@ -219,6 +220,16 @@ Example:
         runCommand: ctx.runCommand,
       });
 
+      const progressCommentId = await provider.addComment(
+        issue.iid,
+        `📡 Research dispatch started.\n\n- Architect: **${level}**\n- Session: \`${dr.sessionKey}\`\n- Delivery: session prepared, awaiting architect output.`,
+      );
+      provider.reactToIssueComment(issue.iid, progressCommentId, "eyes").catch(() => {});
+      await upsertDispatchStatus(workspaceDir, { projectSlug: project.slug, issueId: issue.iid, role }, {
+        progressCommentId,
+      }).catch(() => {});
+      const dispatchStatus = await getDispatchStatus(workspaceDir, { projectSlug: project.slug, issueId: issue.iid, role });
+
       return jsonResult({
         success: true,
         issue: { id: issue.iid, title: issue.title, url: issue.web_url, label: toLabel },
@@ -227,7 +238,8 @@ Example:
           level: dr.level,
           model: dr.model,
           sessionAction: dr.sessionAction,
-          status: "in_progress",
+          status: summarizeDispatchStatus(dispatchStatus),
+          dispatch: dispatchStatus,
         },
         project: project.name,
         duplicateCheck: {

@@ -98,9 +98,22 @@ Plugin dispatch (heartbeat → dispatchTask):
   4. Update projects.json, write audit log
 ```
 
-The orchestrator's only job is to advance issues to the queue via `task_start`. The heartbeat handles everything else — level assignment, session creation, task dispatch, state update, audit logging — as deterministic plugin code.
+The orchestrator's only job is to advance issues to the queue via `task_start`. The heartbeat handles everything else, level assignment, session creation, task dispatch, state update, audit logging, as deterministic plugin code.
 
 **Why this matters:** Previously the plugin returned instructions like `{ sessionAction: "spawn", model: "sonnet" }` and the agent had to correctly call `sessions_spawn` with the right params. This was the fragile handoff point where agents would forget `cleanup: "keep"`, use wrong models, or corrupt session state. Moving dispatch into the plugin eliminates that entire class of errors.
+
+### Research dispatch observability
+
+Research work now persists a per-issue dispatch status record in `devclaw/dispatch-status.json`. For architect research issues, DevClaw tracks four separate facts that used to be conflated:
+
+1. the issue label moved into `Researching`
+2. the gateway accepted `sessions.patch`
+3. the gateway accepted the `agent` delivery request
+4. the worker produced confirmed tracker-visible output, either a comment or `work_finish`
+
+This lets operator-facing tools distinguish states like `delivery_failed`, `session_alive_waiting_for_output`, `output_confirmed`, and `completed`.
+
+A live gateway session is not treated as equivalent to visible worker progress. The gateway only proves that a session exists. Confirmed progress is recorded only after `task_comment` or `work_finish` succeeds, because those are the first durable signals the operator can actually see in the tracker.
 
 **Session persistence:** Sessions created via `sessions.patch` persist indefinitely (no auto-cleanup). The plugin manages lifecycle explicitly through the `health` tool.
 

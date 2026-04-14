@@ -11,8 +11,11 @@ import { log as auditLog } from "../../audit.js";
 import { getStateLabelsByType } from "../../services/queue.js";
 import { requireWorkspaceDir, resolveChannelId, resolveProject, resolveProvider } from "../helpers.js";
 import { loadConfig } from "../../config/index.js";
+import { fetchGatewaySessions, isSessionAlive } from "../../services/gateway-sessions.js";
+import { getDispatchStatus, summarizeDispatchStatus } from "../../services/dispatch-status.js";
 
 type IssueSummary = { id: number; title: string; url: string };
+type ResearchStatusSummary = IssueSummary & { researchStatus: string; sessionKey?: string; workerName?: string };
 
 export function createTasksStatusTool(ctx: PluginContext) {
   return (toolCtx: ToolContext) => ({
@@ -72,6 +75,19 @@ export function createTasksStatusTool(ctx: PluginContext) {
         };
       }
 
+      const gatewaySessions = await fetchGatewaySessions(undefined, ctx.runCommand);
+      const researching = active["Researching"]?.issues ?? [];
+      const research = await Promise.all(researching.map(async (item): Promise<ResearchStatusSummary> => {
+        const status = await getDispatchStatus(workspaceDir, { projectSlug: project.slug, issueId: item.id, role: "architect" });
+        const sessionAlive = status?.sessionKey ? isSessionAlive(status.sessionKey, gatewaySessions) : false;
+        return {
+          ...item,
+          researchStatus: summarizeDispatchStatus(status, sessionAlive),
+          sessionKey: status?.sessionKey,
+          workerName: status?.workerName,
+        };
+      }));
+
       // Totals
       const totalHold = Object.values(hold).reduce((s, c) => s + c.count, 0);
       const totalActive = Object.values(active).reduce((s, c) => s + c.count, 0);
@@ -99,6 +115,7 @@ export function createTasksStatusTool(ctx: PluginContext) {
         hold,
         active,
         queue,
+        research,
       });
     },
   });

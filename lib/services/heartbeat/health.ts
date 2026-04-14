@@ -51,6 +51,7 @@ import {
 import { isSessionAlive, type SessionLookup } from "../gateway-sessions.js";
 import { sendToAgent } from "../../dispatch/session.js";
 import type { RunCommand } from "../../context.js";
+import { getDispatchStatus } from "../dispatch-status.js";
 
 // Re-export for consumers that import from health.ts
 export { fetchGatewaySessions, isSessionAlive, type GatewaySession, type SessionLookup } from "../gateway-sessions.js";
@@ -80,6 +81,7 @@ export type HealthIssue = {
     | "orphaned_label"       // Case 7: active label but no worker tracking it
     | "context_overflow"     // Case 1c: active worker but session hit context limit (abortedLastRun)
     | "session_stalled"     // Active worker but session inactive for >stallTimeoutMinutes
+    | "research_waiting_for_output"
     | "stateless_issue";     // Case 8: open managed issue with no state label (#473)
   severity: "critical" | "warning";
   project: string;
@@ -459,6 +461,7 @@ export async function checkWorkerHealth(opts: {
               sendToAgent(sessionKey, NUDGE_MESSAGE, {
                 agentId: opts.agentId,
                 projectName: project.name,
+                projectSlug,
                 issueId: issueIdNum!,
                 role,
                 level,
@@ -485,6 +488,53 @@ export async function checkWorkerHealth(opts: {
           }).catch(() => {});
           fixes.push(fix);
           continue;
+        }
+      }
+
+      if (role === "architect" && slot.active && issueIdNum && sessionKey && sessions && isSessionAlive(sessionKey, sessions)) {
+        const dispatchStatus = await getDispatchStatus(workspaceDir, { projectSlug, issueId: issueIdNum, role });
+        const labelMovedAtMs = dispatchStatus?.labelMovedAt ? new Date(dispatchStatus.labelMovedAt).getTime() : workerStartTime;
+        if (labelMovedAtMs && !dispatchStatus?.firstWorkerOutputAt && !dispatchStatus?.completionOutputConfirmedAt && (Date.now() - labelMovedAtMs) > GRACE_PERIOD_MS) {
+          const fix: HealthFix = {
+            issue: {
+              type: "research_waiting_for_output",
+              severity: "warning",
+              project: project.name,
+              projectSlug,
+              role,
+              level,
+              sessionKey,
+              issueId: slot.issueId,
+              slotIndex,
+              message: `ARCHITECT ${level}[${slotIndex}] session is alive but research issue #${issueIdNum} has no confirmed output after grace window`,
+            },
+            fixed: false,
+          };
+          if (autoFix) {
+            sendToAgent(sessionKey, NUDGE_MESSAGE, {
+              agentId: opts.agentId,
+              projectName: project.name,
+              projectSlug,
+              issueId: issueIdNum,
+              role,
+              level,
+              slotIndex,
+              workspaceDir,
+              runCommand: opts.runCommand,
+            });
+            fix.nudgeSent = true;
+            fix.fixed = true;
+          }
+          await auditLog(workspaceDir, "research_waiting_for_output", {
+            project: project.name,
+            projectSlug,
+            role,
+            level,
+            sessionKey,
+            issueId: slot.issueId,
+            slotIndex,
+          }).catch(() => {});
+          fixes.push(fix);
         }
       }
 
