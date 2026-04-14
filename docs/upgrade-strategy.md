@@ -9,14 +9,13 @@ That split keeps upgrades understandable and repeatable.
 
 ## Current convention
 
-- Upstream repo: `yaqub0r/devclaw`
-- Default branch: `main`
-- Custom release branch pattern: `release/devclaw-<identifier>`
+- Upstream source repo: `laurentenhoor/devclaw`
+- Fork repo: `yaqub0r/devclaw`
+- Fork base branch: `main`
+- Local operational branch: `release/devclaw-local`
 - Temporary upgrade branch pattern: `upgrade/devclaw-<target-version>`
 
-Current branch created for local customization tracking:
-
-- `release/devclaw-local-2026-04-12`
+The dated branch `release/devclaw-local-2026-04-12` should be treated as the prior release snapshot that is being consolidated into `release/devclaw-local`.
 
 ## 1) Prefer supported overrides first
 
@@ -31,9 +30,9 @@ Typical override locations live outside this source repo, for example:
 
 Those should survive normal DevClaw upgrades.
 
-## 2) Use release branches for source patches
+## 2) Use the release branch for source patches
 
-If the change modifies DevClaw product behavior, plugin logic, or implementation details not exposed through config, carry it on a release branch.
+If the change modifies DevClaw product behavior, plugin logic, or implementation details not exposed through config, carry it on `release/devclaw-local`.
 
 Examples:
 
@@ -46,12 +45,14 @@ Examples:
 
 ### Stable branches
 
-- `main` tracks the base integration line
-- `release/devclaw-<identifier>` carries validated custom source patches
+- `main` tracks the fork base and upstream-sync line
+- `release/devclaw-local` carries validated local custom source patches
 
 ### Temporary branches
 
-- `upgrade/devclaw-<target-version>` is used while rebasing or cherry-picking custom patches onto a newer upstream base
+- `feature/<issue>-<slug>` for issue work
+- `upgrade/devclaw-<target-version>` while rebasing or cherry-picking custom patches onto a newer base
+- ad hoc validation branches only when necessary, and they should be retired after use
 
 ### Commit style
 
@@ -67,14 +68,15 @@ Prefer small commits with clear intent. Recommended prefixes:
 When upgrading DevClaw to a newer upstream version:
 
 1. Fetch upstream changes.
-2. Review the custom commits that must be preserved.
-3. Create `upgrade/devclaw-<new-version>` from the new upstream base.
-4. Reapply custom commits using cherry-pick or rebase.
-5. Resolve conflicts.
-6. Test behavior.
-7. Create or update `release/devclaw-<new-version>`.
-8. Merge the validated release branch as desired.
-9. Update this document if the process changes.
+2. Update or review the fork base line on `main`.
+3. Review the custom commits that must be preserved on `release/devclaw-local`.
+4. Create `upgrade/devclaw-<new-version>` from the desired newer base.
+5. Reapply custom commits using cherry-pick or rebase.
+6. Resolve conflicts.
+7. Test behavior.
+8. Fast-forward or rebuild `release/devclaw-local` from the validated result.
+9. Retire obsolete dated release or validation branches after confirming recoverability.
+10. Update this document if the process changes.
 
 ### Cherry-pick vs rebase
 
@@ -100,12 +102,14 @@ Avoid:
 - editing installed package files without git history
 - mixing source patches with runtime state or scratch files
 - relying on memory or chat history alone to reconstruct customizations
+- treating temporary feature or validation branches as quasi-permanent integration lanes
 
 ## 7) Future operator rule
 
 Before making a change, ask:
 
 - Can this live in workspace config or prompts? If yes, use overrides.
-- Does this change DevClaw source behavior? If yes, do it on a release branch.
+- Does this change DevClaw source behavior? If yes, do it on `release/devclaw-local`.
+- Is this meant to stay upstream-compatible? If yes, keep `main` clean and isolate the local patch on the release branch.
 
 That is the standing policy for this repository.
