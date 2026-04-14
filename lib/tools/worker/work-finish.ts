@@ -196,16 +196,12 @@ async function resolveDeveloperPrStatus(
     };
   }
 
-  const byIssue = await getIssuePrStatus();
-  if (byIssue.state === PrState.MERGED && byIssue.url) {
-    return { prStatus: byIssue, branchName: byIssue.sourceBranch || branchName, source: "issue" };
-  }
-
   if (branchName && provider instanceof GitHubProvider) {
     const byBranch = await getGitHubPrStatusFromBranch(branchName, repoPath, runCommand);
     if (byBranch?.url) return { prStatus: byBranch, branchName, source: "branch" };
   }
 
+  const byIssue = await getIssuePrStatus();
   if (branchName && byIssue.url && byIssue.sourceBranch === branchName) {
     return { prStatus: byIssue, branchName, source: "branch" };
   }

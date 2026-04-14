@@ -622,9 +622,9 @@ describe("E2E pipeline", () => {
       assert.ok(!issue.labels.includes("To Review"), "Should not have To Review");
     });
 
-    it("should transition To Review → To Improve when PR is closed without merging (url non-null)", async () => {
+    it("should transition To Review → Rejected and clean workflow residue when PR is closed without merging (url non-null)", async () => {
       // After #315: PrState.CLOSED + url non-null = PR was explicitly closed without merging
-      h.provider.seedIssue({ iid: 80, title: "Closed PR feature", labels: ["To Review", "review:human"] });
+      h.provider.seedIssue({ iid: 80, title: "Closed PR feature", labels: ["To Review", "review:human", "test:skip", "developer:senior"] });
       h.provider.setPrStatus(80, { state: "closed", url: "https://example.com/pr/80" });
 
       let prClosedFiredIssueId: number | undefined;
@@ -646,13 +646,13 @@ describe("E2E pipeline", () => {
       assert.strictEqual(transitions, 1, "Should have made 1 transition");
 
       const issue = await h.provider.getIssue(80);
-      assert.ok(issue.labels.includes("To Improve"), `Labels: ${issue.labels}`);
-      assert.ok(!issue.labels.includes("To Review"), "Should not have To Review");
-      assert.ok(!issue.labels.includes("To Test"), "Should NOT have To Test");
+      assert.deepStrictEqual(issue.labels, ["Rejected"]);
+      assert.strictEqual(issue.state, "closed");
 
       // Merge should not have been called
       const mergeCalls = h.provider.callsTo("mergePr");
       assert.strictEqual(mergeCalls.length, 0, "Should not have called mergePr for a closed PR");
+      assert.deepStrictEqual(h.provider.callsTo("removeLabels").at(-1)?.args.labels.sort(), ["review:human", "test:skip", "developer:senior"].sort());
 
       // onPrClosed callback should have fired
       assert.strictEqual(prClosedFiredIssueId, 80, "onPrClosed should fire with correct issue id");
