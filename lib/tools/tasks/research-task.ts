@@ -21,9 +21,10 @@ import { dispatchTask } from "../../dispatch/index.js";
 import { log as auditLog } from "../../audit.js";
 import { requireWorkspaceDir, resolveChannelId, resolveProject, resolveProvider, autoAssignOwnerLabel, applyNotifyLabel } from "../helpers.js";
 import { loadConfig } from "../../config/index.js";
-import { getActiveLabel } from "../../workflow/index.js";
+import { getActiveLabel, loadWorkflow } from "../../workflow/index.js";
 import { selectLevel } from "../../roles/model-selector.js";
 import { resolveModel } from "../../roles/index.js";
+import { findDuplicateCandidates, buildDuplicateConfirmationMessage } from "../../services/issue-dedup.js";
 
 /** Queue label for research tasks. */
 const TO_RESEARCH_LABEL = "To Research";
@@ -82,6 +83,10 @@ Example:
           type: "boolean",
           description: "Preview without executing. Defaults to false.",
         },
+        confirmDuplicate: {
+          type: "boolean",
+          description: "Confirm creation even when DevClaw detects likely overlapping open work. Required for medium/high-confidence duplicate warnings.",
+        },
       },
     },
 
@@ -92,6 +97,7 @@ Example:
       const focusAreas = (params.focusAreas as string[]) ?? [];
       const complexity = (params.complexity as "simple" | "medium" | "complex") ?? "medium";
       const dryRun = (params.dryRun as boolean) ?? false;
+      const confirmDuplicate = (params.confirmDuplicate as boolean) ?? false;
       const workspaceDir = requireWorkspaceDir(toolCtx);
 
       if (!title) throw new Error("title is required");
@@ -99,6 +105,7 @@ Example:
 
       const { project } = await resolveProject(workspaceDir, channelId);
       const { provider } = await resolveProvider(project, ctx.runCommand);
+      const workflow = await loadWorkflow(workspaceDir, project.name);
       const pluginConfig = ctx.pluginConfig;
       const role = "architect";
 
@@ -109,8 +116,14 @@ Example:
       }
       const issueBody = bodyParts.join("\n");
 
+      const openIssues = await provider.listIssues({ state: "open" });
+      const duplicateCheck = findDuplicateCandidates({ title, description: issueBody }, openIssues, workflow);
+
       await auditLog(workspaceDir, "research_task", {
         project: project.name, title, complexity, focusAreas, dryRun,
+        duplicateConfidence: duplicateCheck.confidence,
+        duplicateConfirmed: confirmDuplicate,
+        duplicateCandidates: duplicateCheck.candidates.map((candidate) => candidate.issueId),
       });
 
       // Select level: use complexity hint to guide the heuristic
@@ -126,8 +139,29 @@ Example:
           success: true,
           dryRun: true,
           issue: { title, label: TO_RESEARCH_LABEL },
+          duplicateCheck: {
+            confidence: duplicateCheck.confidence,
+            requiresConfirmation: duplicateCheck.shouldRequireConfirmation,
+            blocked: duplicateCheck.shouldBlockWithoutConfirmation,
+            candidates: duplicateCheck.candidates,
+            summary: duplicateCheck.summary,
+          },
           research: { level, model, status: "dry_run" },
           announcement: `\u{1f4d0} [DRY RUN] Would create research ticket and dispatch ${role} (${level}) for: ${title}`,
+        });
+      }
+
+      if (duplicateCheck.shouldRequireConfirmation && !confirmDuplicate) {
+        return jsonResult({
+          success: false,
+          duplicateCheck: {
+            confidence: duplicateCheck.confidence,
+            requiresConfirmation: true,
+            blocked: duplicateCheck.shouldBlockWithoutConfirmation,
+            candidates: duplicateCheck.candidates,
+            summary: duplicateCheck.summary,
+          },
+          announcement: buildDuplicateConfirmationMessage(duplicateCheck),
         });
       }
 
@@ -196,7 +230,16 @@ Example:
           status: "in_progress",
         },
         project: project.name,
-        announcement: dr.announcement,
+        duplicateCheck: {
+          confidence: duplicateCheck.confidence,
+          requiresConfirmation: false,
+          blocked: false,
+          candidates: duplicateCheck.candidates,
+          summary: duplicateCheck.summary,
+        },
+        announcement: confirmDuplicate && duplicateCheck.candidates.length > 0
+          ? `${dr.announcement}\nConfirmed despite possible overlap with ${duplicateCheck.candidates.map((candidate) => `#${candidate.issueId}`).join(", ")}.`
+          : dr.announcement,
       });
     },
   });
