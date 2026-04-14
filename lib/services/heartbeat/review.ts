@@ -14,9 +14,9 @@ import {
   type WorkflowConfig,
   type StateConfig,
 } from "../../workflow/index.js";
-import { detectStepRouting } from "../queue-scan.js";
 import type { RunCommand } from "../../context.js";
 import { log as auditLog } from "../../audit.js";
+import { getCanonicalReviewStatus, getStaleReviewLabels } from "../pr-reconciliation.js";
 
 /**
  * Scan review-type states and transition issues whose PR check condition is met.
@@ -52,38 +52,31 @@ export async function reviewPass(opts: {
 
     const issues = await provider.listIssuesByLabel(state.label);
     for (const issue of issues) {
-      // Only process issues explicitly marked for human review.
-      // review:agent → agent reviewer pipeline handles merge.
-      // No routing label → treat as agent by default (safe: never auto-merge without explicit human approval).
-      // review:human → human approved on provider; heartbeat handles merge transition.
-      const routing = detectStepRouting(issue.labels, "review");
-      if (routing !== "human") continue;
-
       // Only process issues managed by DevClaw (marked with 👀 on issue body).
       // Old-style issues without the marker are skipped to prevent false triggers
       // from historical comments.
       const isManaged = await provider.issueHasReaction(issue.iid, "eyes");
       if (!isManaged) continue;
 
-      const status = await provider.getPrStatus(issue.iid);
+      const review = await getCanonicalReviewStatus(provider, workflow, issue);
+      const status = review.prStatus;
+      const staleReviewLabels = getStaleReviewLabels(issue, review);
+      if (staleReviewLabels.length > 0) {
+        await provider.removeLabels(issue.iid, staleReviewLabels);
+      }
 
-      if (status.ambiguous) {
-        await auditLog(workspaceDir, "review_ambiguous_pr", {
+      if (review.ambiguous) {
+        await auditLog(workspaceDir, "review_ambiguous", {
           project: projectName,
           issueId: issue.iid,
-          reason: status.reason,
+          state: state.label,
+          reason: review.reason,
           candidates: status.candidates,
         });
-        try {
-          await provider.addComment(
-            issue.iid,
-            `⚠️ DevClaw found multiple candidate PRs for this issue and cannot reconcile review state safely. ` +
-            `Please explicitly supersede or close extras, then retry.\n\n` +
-            (status.candidates ?? []).map((pr) => `- ${pr.state}: ${pr.url}`).join("\n"),
-          );
-        } catch {}
         continue;
       }
+
+      if (!review.needsHumanReview) continue;
 
       // Fallback: no PR found, but work may have been committed directly to base branch.
       // Check git history for commits mentioning this issue number.

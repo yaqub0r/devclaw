@@ -33,7 +33,7 @@ describe('reviewPass ambiguity reconciliation', () => {
 
     assert.strictEqual(transitions, 0);
     assert.strictEqual(provider.callsTo('transitionLabel').length, 0);
-    assert.strictEqual(provider.callsTo('addComment').length, 1);
-    assert.match(provider.callsTo('addComment')[0].args.body, /multiple candidate PRs/i);
+    assert.strictEqual(provider.callsTo('addComment').length, 0);
   });
+
 });

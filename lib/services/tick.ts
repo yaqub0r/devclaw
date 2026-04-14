@@ -22,6 +22,7 @@ import {
   type Role,
 } from "../workflow/index.js";
 import { detectRoleLevelFromLabels, detectStepRouting, findNextIssueForRole } from "./queue-scan.js";
+import { getCanonicalReviewStatus } from "./pr-reconciliation.js";
 
 // ---------------------------------------------------------------------------
 // projectTick
@@ -144,9 +145,14 @@ export async function projectTick(opts: {
 
     // Step routing: check for review:human / review:skip / test:skip labels
     if (role === "reviewer") {
-      const routing = detectStepRouting(issue.labels, "review");
+      const review = await getCanonicalReviewStatus(provider, workflow, issue);
+      if (review.ambiguous) {
+        skipped.push({ role, reason: `Ambiguous PR state: ${review.reason ?? "multiple PRs"}` });
+        continue;
+      }
+      const routing = review.needsHumanReview ? "human" : review.shouldSkipReview ? "skip" : detectStepRouting(issue.labels, "review");
       if (routing === "human" || routing === "skip") {
-        skipped.push({ role, reason: `review:${routing} label` });
+        skipped.push({ role, reason: `review:${routing}` });
         continue;
       }
     }

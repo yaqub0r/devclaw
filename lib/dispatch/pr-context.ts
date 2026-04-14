@@ -8,6 +8,8 @@
  */
 import type { IssueProvider } from "../providers/provider.js";
 import { PrState } from "../providers/provider.js";
+import { getCanonicalReviewStatus } from "../services/pr-reconciliation.js";
+import type { WorkflowConfig } from "../workflow/index.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -41,9 +43,13 @@ export type PrContext = {
 export async function fetchPrFeedback(
   provider: IssueProvider,
   issueId: number,
+  workflow?: WorkflowConfig,
 ): Promise<PrFeedback | undefined> {
   try {
-    const prStatus = await provider.getPrStatus(issueId);
+    const issue = await provider.getIssue(issueId);
+    const prStatus = workflow
+      ? (await getCanonicalReviewStatus(provider, workflow, issue)).prStatus
+      : await provider.getPrStatus(issueId);
     if (prStatus.ambiguous || !prStatus.url || prStatus.state === PrState.MERGED || prStatus.state === PrState.CLOSED) {
       return undefined;
     }
@@ -76,9 +82,13 @@ export async function fetchPrFeedback(
 export async function fetchPrContext(
   provider: IssueProvider,
   issueId: number,
+  workflow?: WorkflowConfig,
 ): Promise<PrContext | undefined> {
   try {
-    const prStatus = await provider.getPrStatus(issueId);
+    const issue = workflow ? await provider.getIssue(issueId) : null;
+    const prStatus = workflow && issue
+      ? (await getCanonicalReviewStatus(provider, workflow, issue)).prStatus
+      : await provider.getPrStatus(issueId);
     if (prStatus.ambiguous || !prStatus.url) return undefined;
     const diff = await provider.getPrDiff(issueId) ?? undefined;
     return { url: prStatus.url, diff };

@@ -13,7 +13,8 @@ import { jsonResult } from "openclaw/plugin-sdk";
 import type { PluginContext } from "../../context.js";
 import type { ToolContext } from "../../types.js";
 import { log as auditLog } from "../../audit.js";
-import { DEFAULT_WORKFLOW } from "../../workflow/index.js";
+import { DEFAULT_WORKFLOW, loadWorkflow } from "../../workflow/index.js";
+import { findDuplicateCandidates, buildDuplicateConfirmationMessage } from "../../services/issue-dedup.js";
 import { requireWorkspaceDir, resolveChannelId, resolveProject, resolveProvider, autoAssignOwnerLabel, applyNotifyLabel } from "../helpers.js";
 
 /** Derive the initial state label from the workflow config. */
@@ -49,6 +50,10 @@ export function createTaskCreateTool(ctx: PluginContext) {
           type: "boolean",
           description: "If true, immediately pick up this issue for DEV after creation. Defaults to false.",
         },
+        confirmDuplicate: {
+          type: "boolean",
+          description: "Confirm creation even when DevClaw detects likely overlapping open work. Required for medium/high-confidence duplicate warnings.",
+        },
       },
     },
 
@@ -59,10 +64,27 @@ export function createTaskCreateTool(ctx: PluginContext) {
       const label = INITIAL_LABEL;
       const assignees = (params.assignees as string[] | undefined) ?? [];
       const pickup = (params.pickup as boolean) ?? false;
+      const confirmDuplicate = (params.confirmDuplicate as boolean) ?? false;
       const workspaceDir = requireWorkspaceDir(toolCtx);
 
       const { project } = await resolveProject(workspaceDir, channelId);
       const { provider, type: providerType } = await resolveProvider(project, ctx.runCommand);
+      const workflow = await loadWorkflow(workspaceDir, project.name);
+      const openIssues = await provider.listIssues({ state: "open" });
+      const duplicateCheck = findDuplicateCandidates({ title, description }, openIssues, workflow);
+      if (duplicateCheck.shouldRequireConfirmation && !confirmDuplicate) {
+        return jsonResult({
+          success: false,
+          duplicateCheck: {
+            confidence: duplicateCheck.confidence,
+            requiresConfirmation: true,
+            blocked: duplicateCheck.shouldBlockWithoutConfirmation,
+            candidates: duplicateCheck.candidates,
+            summary: duplicateCheck.summary,
+          },
+          announcement: buildDuplicateConfirmationMessage(duplicateCheck),
+        });
+      }
 
       const issue = await provider.createIssue(title, description, label, assignees);
 
@@ -78,6 +100,9 @@ export function createTaskCreateTool(ctx: PluginContext) {
       await auditLog(workspaceDir, "task_create", {
         project: project.name, issueId: issue.iid,
         title, label, provider: providerType, pickup,
+        duplicateConfidence: duplicateCheck.confidence,
+        duplicateConfirmed: confirmDuplicate,
+        duplicateCandidates: duplicateCheck.candidates.map((candidate) => candidate.issueId),
       });
 
       const hasBody = description && description.trim().length > 0;
@@ -85,10 +110,20 @@ export function createTaskCreateTool(ctx: PluginContext) {
       if (hasBody) announcement += "\nWith detailed description.";
       announcement += `\n🔗 [Issue #${issue.iid}](${issue.web_url})`;
       announcement += pickup ? "\nPicking up for DEV..." : "\nReady for pickup when needed.";
+      if (confirmDuplicate && duplicateCheck.candidates.length > 0) {
+        announcement += `\nConfirmed despite possible overlap with ${duplicateCheck.candidates.map((candidate) => `#${candidate.issueId}`).join(", ")}.`;
+      }
 
       return jsonResult({
         success: true,
         issue: { id: issue.iid, title: issue.title, body: hasBody ? description : null, url: issue.web_url, label },
+        duplicateCheck: {
+          confidence: duplicateCheck.confidence,
+          requiresConfirmation: false,
+          blocked: false,
+          candidates: duplicateCheck.candidates,
+          summary: duplicateCheck.summary,
+        },
         project: project.name, provider: providerType, pickup, announcement,
       });
     },

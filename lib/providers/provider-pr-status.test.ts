@@ -338,7 +338,7 @@ describe("GitLabProvider.getPrStatus — closed MR handling", () => {
     assert.strictEqual(status.url, mergedMrUrl);
   });
 
-  it("handles multiple closed MRs — returns the first found", async () => {
+  it("handles multiple closed MRs deterministically", async () => {
     const provider = new GitLabProvider({ repoPath: "/fake", runCommand: mockRunCommand });
 
     const closedMrUrl1 = "https://gitlab.com/owner/repo/-/merge_requests/10";
@@ -352,8 +352,8 @@ describe("GitLabProvider.getPrStatus — closed MR handling", () => {
     const status = await provider.getPrStatus(42);
 
     assert.strictEqual(status.state, PrState.CLOSED);
-    // First closed MR found is returned
-    assert.strictEqual(status.url, closedMrUrl1);
+    // Canonical reconciliation prefers the highest MR number when timestamps are absent.
+    assert.strictEqual(status.url, closedMrUrl2);
   });
 });
 
