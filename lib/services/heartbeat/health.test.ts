@@ -102,7 +102,7 @@ describe("scanOrphanedLabels", () => {
       });
     });
 
-    it("should revert to 'To Improve' when issue has open PR (feedback cycle)", async () => {
+    it("should revert to 'To Review' when issue has an open PR awaiting review", async () => {
       h.provider.seedIssue({ iid: 42, title: "Test issue", labels: ["Doing"] });
       h.provider.setPrStatus(42, { state: PrState.OPEN, url: "https://github.com/test/pr/1" });
 
@@ -118,11 +118,11 @@ describe("scanOrphanedLabels", () => {
 
       assert.strictEqual(fixes.length, 1);
       assert.strictEqual(fixes[0]!.fixed, true);
-      assert.strictEqual(fixes[0]!.labelReverted, "Doing → To Improve");
+      assert.strictEqual(fixes[0]!.labelReverted, "Doing → To Review");
 
-      // Verify issue now has "To Improve" label
+      // Verify issue now has "To Review" label
       const issue = await h.provider.getIssue(42);
-      assert.ok(issue.labels.includes("To Improve"), `Expected "To Improve", got: ${issue.labels}`);
+      assert.ok(issue.labels.includes("To Review"), `Expected "To Review", got: ${issue.labels}`);
     });
 
     it("should revert to 'To Do' when issue has no PR (fresh task)", async () => {
@@ -148,7 +148,7 @@ describe("scanOrphanedLabels", () => {
       assert.ok(issue.labels.includes("To Do"), `Expected "To Do", got: ${issue.labels}`);
     });
 
-    it("should revert to 'To Improve' when PR is already approved but the worker state is stale", async () => {
+    it("should revert to 'To Review' when PR is already approved but the worker state is stale", async () => {
       h.provider.seedIssue({ iid: 42, title: "Test issue", labels: ["Doing"] });
       h.provider.setPrStatus(42, { state: PrState.APPROVED, url: "https://github.com/test/pr/1" });
 
@@ -164,7 +164,7 @@ describe("scanOrphanedLabels", () => {
 
       assert.strictEqual(fixes.length, 1);
       assert.strictEqual(fixes[0]!.fixed, true);
-      assert.strictEqual(fixes[0]!.labelReverted, "Doing → To Improve");
+      assert.strictEqual(fixes[0]!.labelReverted, "Doing → To Review");
     });
 
     it("should revert to 'To Improve' when PR has changes_requested", async () => {
@@ -189,6 +189,34 @@ describe("scanOrphanedLabels", () => {
     it("should revert to 'To Improve' when PR has comments (HAS_COMMENTS)", async () => {
       h.provider.seedIssue({ iid: 42, title: "Test issue", labels: ["Doing"] });
       h.provider.setPrStatus(42, { state: PrState.HAS_COMMENTS, url: "https://github.com/test/pr/1" });
+
+      const fixes = await scanOrphanedLabels({
+        workspaceDir: h.workspaceDir,
+        projectSlug: h.project.slug,
+        project: h.project,
+        role: "developer",
+        autoFix: true,
+        provider: h.provider,
+        workflow: h.workflow,
+      });
+
+      assert.strictEqual(fixes.length, 1);
+      assert.strictEqual(fixes[0]!.fixed, true);
+      assert.strictEqual(fixes[0]!.labelReverted, "Doing → To Improve");
+    });
+
+    it("should revert to 'To Improve' when multiple PRs make the issue ambiguous", async () => {
+      h.provider.seedIssue({ iid: 42, title: "Test issue", labels: ["Doing"] });
+      h.provider.setPrStatus(42, {
+        state: PrState.OPEN,
+        url: "https://github.com/test/pr/2",
+        ambiguous: true,
+        reason: "multiple_open_prs",
+        candidates: [
+          { url: "https://github.com/test/pr/1", state: "OPEN" },
+          { url: "https://github.com/test/pr/2", state: "OPEN" },
+        ],
+      });
 
       const fixes = await scanOrphanedLabels({
         workspaceDir: h.workspaceDir,

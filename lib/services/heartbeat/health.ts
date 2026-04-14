@@ -45,6 +45,7 @@ import {
   getCurrentStateLabel,
   isOwnedByOrUnclaimed,
   isFeedbackState,
+  hasReviewCheck,
   type WorkflowConfig,
   type Role,
 } from "../../workflow/index.js";
@@ -141,19 +142,32 @@ async function resolveOrphanRevertLabel(
   defaultQueueLabel: string,
   workflow: WorkflowConfig,
 ): Promise<string> {
+  const queueLabels = getQueueLabels(workflow, role);
+  const feedbackLabel = queueLabels.find((l) => isFeedbackState(workflow, l));
+  const reviewQueueLabel = hasReviewCheck(workflow, "reviewer")
+    ? getQueueLabels(workflow, "reviewer")[0] ?? null
+    : null;
+
   try {
     const prStatus = await provider.getPrStatus(issueId);
-    // If a PR exists (open, approved, changes requested, or has comments),
-    // the issue was in a feedback cycle — revert to the feedback queue.
+
+    if (prStatus.ambiguous) {
+      return feedbackLabel ?? defaultQueueLabel;
+    }
+
+    if (prStatus.url && (
+      prStatus.state === PrState.CHANGES_REQUESTED ||
+      prStatus.state === PrState.HAS_COMMENTS ||
+      prStatus.mergeable === false
+    )) {
+      return feedbackLabel ?? defaultQueueLabel;
+    }
+
     if (prStatus.url && (
       prStatus.state === PrState.OPEN ||
-      prStatus.state === PrState.APPROVED ||
-      prStatus.state === PrState.CHANGES_REQUESTED ||
-      prStatus.state === PrState.HAS_COMMENTS
-    )) {
-      const queueLabels = getQueueLabels(workflow, role);
-      const feedbackLabel = queueLabels.find((l) => isFeedbackState(workflow, l));
-      if (feedbackLabel) return feedbackLabel;
+      prStatus.state === PrState.APPROVED
+    ) && reviewQueueLabel) {
+      return reviewQueueLabel;
     }
   } catch {
     // Best-effort — fall back to default queue on API failure
