@@ -85,6 +85,28 @@ describe("findDuplicateCandidates", () => {
     assert.deepStrictEqual(result.candidates, []);
   });
 
+  it("treats refining work as live overlap that still blocks duplicate creation", () => {
+    const result = findDuplicateCandidates(
+      {
+        title: "Clear stale review labels when retrying work",
+        description: "Clear stale review:human and Refining residue when retrying or resuming work after PR state changes.",
+      },
+      [
+        issue({
+          iid: 34,
+          title: "Clear stale review labels when retrying work",
+          description: "Clear stale review:human and Refining residue when retrying work after PR state changes.",
+          labels: ["Refining"],
+        }),
+      ],
+      DEFAULT_WORKFLOW,
+    );
+
+    assert.strictEqual(result.shouldRequireConfirmation, true);
+    assert.strictEqual(result.shouldBlockWithoutConfirmation, true);
+    assert.strictEqual(result.candidates[0]?.stateLabel, 'Refining');
+  });
+
   it("orders candidates deterministically by confidence, score, then issue id", () => {
     const result = findDuplicateCandidates(
       {
