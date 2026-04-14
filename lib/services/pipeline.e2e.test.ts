@@ -596,13 +596,13 @@ describe("E2E pipeline", () => {
       assert.ok(issue.labels.includes("To Test"), `Labels: ${issue.labels}`);
     });
 
-    it("should transition merged PRs without re-merging them", async () => {
-      h.provider.seedIssue({ iid: 79, title: "Merged externally", labels: ["To Review", "review:human"] });
-      h.provider.setPrStatus(79, {
+    it("should transition cleanly when the canonical PR is already merged externally", async () => {
+      h.provider.seedIssue({ iid: 66, title: "Externally merged", labels: ["To Review", "review:human"] });
+      h.provider.setPrStatus(66, {
         state: "merged",
-        url: "https://example.com/pr/79",
+        url: "https://example.com/pr/66",
         title: "feat: merged externally",
-        sourceBranch: "feature/79-merged-externally",
+        sourceBranch: "feature/66-externally-merged",
       });
 
       const transitions = await reviewPass({
@@ -615,13 +615,11 @@ describe("E2E pipeline", () => {
       });
 
       assert.strictEqual(transitions, 1, "Merged PR should still advance the workflow");
+      assert.strictEqual(h.provider.callsTo("mergePr").length, 0, "Should not retry mergePr once canonical PR is already merged");
 
-      const issue = await h.provider.getIssue(79);
+      const issue = await h.provider.getIssue(66);
       assert.ok(issue.labels.includes("To Test"), `Labels: ${issue.labels}`);
       assert.ok(!issue.labels.includes("To Review"), "Should not have To Review");
-
-      const mergeCalls = h.provider.callsTo("mergePr");
-      assert.strictEqual(mergeCalls.length, 0, "Should not attempt to merge an already-merged PR");
     });
 
     it("should transition To Review → To Improve when PR is closed without merging (url non-null)", async () => {
@@ -896,6 +894,38 @@ describe("E2E pipeline", () => {
       issue = await h.provider.getIssue(200);
       assert.ok(issue.labels.includes("Done"), `Final state: ${issue.labels}`);
       assert.strictEqual(issue.state, "closed");
+    });
+
+    it("tester:pass should leave terminal issues with only clean terminal workflow labels", async () => {
+      h = await createTestHarness({
+        workers: {
+          tester: { active: true, issueId: "201", level: "medior" },
+        },
+      });
+      h.provider.seedIssue({
+        iid: 201,
+        title: "Terminal cleanup",
+        labels: ["Testing", "review:human", "test:skip", "developer:senior", "owner:test-agent", "notify:telegram:main"],
+      });
+
+      await executeCompletion({
+        workspaceDir: h.workspaceDir,
+        projectSlug: h.project.slug,
+        channels: h.project.channels,
+        role: "tester",
+        result: "pass",
+        issueId: 201,
+        summary: "Closed cleanly",
+        provider: h.provider,
+        repoPath: "/tmp/test-repo",
+        projectName: "test-project",
+        runCommand: h.runCommand,
+      });
+
+      const issue = await h.provider.getIssue(201);
+      assert.deepStrictEqual(issue.labels.sort(), ["Done", "notify:telegram:main"].sort());
+      assert.strictEqual(issue.state, "closed");
+      assert.deepStrictEqual(h.provider.callsTo("removeLabels").at(-1)?.args.labels.sort(), ["review:human", "test:skip", "developer:senior", "owner:test-agent"].sort());
     });
 
     it("developer:done → reviewer:reject → developer:done → reviewer:approve → tester:pass (reject cycle)", async () => {

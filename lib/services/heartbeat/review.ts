@@ -17,6 +17,7 @@ import {
 import { detectStepRouting } from "../queue-scan.js";
 import type { RunCommand } from "../../context.js";
 import { log as auditLog } from "../../audit.js";
+import { cleanupTerminalWorkflowResidue } from "../terminal-cleanup.js";
 
 /**
  * Scan review-type states and transition issues whose PR check condition is met.
@@ -261,6 +262,9 @@ export async function reviewPass(opts: {
 
       // Transition label
       await provider.transitionLabel(issue.iid, state.label, targetState.label);
+      if (targetState.type === "terminal") {
+        await cleanupTerminalWorkflowResidue({ provider, workflow, issueId: issue.iid });
+      }
 
       await auditLog(workspaceDir, "review_transition", {
         project: projectName,

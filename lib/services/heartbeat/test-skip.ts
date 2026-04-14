@@ -17,6 +17,7 @@ import {
 } from "../../workflow/index.js";
 import { detectStepRouting } from "../queue-scan.js";
 import { log as auditLog } from "../../audit.js";
+import { cleanupTerminalWorkflowResidue } from "../terminal-cleanup.js";
 
 /**
  * Scan test queue states and auto-transition issues with test:skip.
@@ -65,6 +66,9 @@ export async function testSkipPass(opts: {
 
       // Transition label
       await provider.transitionLabel(issue.iid, state.label, targetState.label);
+      if (targetState.type === "terminal") {
+        await cleanupTerminalWorkflowResidue({ provider, workflow, issueId: issue.iid });
+      }
 
       await auditLog(workspaceDir, "test_skip_transition", {
         project: projectName,

@@ -196,20 +196,21 @@ async function resolveDeveloperPrStatus(
     };
   }
 
+  const byIssue = await getIssuePrStatus();
+  if (byIssue.state === PrState.MERGED && byIssue.url) {
+    return { prStatus: byIssue, branchName: byIssue.sourceBranch || branchName, source: "issue" };
+  }
+
   if (branchName && provider instanceof GitHubProvider) {
     const byBranch = await getGitHubPrStatusFromBranch(branchName, repoPath, runCommand);
     if (byBranch?.url) return { prStatus: byBranch, branchName, source: "branch" };
   }
 
-  if (branchName) {
-    const byIssue = await getIssuePrStatus();
-    if (byIssue.url && byIssue.sourceBranch === branchName) {
-      return { prStatus: byIssue, branchName, source: "branch" };
-    }
+  if (branchName && byIssue.url && byIssue.sourceBranch === branchName) {
+    return { prStatus: byIssue, branchName, source: "branch" };
   }
 
-  const prStatus = await getIssuePrStatus();
-  return { prStatus, branchName: prStatus.sourceBranch || branchName, source: "issue" };
+  return { prStatus: byIssue, branchName: byIssue.sourceBranch || branchName, source: "issue" };
 }
 
 export async function validatePrExistsForDeveloper(

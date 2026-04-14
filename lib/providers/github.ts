@@ -18,7 +18,6 @@ import {
   getLabelColors,
   type WorkflowConfig,
 } from "../workflow/index.js";
-import { reconcileCanonicalPr } from "./pr-reconciliation.js";
 
 type GhIssue = {
   number: number;
@@ -28,6 +27,48 @@ type GhIssue = {
   state: string;
   url: string;
 };
+
+type LinkedPr = {
+  number: number;
+  title: string;
+  body: string;
+  headRefName: string;
+  url: string;
+  mergedAt: string | null;
+  reviewDecision: string | null;
+  state: string;
+  mergeable: string | null;
+};
+
+function byNewestMergedAt(a: LinkedPr, b: LinkedPr): number {
+  return new Date(b.mergedAt ?? 0).getTime() - new Date(a.mergedAt ?? 0).getTime();
+}
+
+function pickCanonicalPr(prs: LinkedPr[], preferredBranch?: string): LinkedPr | null {
+  if (prs.length === 0) return null;
+
+  const branchMatches = preferredBranch
+    ? prs.filter((pr) => pr.headRefName === preferredBranch)
+    : [];
+  const openBranchMatch = branchMatches.find((pr) => pr.state === "OPEN");
+  if (openBranchMatch) return openBranchMatch;
+
+  const open = prs.filter((pr) => pr.state === "OPEN");
+  if (open.length > 0) return open[0]!;
+
+  const mergedBranchMatch = [...branchMatches]
+    .filter((pr) => pr.state === "MERGED")
+    .sort(byNewestMergedAt)[0];
+  if (mergedBranchMatch) return mergedBranchMatch;
+
+  const merged = prs.filter((pr) => pr.state === "MERGED").sort(byNewestMergedAt);
+  if (merged.length > 0) return merged[0]!;
+
+  const closedBranchMatch = branchMatches.find((pr) => pr.state === "CLOSED");
+  if (closedBranchMatch) return closedBranchMatch;
+
+  return prs.find((pr) => pr.state === "CLOSED") ?? prs[0] ?? null;
+}
 
 function toIssue(gh: GhIssue): Issue {
   return {
@@ -84,7 +125,7 @@ export class GitHubProvider implements IssueProvider {
   private async findPrsViaTimeline(
     issueId: number,
     state: "open" | "merged" | "all",
-  ): Promise<Array<{ number: number; title: string; body: string; headRefName: string; url: string; mergedAt: string | null; reviewDecision: string | null; state: string; mergeable: string | null }> | null> {
+  ): Promise<LinkedPr[] | null> {
     const repo = await this.getRepoInfo();
     if (!repo) return null;
 
@@ -113,7 +154,7 @@ export class GitHubProvider implements IssueProvider {
 
       // Extract PR data from both event types
       const seen = new Set<number>();
-      const prs: Array<{ number: number; title: string; body: string; headRefName: string; url: string; mergedAt: string | null; reviewDecision: string | null; state: string; mergeable: string | null }> = [];
+      const prs: LinkedPr[] = [];
 
       for (const node of nodes) {
         const pr = node.subject ?? node.source;
@@ -289,32 +330,23 @@ export class GitHubProvider implements IssueProvider {
   async reopenIssue(issueId: number): Promise<void> { await this.gh(["issue", "reopen", String(issueId)]); }
 
   async getMergedMRUrl(issueId: number): Promise<string | null> {
+    const prs = await this.findPrsViaTimeline(issueId, "all");
+    const canonical = pickCanonicalPr(prs?.filter((pr) => pr.state === "MERGED") ?? []);
+    if (canonical) return canonical.url;
+
     type MergedPr = { title: string; body: string; headRefName: string; url: string; mergedAt: string };
-    const prs = await this.findPrsForIssue<MergedPr>(issueId, "merged", "title,body,headRefName,url,mergedAt");
-    if (prs.length === 0) return null;
-    prs.sort((a, b) => new Date(b.mergedAt).getTime() - new Date(a.mergedAt).getTime());
-    return prs[0].url;
+    const fallback = await this.findPrsForIssue<MergedPr>(issueId, "merged", "title,body,headRefName,url,mergedAt");
+    if (fallback.length === 0) return null;
+    fallback.sort((a, b) => new Date(b.mergedAt).getTime() - new Date(a.mergedAt).getTime());
+    return fallback[0]!.url;
   }
 
   async getPrStatus(issueId: number): Promise<PrStatus> {
-    // Check open PRs first — include mergeable for conflict detection
-    type OpenPr = { title: string; body: string; headRefName: string; url: string; number: number; reviewDecision: string; mergeable: string };
-    const open = await this.findPrsForIssue<OpenPr>(issueId, "open", "title,body,headRefName,url,number,reviewDecision,mergeable");
-    const canonical = reconcileCanonicalPr({
-      open: open.map((pr) => ({
-        url: pr.url,
-        title: pr.title,
-        sourceBranch: pr.headRefName,
-        state: "OPEN",
-        mergeable: pr.mergeable === "CONFLICTING" ? false : pr.mergeable === "MERGEABLE" ? true : undefined,
-        number: pr.number,
-      })),
-      merged: [],
-      closed: [],
-    });
-    if (canonical.ambiguous) return canonical;
-    if (open.length === 1) {
-      const pr = open[0];
+    const allPrs = await this.findPrsViaTimeline(issueId, "all");
+    const canonical = pickCanonicalPr(allPrs ?? []);
+
+    if (canonical?.state === "OPEN") {
+      const pr = canonical;
       let state: PrState;
       if (pr.reviewDecision === "APPROVED") {
         state = PrState.APPROVED;
@@ -335,28 +367,54 @@ export class GitHubProvider implements IssueProvider {
         }
       }
 
-      return { ...canonical, state };
+      const mergeable = pr.mergeable === "CONFLICTING" ? false
+        : pr.mergeable === "MERGEABLE" ? true
+        : undefined;
+
+      return { state, url: pr.url, title: pr.title, sourceBranch: pr.headRefName, mergeable };
     }
-    // Merged PRs must always report MERGED, even if GitHub still retains an
-    // APPROVED reviewDecision after merge. Returning APPROVED here makes the
-    // heartbeat try to merge an already-merged PR again, which can bounce the
-    // issue into merge-failed / re-dispatch flows during normal post-merge
-    // cleanup.
-    type MergedPr = { title: string; body: string; headRefName: string; url: string; reviewDecision: string | null; mergedAt?: string | null; number?: number };
-    const merged = await this.findPrsForIssue<MergedPr>(issueId, "merged", "title,body,headRefName,url,reviewDecision,mergedAt,number");
-    const allPrs = await this.findPrsViaTimeline(issueId, "all");
-    const closed = (allPrs ?? []).filter((pr) => pr.state === "CLOSED").map((pr) => ({
-      url: pr.url, title: pr.title, sourceBranch: pr.headRefName, state: pr.state, mergedAt: pr.mergedAt, number: pr.number,
-    }));
-    const terminal = reconcileCanonicalPr({
-      open: [],
-      merged: merged.map((pr) => ({
-        url: pr.url, title: pr.title, sourceBranch: pr.headRefName, state: "MERGED", mergedAt: pr.mergedAt, number: pr.number,
-      })),
-      closed,
-    });
-    if (terminal.ambiguous || terminal.state !== PrState.MERGED) return terminal;
-    return { ...terminal, state: PrState.MERGED };
+
+    if (canonical?.state === "MERGED") {
+      const pr = canonical;
+      return { state: PrState.MERGED, url: pr.url, title: pr.title, sourceBranch: pr.headRefName };
+    }
+
+    type OpenPr = { title: string; body: string; headRefName: string; url: string; number: number; reviewDecision: string; mergeable: string };
+    const open = await this.findPrsForIssue<OpenPr>(issueId, "open", "title,body,headRefName,url,number,reviewDecision,mergeable");
+    if (open.length > 0) {
+      const pr = open[0]!;
+      let state: PrState;
+      if (pr.reviewDecision === "APPROVED") {
+        state = PrState.APPROVED;
+      } else if (pr.reviewDecision === "CHANGES_REQUESTED") {
+        state = PrState.CHANGES_REQUESTED;
+      } else if (await this.hasChangesRequestedReview(pr.number)) {
+        state = PrState.CHANGES_REQUESTED;
+      } else if (await this.hasUnacknowledgedReviews(pr.number)) {
+        state = PrState.HAS_COMMENTS;
+      } else {
+        state = await this.hasConversationComments(pr.number) ? PrState.HAS_COMMENTS : PrState.OPEN;
+      }
+      const mergeable = pr.mergeable === "CONFLICTING" ? false
+        : pr.mergeable === "MERGEABLE" ? true
+        : undefined;
+      return { state, url: pr.url, title: pr.title, sourceBranch: pr.headRefName, mergeable };
+    }
+
+    type MergedPr = { title: string; body: string; headRefName: string; url: string; reviewDecision: string | null };
+    const merged = await this.findPrsForIssue<MergedPr>(issueId, "merged", "title,body,headRefName,url,reviewDecision");
+    if (merged.length > 0) {
+      const pr = merged[0]!;
+      return { state: PrState.MERGED, url: pr.url, title: pr.title, sourceBranch: pr.headRefName };
+    }
+
+    const closedPr = canonical?.state === "CLOSED"
+      ? canonical
+      : allPrs?.find((pr) => pr.state === "CLOSED");
+    if (closedPr) {
+      return { state: PrState.CLOSED, url: closedPr.url, title: closedPr.title, sourceBranch: closedPr.headRefName };
+    }
+    return { state: PrState.CLOSED, url: null };
   }
 
   /**
@@ -447,10 +505,17 @@ export class GitHubProvider implements IssueProvider {
   }
 
   async mergePr(issueId: number): Promise<void> {
+    const prs = await this.findPrsViaTimeline(issueId, "all");
+    const canonical = pickCanonicalPr(prs ?? []);
+    if (canonical?.state === "OPEN") {
+      await this.gh(["pr", "merge", canonical.url, "--merge"]);
+      return;
+    }
+
     type OpenPr = { title: string; body: string; headRefName: string; url: string };
-    const prs = await this.findPrsForIssue<OpenPr>(issueId, "open", "title,body,headRefName,url");
-    if (prs.length === 0) throw new Error(`No open PR found for issue #${issueId}`);
-    await this.gh(["pr", "merge", prs[0].url, "--merge"]);
+    const fallback = await this.findPrsForIssue<OpenPr>(issueId, "open", "title,body,headRefName,url");
+    if (fallback.length === 0) throw new Error(`No open PR found for issue #${issueId}`);
+    await this.gh(["pr", "merge", fallback[0]!.url, "--merge"]);
   }
 
   async getPrDiff(issueId: number): Promise<string | null> {

@@ -18,9 +18,12 @@ import {
   getNextStateDescription,
   getCompletionEmoji,
   resolveNotifyChannel,
+  findStateByLabel,
+  StateType,
   type CompletionRule,
   type WorkflowConfig,
 } from "../workflow/index.js";
+import { cleanupTerminalWorkflowResidue } from "./terminal-cleanup.js";
 import type { Channel } from "../projects/index.js";
 
 export type { CompletionRule };
@@ -206,6 +209,11 @@ export async function executeCompletion(opts: {
   // Finally deactivate worker (last — ensures label is set even if deactivation fails)
   
   await provider.transitionLabel(issueId, rule.from as StateLabel, rule.to as StateLabel);
+
+  const targetState = findStateByLabel(workflow, rule.to);
+  if (targetState?.type === StateType.TERMINAL) {
+    await cleanupTerminalWorkflowResidue({ provider, workflow, issueId });
+  }
 
   // Execute post-transition actions
   for (const action of rule.actions) {

@@ -236,24 +236,35 @@ describe("work_finish PR validation", () => {
       assert.equal(provider.callsTo("getPrStatus").length, 1);
     });
 
-    it("rejects completion when multiple open PRs make the canonical PR ambiguous", async () => {
-      const provider = new TestProvider();
-      provider.setPrStatus(42, {
-        state: PrState.OPEN,
-        url: "https://github.com/test/repo/pull/43",
-        ambiguous: true,
-        reason: "multiple_open_prs",
-        candidates: [
-          { url: "https://github.com/test/repo/pull/42", state: "OPEN", sourceBranch: "feature/42-a" },
-          { url: "https://github.com/test/repo/pull/43", state: "OPEN", sourceBranch: "feature/42-b" },
-        ],
-      });
+    it("accepts a merged canonical PR even when the local branch no longer has a matching remote PR", async () => {
+      const provider = Object.create(GitHubProvider.prototype) as GitHubProvider & {
+        prHasReaction: () => Promise<boolean>;
+        reactToPr: (_issueId: number, _emoji: string) => Promise<void>;
+        getPrStatus: (_issueId: number) => Promise<any>;
+      };
+      let issueLookupCount = 0;
+      provider.prHasReaction = async () => true;
+      provider.reactToPr = async () => {};
+      provider.getPrStatus = async () => {
+        issueLookupCount++;
+        return {
+          state: PrState.MERGED,
+          url: "https://github.com/test/repo/pull/200",
+          title: "merged already",
+          sourceBranch: "feature/61-cleanup",
+        };
+      };
 
-      const runCommand = async () => ({ stdout: "feature/42-b\n", stderr: "", exitCode: 0 });
-      await assert.rejects(
-        () => validatePrExistsForDeveloper(42, tempDir, provider as any, runCommand as any, tempDir, "devclaw"),
-        /multiple PRs are linked to this issue/,
-      );
+      const runCommand = async (args: string[]) => {
+        if (args[0] === "git") return { stdout: "feature/61-cleanup\n", stderr: "", exitCode: 0 };
+        if (args[0] === "gh" && args[1] === "pr" && args[2] === "list") {
+          return { stdout: "[]", stderr: "", exitCode: 0 };
+        }
+        throw new Error(`unexpected command: ${args.join(" ")}`);
+      };
+
+      await validatePrExistsForDeveloper(61, tempDir, provider, runCommand as any, tempDir, "devclaw");
+      assert.equal(issueLookupCount, 1);
     });
 
     it("rejects follow-up completion when the reused PR is still conflicting", async () => {
