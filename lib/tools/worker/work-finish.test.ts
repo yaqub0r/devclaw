@@ -199,6 +199,26 @@ describe("work_finish PR validation", () => {
       assert.equal(provider.callsTo("getPrStatus").length, 1);
     });
 
+    it("rejects completion when multiple open PRs make the canonical PR ambiguous", async () => {
+      const provider = new TestProvider();
+      provider.setPrStatus(42, {
+        state: PrState.OPEN,
+        url: "https://github.com/test/repo/pull/43",
+        ambiguous: true,
+        reason: "multiple_open_prs",
+        candidates: [
+          { url: "https://github.com/test/repo/pull/42", state: "OPEN", sourceBranch: "feature/42-a" },
+          { url: "https://github.com/test/repo/pull/43", state: "OPEN", sourceBranch: "feature/42-b" },
+        ],
+      });
+
+      const runCommand = async () => ({ stdout: "feature/42-b\n", stderr: "", exitCode: 0 });
+      await assert.rejects(
+        () => validatePrExistsForDeveloper(42, tempDir, provider as any, runCommand as any, tempDir, "devclaw"),
+        /multiple PRs are linked to this issue/,
+      );
+    });
+
     it("rejects follow-up completion when the reused PR is still conflicting", async () => {
       await createMockAuditLog(tempDir, 108, true);
 

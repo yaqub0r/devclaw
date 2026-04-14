@@ -18,6 +18,7 @@ import {
   getLabelColors,
   type WorkflowConfig,
 } from "../workflow/index.js";
+import { reconcileCanonicalPr } from "./pr-reconciliation.js";
 
 type GhIssue = {
   number: number;
@@ -299,7 +300,20 @@ export class GitHubProvider implements IssueProvider {
     // Check open PRs first — include mergeable for conflict detection
     type OpenPr = { title: string; body: string; headRefName: string; url: string; number: number; reviewDecision: string; mergeable: string };
     const open = await this.findPrsForIssue<OpenPr>(issueId, "open", "title,body,headRefName,url,number,reviewDecision,mergeable");
-    if (open.length > 0) {
+    const canonical = reconcileCanonicalPr({
+      open: open.map((pr) => ({
+        url: pr.url,
+        title: pr.title,
+        sourceBranch: pr.headRefName,
+        state: "OPEN",
+        mergeable: pr.mergeable === "CONFLICTING" ? false : pr.mergeable === "MERGEABLE" ? true : undefined,
+        number: pr.number,
+      })),
+      merged: [],
+      closed: [],
+    });
+    if (canonical.ambiguous) return canonical;
+    if (open.length === 1) {
       const pr = open[0];
       let state: PrState;
       if (pr.reviewDecision === "APPROVED") {
@@ -307,46 +321,38 @@ export class GitHubProvider implements IssueProvider {
       } else if (pr.reviewDecision === "CHANGES_REQUESTED") {
         state = PrState.CHANGES_REQUESTED;
       } else {
-        // No branch protection → reviewDecision may be empty. Check individual reviews.
         const hasChangesRequested = await this.hasChangesRequestedReview(pr.number);
         if (hasChangesRequested) {
           state = PrState.CHANGES_REQUESTED;
         } else {
-          // Check for unacknowledged COMMENTED reviews (feedback without formal "Request changes")
           const hasReviewFeedback = await this.hasUnacknowledgedReviews(pr.number);
           if (hasReviewFeedback) {
             state = PrState.HAS_COMMENTS;
           } else {
-            // Fall through to conversation comment detection
             const hasComments = await this.hasConversationComments(pr.number);
             state = hasComments ? PrState.HAS_COMMENTS : PrState.OPEN;
           }
         }
       }
 
-      // Conflict detection: "CONFLICTING" means merge conflicts, "UNKNOWN" means still computing
-      const mergeable = pr.mergeable === "CONFLICTING" ? false
-        : pr.mergeable === "MERGEABLE" ? true
-        : undefined; // UNKNOWN or missing — don't assume
-
-      return { state, url: pr.url, title: pr.title, sourceBranch: pr.headRefName, mergeable };
+      return { ...canonical, state };
     }
-    // Check merged PRs — also fetch reviewDecision to detect approved-then-merged vs self-merged.
-    type MergedPr = { title: string; body: string; headRefName: string; url: string; reviewDecision: string | null };
-    const merged = await this.findPrsForIssue<MergedPr>(issueId, "merged", "title,body,headRefName,url,reviewDecision");
-    if (merged.length > 0) {
-      const pr = merged[0];
-      const state = pr.reviewDecision === "APPROVED" ? PrState.APPROVED : PrState.MERGED;
-      return { state, url: pr.url, title: pr.title, sourceBranch: pr.headRefName };
-    }
-    // Check for closed-without-merge PRs. url: non-null = PR was explicitly closed;
-    // url: null = no PR has ever been created for this issue.
+    type MergedPr = { title: string; body: string; headRefName: string; url: string; reviewDecision: string | null; mergedAt?: string | null; number?: number };
+    const merged = await this.findPrsForIssue<MergedPr>(issueId, "merged", "title,body,headRefName,url,reviewDecision,mergedAt,number");
     const allPrs = await this.findPrsViaTimeline(issueId, "all");
-    const closedPr = allPrs?.find((pr) => pr.state === "CLOSED");
-    if (closedPr) {
-      return { state: PrState.CLOSED, url: closedPr.url, title: closedPr.title, sourceBranch: closedPr.headRefName };
-    }
-    return { state: PrState.CLOSED, url: null };
+    const closed = (allPrs ?? []).filter((pr) => pr.state === "CLOSED").map((pr) => ({
+      url: pr.url, title: pr.title, sourceBranch: pr.headRefName, state: pr.state, mergedAt: pr.mergedAt, number: pr.number,
+    }));
+    const terminal = reconcileCanonicalPr({
+      open: [],
+      merged: merged.map((pr) => ({
+        url: pr.url, title: pr.title, sourceBranch: pr.headRefName, state: "MERGED", mergedAt: pr.mergedAt, number: pr.number,
+      })),
+      closed,
+    });
+    if (terminal.ambiguous || terminal.state !== PrState.MERGED) return terminal;
+    const mergedPr = merged.find((pr) => pr.url === terminal.url);
+    return { ...terminal, state: mergedPr?.reviewDecision === "APPROVED" ? PrState.APPROVED : PrState.MERGED };
   }
 
   /**
