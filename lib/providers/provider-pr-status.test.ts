@@ -287,6 +287,121 @@ describe("GitHubProvider.getPrStatus — closed PR handling", () => {
     assert.strictEqual(status.url, unknownPrUrl);
     assert.strictEqual(status.mergeable, undefined, "mergeable: UNKNOWN should remain undefined (no assumption)");
   });
+
+  it("normalizes merged-after-approval PRs to MERGED", async () => {
+    const provider = new GitHubProvider({ repoPath: "/fake", runCommand: mockRunCommand });
+
+    (provider as any).findPrsForIssue = async (_id: number, state: string) => {
+      if (state === "open") return [];
+      if (state === "merged") {
+        return [{
+          title: "feat: merged after approval",
+          body: "",
+          headRefName: "feature/61-merged",
+          url: "https://github.com/owner/repo/pull/61",
+          reviewDecision: "APPROVED",
+          mergedAt: "2026-04-14T20:00:00Z",
+        }];
+      }
+      return [];
+    };
+    (provider as any).findPrsViaTimeline = async () => null;
+
+    const status = await provider.getPrStatus(61);
+
+    assert.strictEqual(status.state, PrState.MERGED);
+    assert.strictEqual(status.url, "https://github.com/owner/repo/pull/61");
+  });
+
+  it("chooses the canonical open PR deterministically when multiple linked PRs exist", async () => {
+    const provider = new GitHubProvider({ repoPath: "/fake", runCommand: mockRunCommand });
+
+    (provider as any).findPrsForIssue = async (_id: number, state: string) => {
+      if (state === "open") {
+        return [
+          {
+            title: "draft without branch",
+            body: "",
+            headRefName: "",
+            url: "https://github.com/owner/repo/pull/90",
+            number: 90,
+            reviewDecision: "",
+            mergeable: "MERGEABLE",
+          },
+          {
+            title: "active replacement",
+            body: "",
+            headRefName: "feature/61-replacement",
+            url: "https://github.com/owner/repo/pull/91",
+            number: 91,
+            reviewDecision: "",
+            mergeable: "MERGEABLE",
+          },
+        ];
+      }
+      return [];
+    };
+    (provider as any).hasChangesRequestedReview = async () => false;
+    (provider as any).hasUnacknowledgedReviews = async () => false;
+    (provider as any).hasConversationComments = async () => false;
+
+    const status = await provider.getPrStatus(61);
+
+    assert.strictEqual(status.url, "https://github.com/owner/repo/pull/91");
+    assert.strictEqual(status.sourceBranch, "feature/61-replacement");
+  });
+
+  it("chooses the newest merged PR over older superseded linked PRs", async () => {
+    const provider = new GitHubProvider({ repoPath: "/fake", runCommand: mockRunCommand });
+
+    (provider as any).findPrsForIssue = async (_id: number, state: string) => {
+      if (state === "open") return [];
+      if (state === "merged") {
+        return [
+          {
+            title: "older merged pr",
+            body: "",
+            headRefName: "feature/61-old",
+            url: "https://github.com/owner/repo/pull/70",
+            reviewDecision: null,
+            mergedAt: "2026-04-01T00:00:00Z",
+          },
+          {
+            title: "new canonical merged pr",
+            body: "",
+            headRefName: "feature/61-new",
+            url: "https://github.com/owner/repo/pull/71",
+            reviewDecision: null,
+            mergedAt: "2026-04-14T00:00:00Z",
+          },
+        ];
+      }
+      return [];
+    };
+    (provider as any).findPrsViaTimeline = async (_id: number, state: string) => {
+      if (state === "all") {
+        return [{
+          number: 69,
+          title: "closed superseded pr",
+          body: "",
+          headRefName: "feature/61-old-closed",
+          url: "https://github.com/owner/repo/pull/69",
+          mergedAt: null,
+          reviewDecision: null,
+          state: "CLOSED",
+          mergeable: null,
+        }];
+      }
+      return [];
+    };
+
+    const status = await provider.getPrStatus(61);
+    const mergedUrl = await provider.getMergedMRUrl(61);
+
+    assert.strictEqual(status.state, PrState.MERGED);
+    assert.strictEqual(status.url, "https://github.com/owner/repo/pull/71");
+    assert.strictEqual(mergedUrl, "https://github.com/owner/repo/pull/71");
+  });
 });
 
 // ---------------------------------------------------------------------------
