@@ -11,12 +11,17 @@ That split keeps upgrades understandable and repeatable.
 
 - Upstream repo: `yaqub0r/devclaw`
 - Default branch: `main`
-- Custom release branch pattern: `release/devclaw-<identifier>`
+- Canonical local operational branch: `release/devclaw-local`
+- Historical dated release branches may exist temporarily during migration or upgrade work
 - Temporary upgrade branch pattern: `upgrade/devclaw-<target-version>`
 
-Current branch created for local customization tracking:
+Current canonical branch for local customization tracking:
 
-- `release/devclaw-local-2026-04-12`
+- `release/devclaw-local`
+
+Migration note:
+
+- `release/devclaw-local-2026-04-12` is a predecessor branch retained for history and cleanup safety
 
 ## 1) Prefer supported overrides first
 
@@ -47,7 +52,8 @@ Examples:
 ### Stable branches
 
 - `main` tracks the base integration line
-- `release/devclaw-<identifier>` carries validated custom source patches
+- `release/devclaw-local` carries the validated local operational patch line
+- future dated release branches should be treated as transitional upgrade artifacts, not the default long-lived operational name
 
 ### Temporary branches
 
@@ -72,9 +78,10 @@ When upgrading DevClaw to a newer upstream version:
 4. Reapply custom commits using cherry-pick or rebase.
 5. Resolve conflicts.
 6. Test behavior.
-7. Create or update `release/devclaw-<new-version>`.
-8. Merge the validated release branch as desired.
-9. Update this document if the process changes.
+7. Reconstruct or validate the candidate release branch for the upgrade.
+8. Promote the validated result into `release/devclaw-local` when it becomes the operational lane.
+9. Archive or retain any dated predecessor release branch until the new lane is confirmed.
+10. Update this document if the process changes.
 
 ### Cherry-pick vs rebase
 
