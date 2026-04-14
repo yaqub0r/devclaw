@@ -1217,6 +1217,40 @@ describe("E2E pipeline", () => {
       assert.ok(!issue.labels.some(l => l.startsWith("developer:junior")), "Should NOT have developer:junior");
     });
 
+    it("re-dispatch should clear stale review routing residue before applying the canonical route", async () => {
+      h = await createTestHarness();
+      h.provider.seedIssue({
+        iid: 405,
+        title: "Retry after stale review state",
+        labels: ["To Improve", "developer:senior", "review:agent", "test:skip"],
+      });
+
+      await dispatchTask({
+        workspaceDir: h.workspaceDir,
+        agentId: "test-agent",
+        project: h.project,
+        issueId: 405,
+        issueTitle: "Retry after stale review state",
+        issueDescription: "",
+        issueUrl: "https://example.com/issues/405",
+        role: "developer",
+        level: "junior",
+        fromLabel: "To Improve",
+        toLabel: "Doing",
+        provider: h.provider,
+        runCommand: h.runCommand,
+      });
+
+      const issue = await h.provider.getIssue(405);
+      assert.ok(issue.labels.includes("Doing"), `Should have Doing label, got: ${issue.labels}`);
+      assert.ok(!issue.labels.includes("To Improve"), `Should not keep To Improve, got: ${issue.labels}`);
+      assert.ok(issue.labels.some((l) => l.startsWith("developer:junior")), `Should have developer:junior[:name], got: ${issue.labels}`);
+      assert.ok(!issue.labels.some((l) => l.startsWith("developer:senior")), `Should remove stale developer:senior, got: ${issue.labels}`);
+      assert.ok(issue.labels.includes("review:human"), `Should reconcile to review:human, got: ${issue.labels}`);
+      assert.ok(!issue.labels.includes("review:agent"), `Should clear stale review:agent, got: ${issue.labels}`);
+      assert.ok(issue.labels.includes("test:skip"), `Should preserve unrelated canonical routing, got: ${issue.labels}`);
+    });
+
     it("projectTick should skip reviewer when review:human label present", async () => {
       h = await createTestHarness();
       // review:human applied by dispatch for senior developers
