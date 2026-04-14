@@ -18,6 +18,7 @@ import {
   getLabelColors,
   type WorkflowConfig,
 } from "../workflow/index.js";
+import { reconcileCanonicalPr } from "./pr-reconciliation.js";
 
 type GitLabMR = {
   iid: number;

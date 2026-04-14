@@ -12,9 +12,10 @@ import path from "node:path";
 // File loader — reads from defaults/ (single source of truth)
 // ---------------------------------------------------------------------------
 
-// esbuild bundles everything into dist/index.js, so import.meta.url points to
-// dist/index.js → one level up reaches the repo root where defaults/ lives.
-const DEFAULTS_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "defaults");
+// In source, import.meta.url points to lib/setup/templates.ts, so we need to go
+// up two levels to reach the repo root where defaults/ lives.
+// In the bundled dist output, this still resolves correctly to the packaged defaults/.
+const DEFAULTS_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "defaults");
 
 function loadDefault(filename: string): string {
   const filePath = path.join(DEFAULTS_DIR, filename);
