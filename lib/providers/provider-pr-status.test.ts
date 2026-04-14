@@ -356,3 +356,38 @@ describe("GitLabProvider.getPrStatus — closed MR handling", () => {
     assert.strictEqual(status.url, closedMrUrl1);
   });
 });
+
+describe("Provider PR reconciliation ambiguity handling", () => {
+  it("marks GitHub status ambiguous when multiple open PRs exist", async () => {
+    const provider = new GitHubProvider({ repoPath: "/fake", runCommand: mockRunCommand });
+
+    (provider as any).findPrsForIssue = async (_id: number, state: string) => {
+      if (state === "open") {
+        return [
+          { title: "PR 1", body: "", headRefName: "feature/1", url: "https://github.com/owner/repo/pull/1", number: 1, reviewDecision: "", mergeable: "MERGEABLE" },
+          { title: "PR 2", body: "", headRefName: "feature/2", url: "https://github.com/owner/repo/pull/2", number: 2, reviewDecision: "", mergeable: "MERGEABLE" },
+        ];
+      }
+      return [];
+    };
+
+    const status = await provider.getPrStatus(42);
+    assert.strictEqual(status.ambiguous, true);
+    assert.strictEqual(status.reason, "multiple_open_prs");
+    assert.strictEqual(status.candidates?.length, 2);
+  });
+
+  it("marks GitLab status ambiguous when multiple open MRs exist", async () => {
+    const provider = new GitLabProvider({ repoPath: "/fake", runCommand: mockRunCommand });
+
+    (provider as any).getRelatedMRs = async () => [
+      { iid: 3, title: "MR 3", description: "", web_url: "https://gitlab.com/owner/repo/-/merge_requests/3", state: "opened", source_branch: "feature/3", merged_at: null },
+      { iid: 4, title: "MR 4", description: "", web_url: "https://gitlab.com/owner/repo/-/merge_requests/4", state: "opened", source_branch: "feature/4", merged_at: null },
+    ];
+
+    const status = await provider.getPrStatus(42);
+    assert.strictEqual(status.ambiguous, true);
+    assert.strictEqual(status.reason, "multiple_open_prs");
+    assert.strictEqual(status.candidates?.length, 2);
+  });
+});

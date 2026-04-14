@@ -44,7 +44,7 @@ export async function fetchPrFeedback(
 ): Promise<PrFeedback | undefined> {
   try {
     const prStatus = await provider.getPrStatus(issueId);
-    if (!prStatus.url || prStatus.state === PrState.MERGED || prStatus.state === PrState.CLOSED) {
+    if (prStatus.ambiguous || !prStatus.url || prStatus.state === PrState.MERGED || prStatus.state === PrState.CLOSED) {
       return undefined;
     }
     const reviewComments = await provider.getPrReviewComments(issueId);
@@ -79,7 +79,7 @@ export async function fetchPrContext(
 ): Promise<PrContext | undefined> {
   try {
     const prStatus = await provider.getPrStatus(issueId);
-    if (!prStatus.url) return undefined;
+    if (prStatus.ambiguous || !prStatus.url) return undefined;
     const diff = await provider.getPrDiff(issueId) ?? undefined;
     return { url: prStatus.url, diff };
   } catch {

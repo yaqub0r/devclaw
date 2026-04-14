@@ -67,6 +67,24 @@ export async function reviewPass(opts: {
 
       const status = await provider.getPrStatus(issue.iid);
 
+      if (status.ambiguous) {
+        await auditLog(workspaceDir, "review_ambiguous_pr", {
+          project: projectName,
+          issueId: issue.iid,
+          reason: status.reason,
+          candidates: status.candidates,
+        });
+        try {
+          await provider.addComment(
+            issue.iid,
+            `⚠️ DevClaw found multiple candidate PRs for this issue and cannot reconcile review state safely. ` +
+            `Please explicitly supersede or close extras, then retry.\n\n` +
+            (status.candidates ?? []).map((pr) => `- ${pr.state}: ${pr.url}`).join("\n"),
+          );
+        } catch {}
+        continue;
+      }
+
       // Fallback: no PR found, but work may have been committed directly to base branch.
       // Check git history for commits mentioning this issue number.
       if (!status.url && status.state === PrState.CLOSED && baseBranch) {

@@ -229,6 +229,15 @@ export async function validatePrExistsForDeveloper(
       explicitPrUrl,
     );
 
+    if (prStatus.ambiguous) {
+      throw new Error(
+        `Cannot mark work_finish(done) while multiple PRs are linked to this issue.\n\n` +
+        `✗ Ambiguity: ${prStatus.reason ?? "multiple candidate PRs"}\n` +
+        `${(prStatus.candidates ?? []).map((pr) => `  - ${pr.state}: ${pr.url}`).join("\n")}\n\n` +
+        `Please explicitly close or supersede the extra PRs so one canonical PR remains, then call work_finish again.`,
+      );
+    }
+
     if (!prStatus.url) {
       throw new Error(
         `Cannot mark work_finish(done) without an open PR.\n\n` +
