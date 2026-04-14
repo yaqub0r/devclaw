@@ -381,8 +381,11 @@ export class GitHubProvider implements IssueProvider {
 
     type OpenPr = { title: string; body: string; headRefName: string; url: string; number: number; reviewDecision: string; mergeable: string };
     const open = await this.findPrsForIssue<OpenPr>(issueId, "open", "title,body,headRefName,url,number,reviewDecision,mergeable");
-    if (open.length > 0) {
-      const pr = open[0]!;
+    const canonicalOpen = open
+      .slice()
+      .sort((a, b) => Number(Boolean(b.headRefName)) - Number(Boolean(a.headRefName)) || b.number - a.number)[0];
+    if (canonicalOpen) {
+      const pr = canonicalOpen;
       let state: PrState;
       if (pr.reviewDecision === "APPROVED") {
         state = PrState.APPROVED;
@@ -401,10 +404,13 @@ export class GitHubProvider implements IssueProvider {
       return { state, url: pr.url, title: pr.title, sourceBranch: pr.headRefName, mergeable };
     }
 
-    type MergedPr = { title: string; body: string; headRefName: string; url: string; reviewDecision: string | null };
-    const merged = await this.findPrsForIssue<MergedPr>(issueId, "merged", "title,body,headRefName,url,reviewDecision");
-    if (merged.length > 0) {
-      const pr = merged[0]!;
+    type MergedPr = { title: string; body: string; headRefName: string; url: string; reviewDecision: string | null; mergedAt?: string | null };
+    const merged = await this.findPrsForIssue<MergedPr>(issueId, "merged", "title,body,headRefName,url,reviewDecision,mergedAt");
+    const canonicalMerged = merged
+      .slice()
+      .sort((a, b) => new Date(b.mergedAt ?? 0).getTime() - new Date(a.mergedAt ?? 0).getTime())[0];
+    if (canonicalMerged) {
+      const pr = canonicalMerged;
       return { state: PrState.MERGED, url: pr.url, title: pr.title, sourceBranch: pr.headRefName };
     }
 

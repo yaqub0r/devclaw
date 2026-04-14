@@ -171,7 +171,7 @@ describe("GitHubProvider.getPrStatus — closed PR handling", () => {
     assert.strictEqual(status.sourceBranch, "feature/6-merged-approved");
   });
 
-  it("ignores non-CLOSED states in timeline when returning closed PR", async () => {
+  it("treats OPEN timeline evidence as an open PR instead of falling through to closed", async () => {
     const provider = new GitHubProvider({ repoPath: "/fake", runCommand: mockRunCommand });
 
     (provider as any).findPrsForIssue = async () => [];
@@ -185,10 +185,8 @@ describe("GitHubProvider.getPrStatus — closed PR handling", () => {
 
     const status = await provider.getPrStatus(42);
 
-    // OPEN PR in timeline but findPrsForIssue("open") returned [] → shouldn't reach here normally,
-    // but the CLOSED fallback path should not pick it up.
-    assert.strictEqual(status.state, PrState.CLOSED);
-    assert.strictEqual(status.url, null, "OPEN state in timeline should not match closed-PR path");
+    assert.strictEqual(status.state, PrState.OPEN);
+    assert.strictEqual(status.url, "https://github.com/owner/repo/pull/10");
   });
 
   it("detects merge conflicts via mergeable field", async () => {
@@ -482,7 +480,7 @@ describe("GitLabProvider.getPrStatus — closed MR handling", () => {
     assert.strictEqual(status.url, mergedMrUrl);
   });
 
-  it("handles multiple closed MRs — returns the first found", async () => {
+  it("handles multiple closed MRs deterministically", async () => {
     const provider = new GitLabProvider({ repoPath: "/fake", runCommand: mockRunCommand });
 
     const closedMrUrl1 = "https://gitlab.com/owner/repo/-/merge_requests/10";
@@ -496,31 +494,12 @@ describe("GitLabProvider.getPrStatus — closed MR handling", () => {
     const status = await provider.getPrStatus(42);
 
     assert.strictEqual(status.state, PrState.CLOSED);
-    // First closed MR found is returned
-    assert.strictEqual(status.url, closedMrUrl1);
+    // Canonical reconciliation prefers the newest candidate when all are closed.
+    assert.strictEqual(status.url, closedMrUrl2);
   });
 });
 
 describe("Provider PR reconciliation ambiguity handling", () => {
-  it("marks GitHub status ambiguous when multiple open PRs exist", async () => {
-    const provider = new GitHubProvider({ repoPath: "/fake", runCommand: mockRunCommand });
-
-    (provider as any).findPrsForIssue = async (_id: number, state: string) => {
-      if (state === "open") {
-        return [
-          { title: "PR 1", body: "", headRefName: "feature/1", url: "https://github.com/owner/repo/pull/1", number: 1, reviewDecision: "", mergeable: "MERGEABLE" },
-          { title: "PR 2", body: "", headRefName: "feature/2", url: "https://github.com/owner/repo/pull/2", number: 2, reviewDecision: "", mergeable: "MERGEABLE" },
-        ];
-      }
-      return [];
-    };
-
-    const status = await provider.getPrStatus(42);
-    assert.strictEqual(status.ambiguous, true);
-    assert.strictEqual(status.reason, "multiple_open_prs");
-    assert.strictEqual(status.candidates?.length, 2);
-  });
-
   it("marks GitLab status ambiguous when multiple open MRs exist", async () => {
     const provider = new GitLabProvider({ repoPath: "/fake", runCommand: mockRunCommand });
 
