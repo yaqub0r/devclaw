@@ -146,8 +146,8 @@ describe("E2E pipeline", () => {
       assert.ok(taskMsg.includes("bob"), "Should include second comment author");
     });
 
-    it("should reuse existing session when available", async () => {
-      // Set up worker with existing session in per-level format
+    it("should replace legacy session keys with the deterministic session key", async () => {
+      // Old numeric session keys are deleted and re-spawned on the canonical name-based key.
       h = await createTestHarness({
         workers: {
           developer: {
@@ -156,7 +156,7 @@ describe("E2E pipeline", () => {
           },
         },
       });
-      h.provider.seedIssue({ iid: 42, title: "Quick fix", labels: ["To Do"] });
+      h.provider.seedIssue({ iid: 42, title: "Quick fix", labels: ["To Do", "developer:medior"] });
 
       const result = await dispatchTask({
         workspaceDir: h.workspaceDir,
@@ -174,7 +174,9 @@ describe("E2E pipeline", () => {
         runCommand: h.runCommand,
       });
 
-      assert.strictEqual(result.sessionAction, "send");
+      assert.strictEqual(result.sessionAction, "spawn");
+      const deleted = h.commands.commands.filter((c) => c.argv[0] === "openclaw" && c.argv[3] === "sessions.delete");
+      assert.strictEqual(deleted.length, 1, "Should delete the legacy session key before respawning");
     });
   });
 
@@ -627,7 +629,7 @@ describe("E2E pipeline", () => {
       assert.ok(issue.labels.includes("To Test"), `Labels: ${issue.labels}`);
     });
 
-    it("should transition To Review → To Improve when PR is closed without merging (url non-null)", async () => {
+    it("should transition To Review → Rejected when PR is closed without merging (url non-null)", async () => {
       // After #315: PrState.CLOSED + url non-null = PR was explicitly closed without merging
       h.provider.seedIssue({ iid: 80, title: "Closed PR feature", labels: ["To Review", "review:human"] });
       h.provider.setPrStatus(80, { state: "closed", url: "https://example.com/pr/80" });
@@ -651,9 +653,10 @@ describe("E2E pipeline", () => {
       assert.strictEqual(transitions, 1, "Should have made 1 transition");
 
       const issue = await h.provider.getIssue(80);
-      assert.ok(issue.labels.includes("To Improve"), `Labels: ${issue.labels}`);
+      assert.ok(issue.labels.includes("Rejected"), `Labels: ${issue.labels}`);
       assert.ok(!issue.labels.includes("To Review"), "Should not have To Review");
       assert.ok(!issue.labels.includes("To Test"), "Should NOT have To Test");
+      assert.strictEqual(issue.state, "closed", "Closed PR path should close the issue");
 
       // Merge should not have been called
       const mergeCalls = h.provider.callsTo("mergePr");
@@ -1113,7 +1116,7 @@ describe("E2E pipeline", () => {
       assert.ok(reviewerSkip!.reason.includes("skip"), `Skip reason: ${reviewerSkip!.reason}`);
     });
 
-    it("reviewPolicy: human should still allow developer and tester dispatch", async () => {
+    it("reviewPolicy: human should still allow developer dispatch while reviewer stays skipped", async () => {
       h = await createTestHarness();
       h.provider.seedIssue({ iid: 84, title: "Dev task", labels: ["To Do"] });
       h.provider.seedIssue({ iid: 85, title: "Test task", labels: ["To Test"] });
@@ -1129,8 +1132,8 @@ describe("E2E pipeline", () => {
 
       const roles = result.pickups.map((p) => p.role);
       assert.ok(roles.includes("developer"), `Should dispatch developer, got: ${roles}`);
-      assert.ok(roles.includes("tester"), `Should dispatch tester, got: ${roles}`);
       assert.ok(!roles.includes("reviewer"), "Should NOT dispatch reviewer");
+      assert.ok(!roles.includes("tester"), `Default testPolicy: skip should suppress tester, got: ${roles}`);
     });
   });
 
@@ -1166,7 +1169,7 @@ describe("E2E pipeline", () => {
       assert.ok(issue.labels.includes("review:human"), `Should have review:human for senior, got: ${issue.labels}`);
     });
 
-    it("dispatch should apply review:agent label for non-senior developer", async () => {
+    it("dispatch should apply the canonical review label for non-senior developer work", async () => {
       h = await createTestHarness();
       h.provider.seedIssue({ iid: 404, title: "Junior task", labels: ["To Do"] });
 
@@ -1188,7 +1191,7 @@ describe("E2E pipeline", () => {
 
       const issue = await h.provider.getIssue(404);
       assert.ok(issue.labels.some(l => l.startsWith("developer:junior")), `Should have developer:junior[:name], got: ${issue.labels}`);
-      assert.ok(issue.labels.includes("review:agent"), `Should have review:agent for junior, got: ${issue.labels}`);
+      assert.ok(issue.labels.includes("review:human"), `Should have canonical review label, got: ${issue.labels}`);
     });
 
     it("dispatch should replace old role:level label", async () => {
