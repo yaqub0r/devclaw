@@ -14,6 +14,8 @@ Configured DevClaw project target:
 - `baseBranch = release/devclaw-local`
 - `deployBranch = release/devclaw-local`
 
+Those values live in the local runtime config file `devclaw/projects.json`, which is not tracked in this repo, so this inventory records the intended setting explicitly.
+
 ## Migration status snapshot
 
 At the time of this inventory:

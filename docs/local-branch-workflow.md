@@ -90,6 +90,17 @@ Until explicitly changed, the safe default policy is:
 - **Upstream reference branch:** `upstream/main`
 - **Fork sync/reference branch:** `origin/main`
 
+## Local project config note
+
+The worker target branch is also configured in the local DevClaw workspace config at `devclaw/projects.json`.
+
+For the `devclaw` project, the intended values are:
+
+- `baseBranch = release/devclaw-local`
+- `deployBranch = release/devclaw-local`
+
+That file is local runtime state in this workspace rather than a tracked source file in the repo, so branch-policy docs must stay aligned with that local config.
+
 ## Why this matters
 
 If workers branch from or PR into the wrong branch, several bad things become more likely:
