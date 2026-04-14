@@ -142,6 +142,35 @@ describe("GitHubProvider.getPrStatus — closed PR handling", () => {
     assert.strictEqual(status.url, mergedPrUrl);
   });
 
+  it("returns MERGED for merged PRs even when reviewDecision stays APPROVED", async () => {
+    const provider = new GitHubProvider({ repoPath: "/fake", runCommand: mockRunCommand });
+
+    const mergedPrUrl = "https://github.com/owner/repo/pull/6";
+
+    (provider as any).findPrsForIssue = async (_id: number, state: string) => {
+      if (state === "open") return [];
+      if (state === "merged") {
+        return [
+          {
+            title: "feat: merged after approval",
+            body: "",
+            headRefName: "feature/6-merged-approved",
+            url: mergedPrUrl,
+            reviewDecision: "APPROVED",
+          },
+        ];
+      }
+      return [];
+    };
+    (provider as any).findPrsViaTimeline = async () => null;
+
+    const status = await provider.getPrStatus(42);
+
+    assert.strictEqual(status.state, PrState.MERGED, "merged PRs must not be downgraded to APPROVED");
+    assert.strictEqual(status.url, mergedPrUrl);
+    assert.strictEqual(status.sourceBranch, "feature/6-merged-approved");
+  });
+
   it("ignores non-CLOSED states in timeline when returning closed PR", async () => {
     const provider = new GitHubProvider({ repoPath: "/fake", runCommand: mockRunCommand });
 

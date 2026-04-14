@@ -596,6 +596,34 @@ describe("E2E pipeline", () => {
       assert.ok(issue.labels.includes("To Test"), `Labels: ${issue.labels}`);
     });
 
+    it("should transition merged PRs without re-merging them", async () => {
+      h.provider.seedIssue({ iid: 79, title: "Merged externally", labels: ["To Review", "review:human"] });
+      h.provider.setPrStatus(79, {
+        state: "merged",
+        url: "https://example.com/pr/79",
+        title: "feat: merged externally",
+        sourceBranch: "feature/79-merged-externally",
+      });
+
+      const transitions = await reviewPass({
+        workspaceDir: h.workspaceDir,
+        projectName: h.project.name,
+        workflow: DEFAULT_WORKFLOW,
+        provider: h.provider,
+        repoPath: "/tmp/test-repo",
+        runCommand: h.runCommand,
+      });
+
+      assert.strictEqual(transitions, 1, "Merged PR should still advance the workflow");
+
+      const issue = await h.provider.getIssue(79);
+      assert.ok(issue.labels.includes("To Test"), `Labels: ${issue.labels}`);
+      assert.ok(!issue.labels.includes("To Review"), "Should not have To Review");
+
+      const mergeCalls = h.provider.callsTo("mergePr");
+      assert.strictEqual(mergeCalls.length, 0, "Should not attempt to merge an already-merged PR");
+    });
+
     it("should transition To Review → To Improve when PR is closed without merging (url non-null)", async () => {
       // After #315: PrState.CLOSED + url non-null = PR was explicitly closed without merging
       h.provider.seedIssue({ iid: 80, title: "Closed PR feature", labels: ["To Review", "review:human"] });

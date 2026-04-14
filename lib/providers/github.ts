@@ -337,6 +337,11 @@ export class GitHubProvider implements IssueProvider {
 
       return { ...canonical, state };
     }
+    // Merged PRs must always report MERGED, even if GitHub still retains an
+    // APPROVED reviewDecision after merge. Returning APPROVED here makes the
+    // heartbeat try to merge an already-merged PR again, which can bounce the
+    // issue into merge-failed / re-dispatch flows during normal post-merge
+    // cleanup.
     type MergedPr = { title: string; body: string; headRefName: string; url: string; reviewDecision: string | null; mergedAt?: string | null; number?: number };
     const merged = await this.findPrsForIssue<MergedPr>(issueId, "merged", "title,body,headRefName,url,reviewDecision,mergedAt,number");
     const allPrs = await this.findPrsViaTimeline(issueId, "all");
@@ -351,8 +356,7 @@ export class GitHubProvider implements IssueProvider {
       closed,
     });
     if (terminal.ambiguous || terminal.state !== PrState.MERGED) return terminal;
-    const mergedPr = merged.find((pr) => pr.url === terminal.url);
-    return { ...terminal, state: mergedPr?.reviewDecision === "APPROVED" ? PrState.APPROVED : PrState.MERGED };
+    return { ...terminal, state: PrState.MERGED };
   }
 
   /**
