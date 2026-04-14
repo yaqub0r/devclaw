@@ -148,6 +148,25 @@ describe("scanOrphanedLabels", () => {
       assert.ok(issue.labels.includes("To Do"), `Expected "To Do", got: ${issue.labels}`);
     });
 
+    it("should revert to 'To Improve' when PR is already approved but the worker state is stale", async () => {
+      h.provider.seedIssue({ iid: 42, title: "Test issue", labels: ["Doing"] });
+      h.provider.setPrStatus(42, { state: PrState.APPROVED, url: "https://github.com/test/pr/1" });
+
+      const fixes = await scanOrphanedLabels({
+        workspaceDir: h.workspaceDir,
+        projectSlug: h.project.slug,
+        project: h.project,
+        role: "developer",
+        autoFix: true,
+        provider: h.provider,
+        workflow: h.workflow,
+      });
+
+      assert.strictEqual(fixes.length, 1);
+      assert.strictEqual(fixes[0]!.fixed, true);
+      assert.strictEqual(fixes[0]!.labelReverted, "Doing → To Improve");
+    });
+
     it("should revert to 'To Improve' when PR has changes_requested", async () => {
       h.provider.seedIssue({ iid: 42, title: "Test issue", labels: ["Doing"] });
       h.provider.setPrStatus(42, { state: PrState.CHANGES_REQUESTED, url: "https://github.com/test/pr/1" });
