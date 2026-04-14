@@ -193,12 +193,19 @@ export class GitLabProvider implements IssueProvider {
 
   async getPrStatus(issueId: number): Promise<PrStatus> {
     const mrs = await this.getRelatedMRs(issueId);
-    // Check open MRs first
-    const open = mrs.find((mr) => mr.state === "opened");
+    const openMrs = mrs.filter((mr) => mr.state === "opened");
+    const canonical = reconcileCanonicalPr({
+      open: openMrs.map((mr) => ({
+        url: mr.web_url, title: mr.title, sourceBranch: mr.source_branch, state: "OPEN", number: mr.iid,
+      })),
+      merged: [],
+      closed: [],
+    });
+    if (canonical.ambiguous) return canonical;
+    const open = openMrs[0];
     if (open) {
       const approved = await this.isMrApproved(open.iid);
 
-      // Detect changes requested via unresolved discussion threads
       let state: PrState;
       if (approved) {
         state = PrState.APPROVED;
@@ -207,25 +214,24 @@ export class GitLabProvider implements IssueProvider {
         if (hasUnresolved) {
           state = PrState.CHANGES_REQUESTED;
         } else {
-          // Check for top-level conversation comments from non-author users
           const hasComments = await this.hasConversationComments(open.iid);
           state = hasComments ? PrState.HAS_COMMENTS : PrState.OPEN;
         }
       }
 
-      // Detect merge conflicts
       const mergeable = await this.isMrMergeable(open.iid);
-
-      return { state, url: open.web_url, title: open.title, sourceBranch: open.source_branch, mergeable };
+      return { ...canonical, state, mergeable };
     }
-    // Check merged MRs
-    const merged = mrs.find((mr) => mr.state === "merged");
-    if (merged) return { state: PrState.MERGED, url: merged.web_url, title: merged.title, sourceBranch: merged.source_branch };
-    // Check for closed-without-merge MRs. url: non-null = MR was explicitly closed;
-    // url: null = no MR has ever been created for this issue.
-    const closed = mrs.find((mr) => mr.state === "closed");
-    if (closed) return { state: PrState.CLOSED, url: closed.web_url, title: closed.title, sourceBranch: closed.source_branch };
-    return { state: PrState.CLOSED, url: null };
+
+    return reconcileCanonicalPr({
+      open: [],
+      merged: mrs.filter((mr) => mr.state === "merged").map((mr) => ({
+        url: mr.web_url, title: mr.title, sourceBranch: mr.source_branch, state: "MERGED", mergedAt: mr.merged_at, number: mr.iid,
+      })),
+      closed: mrs.filter((mr) => mr.state === "closed").map((mr) => ({
+        url: mr.web_url, title: mr.title, sourceBranch: mr.source_branch, state: "CLOSED", mergedAt: mr.merged_at, number: mr.iid,
+      })),
+    });
   }
 
   /** Check if an MR has unresolved discussion threads (proxy for changes requested). */

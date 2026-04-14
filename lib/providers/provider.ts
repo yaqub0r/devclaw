@@ -50,6 +50,17 @@ export type PrStatus = {
   sourceBranch?: string;
   /** false = has merge conflicts. undefined = unknown or not applicable. */
   mergeable?: boolean;
+  /** Multiple candidate PRs exist and DevClaw cannot safely pick one canonically. */
+  ambiguous?: boolean;
+  /** Machine-readable reason for ambiguity or reconciliation warning. */
+  reason?: "multiple_open_prs" | "multiple_merged_prs" | "multiple_closed_prs";
+  /** Related PRs considered while computing canonical status. */
+  candidates?: Array<{
+    url: string;
+    state: string;
+    title?: string;
+    sourceBranch?: string;
+  }>;
 };
 
 /** A review comment on a PR/MR. */
