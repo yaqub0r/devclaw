@@ -21,6 +21,7 @@ import { getAllRoleIds, isValidResult, getCompletionResults } from "../../roles/
 import { loadWorkflow } from "../../workflow/index.js";
 import { GitHubProvider } from "../../providers/github.js";
 import { PrState, type PrStatus } from "../../providers/provider.js";
+import { upsertDispatchStatus } from "../../services/dispatch-status.js";
 
 /**
  * Get the current git branch name.
@@ -409,6 +410,17 @@ export function createWorkFinishTool(ctx: PluginContext) {
         createdTasks,
         runCommand: ctx.runCommand,
       });
+
+      const completionConfirmedAt = new Date().toISOString();
+      await upsertDispatchStatus(workspaceDir, { projectSlug: project.slug, issueId, role }, {
+        completionOutputConfirmedAt: completionConfirmedAt,
+        firstWorkerOutputAt: completionConfirmedAt,
+        firstWorkerOutputKind: "completion",
+        lastWorkerOutputAt: completionConfirmedAt,
+        lastWorkerOutputKind: "completion",
+        completedAt: completionConfirmedAt,
+        completionResult: result,
+      }).catch(() => {});
 
       await auditLog(workspaceDir, "work_finish", {
         project: project.name, issue: issueId, role, result,

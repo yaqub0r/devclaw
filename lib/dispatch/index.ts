@@ -26,6 +26,7 @@ import { slotName } from "../names.js";
 import { buildTaskMessage, buildConflictFixMessage, buildAnnouncement, formatSessionLabel } from "./message-builder.js";
 import { ensureSessionFireAndForget, sendToAgent, shouldClearSession } from "./session.js";
 import { acknowledgeComments, EYES_EMOJI } from "./acknowledge.js";
+import { upsertDispatchStatus } from "../services/dispatch-status.js";
 
 export type DispatchOpts = {
   workspaceDir: string;
@@ -184,6 +185,7 @@ export async function dispatchTask(
 
   // ── Commitment point — transition label (issue leaves queue) ────────
   await provider.transitionLabel(issueId, fromLabel, toLabel);
+  const labelMovedAt = new Date().toISOString();
 
   // Mark issue + PR as managed and all consumed comments as seen (fire-and-forget)
   provider.reactToIssue(issueId, EYES_EMOJI).catch(() => {});
@@ -283,16 +285,36 @@ export async function dispatchTask(
   // Step 3: Ensure session exists (fire-and-forget — don't wait for gateway)
   // Session key is deterministic, so we can proceed immediately
   const sessionLabel = formatSessionLabel(project.name, role, level, botName);
-  ensureSessionFireAndForget(sessionKey, model, workspaceDir, rc, timeouts.sessionPatchMs, sessionLabel);
+  await upsertDispatchStatus(workspaceDir, { projectSlug: project.slug, issueId, role }, {
+    projectName: project.name,
+    level,
+    sessionKey,
+    sessionAction,
+    labelMovedAt,
+    workerName: botName,
+  });
+  ensureSessionFireAndForget(sessionKey, model, workspaceDir, rc, {
+    timeoutMs: timeouts.sessionPatchMs,
+    label: sessionLabel,
+    projectSlug: project.slug,
+    projectName: project.name,
+    issueId,
+    role,
+    provider,
+    postVisibleFailureMarker: role === "architect" && fromLabel === "To Research",
+    fromLabel,
+  });
 
   // Step 4: Send task to agent (fire-and-forget)
   // Model is set on the session via sessions.patch (step 3), not on the agent RPC —
   // the gateway's agent endpoint rejects unknown properties like 'model'.
   sendToAgent(sessionKey, taskMessage, {
-    agentId, projectName: project.name, issueId, role, level, slotIndex, fromLabel,
+    agentId, projectName: project.name, projectSlug: project.slug, issueId, role, level, slotIndex, fromLabel,
     orchestratorSessionKey: opts.sessionKey, workspaceDir,
     dispatchTimeoutMs: timeouts.dispatchMs,
     extraSystemPrompt: roleInstructions.trim() || undefined,
+    provider,
+    postVisibleFailureMarker: role === "architect" && fromLabel === "To Research",
     runCommand: rc,
   });
 

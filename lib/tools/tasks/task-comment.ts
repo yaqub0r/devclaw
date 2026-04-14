@@ -12,6 +12,7 @@ import type { ToolContext } from "../../types.js";
 import { log as auditLog } from "../../audit.js";
 import { requireWorkspaceDir, resolveChannelId, resolveProject, resolveProvider, autoAssignOwnerLabel, applyNotifyLabel } from "../helpers.js";
 import { getAllRoleIds, getFallbackEmoji } from "../../roles/index.js";
+import { findDispatchStatusBySession, upsertDispatchStatus } from "../../services/dispatch-status.js";
 
 /** Valid author roles for attribution — all registry roles + orchestrator */
 const AUTHOR_ROLES = [...getAllRoleIds(), "orchestrator"];
@@ -77,7 +78,32 @@ Examples:
         ? `${getRoleEmoji(authorRole)} **${authorRole.toUpperCase()}**: ${body}`
         : body;
 
-      const commentId = await provider.addComment(issueId, commentBody);
+      let commentId: number;
+      try {
+        commentId = await provider.addComment(issueId, commentBody);
+      } catch (err) {
+        if (toolCtx.sessionKey && authorRole && authorRole !== "orchestrator") {
+          await upsertDispatchStatus(workspaceDir, { projectSlug: project.slug, issueId, role: authorRole }, {
+            lastCommentPostFailedAt: new Date().toISOString(),
+            lastCommentPostError: (err as Error).message ?? String(err),
+          }).catch(() => {});
+        }
+        throw err;
+      }
+
+      if (toolCtx.sessionKey && authorRole && authorRole !== "orchestrator") {
+        const status = await findDispatchStatusBySession(workspaceDir, project.slug, issueId, toolCtx.sessionKey);
+        if (status) {
+          const now = new Date().toISOString();
+          await upsertDispatchStatus(workspaceDir, { projectSlug: project.slug, issueId, role: status.role }, {
+            firstWorkerOutputAt: status.firstWorkerOutputAt ?? now,
+            firstWorkerOutputKind: status.firstWorkerOutputKind ?? "comment",
+            lastWorkerOutputAt: now,
+            lastWorkerOutputKind: "comment",
+            lastCommentPostedAt: now,
+          }).catch(() => {});
+        }
+      }
 
       // Mark as system-managed (best-effort).
       provider.reactToIssueComment(issueId, commentId, "eyes").catch(() => {});
