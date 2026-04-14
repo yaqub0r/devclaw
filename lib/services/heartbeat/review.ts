@@ -163,6 +163,9 @@ export async function reviewPass(opts: {
           const targetState = workflow.states[targetKey];
           if (targetState) {
             await provider.transitionLabel(issue.iid, state.label, targetState.label);
+            if (targetState.type === "terminal") {
+              await cleanupTerminalWorkflowResidue({ provider, workflow, issueId: issue.iid });
+            }
             if (closedActions) {
               for (const action of closedActions) {
                 switch (action) {
