@@ -17,6 +17,7 @@ import {
 /**
  * Default retry policy: 3 attempts with exponential backoff.
  * Handles all errors (network, timeout, CLI failure).
+ * Safe to share globally because it carries no failure state between calls.
  */
 const retryPolicy = retry(handleAll, {
   maxAttempts: 3,
@@ -26,24 +27,44 @@ const retryPolicy = retry(handleAll, {
   }),
 });
 
-/**
- * Circuit breaker: opens after 5 consecutive failures, half-opens after 30s.
- * Prevents hammering a provider that's down.
- */
-const breakerPolicy = circuitBreaker(handleAll, {
-  halfOpenAfter: 30_000,
-  breaker: new ConsecutiveBreaker(5),
-});
+type ProviderPolicyOptions = {
+  halfOpenAfter?: number;
+  consecutiveFailures?: number;
+};
 
-/**
- * Combined policy: circuit breaker wrapping retry.
- * If circuit is open, calls fail fast without retrying.
- */
-export const providerPolicy: IPolicy = wrap(breakerPolicy, retryPolicy);
+const DEFAULT_POLICY_OPTIONS: Required<ProviderPolicyOptions> = {
+  halfOpenAfter: 30_000,
+  consecutiveFailures: 5,
+};
+
+const providerPolicies = new Map<string, IPolicy>();
+
+function createProviderPolicy(opts: ProviderPolicyOptions = {}): IPolicy {
+  const resolved = { ...DEFAULT_POLICY_OPTIONS, ...opts };
+  const breakerPolicy = circuitBreaker(handleAll, {
+    halfOpenAfter: resolved.halfOpenAfter,
+    breaker: new ConsecutiveBreaker(resolved.consecutiveFailures),
+  });
+  return wrap(breakerPolicy, retryPolicy);
+}
+
+export function getProviderPolicy(scopeKey: string, opts?: ProviderPolicyOptions): IPolicy {
+  const existing = providerPolicies.get(scopeKey);
+  if (existing) return existing;
+
+  const created = createProviderPolicy(opts);
+  providerPolicies.set(scopeKey, created);
+  return created;
+}
 
 /**
  * Execute a provider call with retry + circuit breaker.
+ * Circuit breaker state is scoped per provider/repo key instead of shared globally.
  */
-export function withResilience<T>(fn: () => Promise<T>): Promise<T> {
-  return providerPolicy.execute(() => fn());
+export function withResilience<T>(scopeKey: string, fn: () => Promise<T>): Promise<T> {
+  return getProviderPolicy(scopeKey).execute(() => fn()) as Promise<T>;
+}
+
+export function resetProviderPoliciesForTest(): void {
+  providerPolicies.clear();
 }
