@@ -2,6 +2,16 @@
 
 DevClaw is an OpenClaw plugin for multi-project dev/qa pipeline orchestration with GitHub/GitLab integration, developer tiers, and audit logging.
 
+## Local Branch Model
+
+- Canonical local repo checkout: `~/git/devclaw`
+- Default local working branch: `local-development`
+- Tested local deployment branch: `local-stable`
+- Upstream alignment branch: `upstream-sync`
+- Full workflow reference: `docs/BRANCHES.md`
+
+Do not treat `~/.openclaw/workspace` as the canonical repo checkout for DevClaw development.
+
 ## Project Structure
 
 - `index.ts` — Plugin entry point, registers 23 tools, CLI, services, and hooks

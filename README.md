@@ -27,6 +27,17 @@ Then start onboarding by chatting with your agent in any channel:
 
 [Read more on onboarding &rarr;](#getting-started)
 
+## Local repo branch model
+
+For local DevClaw work in this environment:
+
+- canonical repo checkout: `~/git/devclaw`
+- default local working branch: `local-development`
+- promotion branch: `local-stable`
+- upstream alignment branch: `upstream-sync`
+
+See [`docs/BRANCHES.md`](docs/BRANCHES.md) for the full workflow.
+
 ---
 
 ## What it looks like
