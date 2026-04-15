@@ -8,7 +8,6 @@
  * The heartbeat is the sole dispatcher — this tool only places issues in
  * queues, never dispatches workers directly.
  */
-import { jsonResult } from "openclaw/plugin-sdk";
 import type { PluginContext } from "../../context.js";
 import type { ToolContext } from "../../types.js";
 import { log as auditLog } from "../../audit.js";
@@ -124,7 +123,7 @@ Examples:
         ? `▶️ #${issueId} moved to "${targetLabel}"${levelMsg} — heartbeat will dispatch.`
         : `▶️ #${issueId} already in queue "${targetLabel}"${levelMsg} — heartbeat will dispatch.`;
 
-      return jsonResult({
+      return ({
         success: true, issueId, issueTitle: issue.title,
         from: currentLabel, to: targetLabel, transitioned,
         level: levelHint ?? null,

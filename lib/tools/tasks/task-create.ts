@@ -9,7 +9,6 @@
  * - A sub-agent finds a bug and needs to file a follow-up issue
  * - Breaking down an epic into smaller tasks
  */
-import { jsonResult } from "openclaw/plugin-sdk";
 import type { PluginContext } from "../../context.js";
 import type { ToolContext } from "../../types.js";
 import { log as auditLog } from "../../audit.js";
@@ -73,7 +72,7 @@ export function createTaskCreateTool(ctx: PluginContext) {
       const openIssues = await provider.listIssues({ state: "open" });
       const duplicateCheck = findDuplicateCandidates({ title, description }, openIssues, workflow);
       if (duplicateCheck.shouldRequireConfirmation && !confirmDuplicate) {
-        return jsonResult({
+        return ({
           success: false,
           duplicateCheck: {
             confidence: duplicateCheck.confidence,
@@ -114,7 +113,7 @@ export function createTaskCreateTool(ctx: PluginContext) {
         announcement += `\nConfirmed despite possible overlap with ${duplicateCheck.candidates.map((candidate) => `#${candidate.issueId}`).join(", ")}.`;
       }
 
-      return jsonResult({
+      return ({
         success: true,
         issue: { id: issue.iid, title: issue.title, body: hasBody ? description : null, url: issue.web_url, label },
         duplicateCheck: {

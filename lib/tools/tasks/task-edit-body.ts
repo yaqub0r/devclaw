@@ -8,7 +8,6 @@
  * DevClaw adds an explicit audit entry with who, when, and what changed.
  * Optionally posts an auto-comment on the issue for traceability.
  */
-import { jsonResult } from "openclaw/plugin-sdk";
 import type { PluginContext } from "../../context.js";
 import type { ToolContext } from "../../types.js";
 import { log as auditLog } from "../../audit.js";
@@ -113,7 +112,7 @@ Examples:
 
       // Nothing actually changed
       if (Object.keys(changes).length === 0) {
-        return jsonResult({
+        return ({
           success: true,
           issueId,
           issueUrl: issue.web_url,
@@ -179,7 +178,7 @@ Examples:
       if (reason) announcement += ` — ${reason}`;
       announcement += `\n🔗 [Issue #${issueId}](${updatedIssue.web_url})`;
 
-      return jsonResult({
+      return ({
         success: true,
         issueId,
         issueTitle: updatedIssue.title,

@@ -8,7 +8,6 @@
  *
  * No parameters, no side effects — pure documentation.
  */
-import { jsonResult } from "openclaw/plugin-sdk";
 import type { PluginContext } from "../../context.js";
 import type { ToolContext } from "../../types.js";
 import { requireWorkspaceDir } from "../helpers.js";
@@ -54,12 +53,12 @@ export function createWorkflowGuideTool(_ctx: PluginContext) {
       };
 
       if (topic && sections[topic]) {
-        return jsonResult({ guide: sections[topic] });
+        return ({ guide: sections[topic] });
       }
 
       // Full guide
       const full = Object.values(sections).join("\n\n---\n\n");
-      return jsonResult({ guide: full });
+      return ({ guide: full });
     },
   });
 }

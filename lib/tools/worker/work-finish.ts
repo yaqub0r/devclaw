@@ -7,7 +7,6 @@
  * All roles (including architect) use the standard pipeline via executeCompletion.
  * Architect workflow: Researching → Done (done, closes issue), Researching → Refining (blocked).
  */
-import { jsonResult } from "openclaw/plugin-sdk";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { ToolContext } from "../../types.js";
@@ -424,7 +423,7 @@ export function createWorkFinishTool(ctx: PluginContext) {
         summary: summary ?? null, labelTransition: completion.labelTransition,
       });
 
-      return jsonResult({
+      return ({
         success: true, project: project.name, projectSlug: project.slug, issueId, role, result,
         ...completion,
       });

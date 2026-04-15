@@ -6,7 +6,6 @@
  * - Manually attach a local file to an issue
  * - View attachment metadata and local paths
  */
-import { jsonResult } from "openclaw/plugin-sdk";
 import type { PluginContext } from "../../context.js";
 import type { ToolContext } from "../../types.js";
 import { log as auditLog } from "../../audit.js";
@@ -68,7 +67,7 @@ Use cases:
 
       if (action === "list") {
         const attachments = await listAttachments(workspaceDir, project.slug, issueId);
-        return jsonResult({
+        return ({
           success: true,
           issueId,
           project: project.name,
@@ -94,7 +93,7 @@ Use cases:
         const attachment = attachments.find((a) => a.id === attachmentId);
         if (!attachment) throw new Error(`Attachment ${attachmentId} not found on issue #${issueId}`);
 
-        return jsonResult({
+        return ({
           success: true,
           issueId,
           project: project.name,
@@ -148,7 +147,7 @@ Use cases:
           mimeType,
         });
 
-        return jsonResult({
+        return ({
           success: true,
           issueId,
           project: project.name,
