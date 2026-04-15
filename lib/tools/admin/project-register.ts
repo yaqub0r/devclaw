@@ -6,7 +6,6 @@
  *
  * Replaces the manual steps of running glab/gh label create + editing projects.json.
  */
-import { jsonResult } from "openclaw/plugin-sdk";
 import type { ToolContext } from "../../types.js";
 import type { PluginContext } from "../../context.js";
 import fs from "node:fs/promises";
@@ -275,7 +274,7 @@ export function createProjectRegisterTool(ctx: PluginContext) {
         hint: "The user can change the review policy or enable the test phase — call workflow_guide for the full reference.",
       };
 
-      return jsonResult({
+      return ({
         success: true,
         project: name,
         projectSlug: slug,

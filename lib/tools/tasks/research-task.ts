@@ -12,7 +12,6 @@
  *   → architect calls work_finish(result="done") → "Researching" → "Done" (issue closed)
  *   → operator reviews created tasks in Planning, moves to "To Do" when ready
  */
-import { jsonResult } from "openclaw/plugin-sdk";
 import type { ToolContext } from "../../types.js";
 import type { PluginContext } from "../../context.js";
 import type { StateLabel } from "../../providers/provider.js";
@@ -136,7 +135,7 @@ Example:
       const model = resolveModel(role, level, resolvedRole);
 
       if (dryRun) {
-        return jsonResult({
+        return ({
           success: true,
           dryRun: true,
           issue: { title, label: TO_RESEARCH_LABEL },
@@ -153,7 +152,7 @@ Example:
       }
 
       if (duplicateCheck.shouldRequireConfirmation && !confirmDuplicate) {
-        return jsonResult({
+        return ({
           success: false,
           duplicateCheck: {
             confidence: duplicateCheck.confidence,
@@ -186,7 +185,7 @@ Example:
         const activeIssueId = Object.values(roleWorker.levels)
           .flat()
           .find((s) => s.active)?.issueId;
-        return jsonResult({
+        return ({
           success: true,
           issue: { id: issue.iid, title: issue.title, url: issue.web_url, label: TO_RESEARCH_LABEL },
           research: {
@@ -230,7 +229,7 @@ Example:
       }).catch(() => {});
       const dispatchStatus = await getDispatchStatus(workspaceDir, { projectSlug: project.slug, issueId: issue.iid, role });
 
-      return jsonResult({
+      return ({
         success: true,
         issue: { id: issue.iid, title: issue.title, url: issue.web_url, label: toLabel },
         research: {

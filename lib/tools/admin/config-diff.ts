@@ -6,7 +6,6 @@
  */
 import fs from "node:fs/promises";
 import path from "node:path";
-import { jsonResult } from "openclaw/plugin-sdk";
 import type { ToolContext } from "../../types.js";
 import type { PluginContext } from "../../context.js";
 import { requireWorkspaceDir } from "../helpers.js";
@@ -38,7 +37,7 @@ export function createConfigDiffTool(_ctx: PluginContext) {
       try {
         userContent = await fs.readFile(workflowPath, "utf-8");
       } catch {
-        return jsonResult({
+        return ({
           status: "no_file",
           message: "No workflow.yaml found. Run setup to create one.",
         });
@@ -47,7 +46,7 @@ export function createConfigDiffTool(_ctx: PluginContext) {
       const defaultContent = WORKFLOW_YAML_TEMPLATE;
 
       if (userContent.trim() === defaultContent.trim()) {
-        return jsonResult({
+        return ({
           status: "identical",
           message: "Your workflow.yaml matches the built-in default — no customizations.",
         });
@@ -77,7 +76,7 @@ export function createConfigDiffTool(_ctx: PluginContext) {
         }
       }
 
-      return jsonResult({
+      return ({
         status: "different",
         differences: diffs.join("\n"),
         message: `Found ${diffs.filter(d => d.startsWith("Line")).length} difference(s) between your workflow.yaml and the default.`,

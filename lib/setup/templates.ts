@@ -12,10 +12,19 @@ import path from "node:path";
 // File loader — reads from defaults/ (single source of truth)
 // ---------------------------------------------------------------------------
 
-// In source, import.meta.url points to lib/setup/templates.ts, so we need to go
-// up two levels to reach the repo root where defaults/ lives.
-// In the bundled dist output, this still resolves correctly to the packaged defaults/.
-const DEFAULTS_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "defaults");
+function resolveDefaultsDir(): string {
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  const candidates = [
+    path.join(here, "..", "..", "defaults"),
+    path.join(here, "..", "defaults"),
+  ];
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) return candidate;
+  }
+  return candidates[0]!;
+}
+
+const DEFAULTS_DIR = resolveDefaultsDir();
 
 function loadDefault(filename: string): string {
   const filePath = path.join(DEFAULTS_DIR, filename);

@@ -5,7 +5,6 @@
  * exists and prevents removing the last channel from a project (projects must
  * have at least one notification endpoint).
  */
-import { jsonResult } from "openclaw/plugin-sdk";
 import type { PluginContext } from "../../context.js";
 import type { ToolContext } from "../../types.js";
 import { readProjects, writeProjects } from "../../projects/index.js";
@@ -85,7 +84,7 @@ export function createChannelUnlinkTool(_ctx: PluginContext) {
 
       // Dry-run mode: show what would be removed
       if (!confirm) {
-        return jsonResult({
+        return ({
           success: false,
           dryRun: true,
           project: target.name,
@@ -113,7 +112,7 @@ export function createChannelUnlinkTool(_ctx: PluginContext) {
         channelType: channel.channel,
       });
 
-      return jsonResult({
+      return ({
         success: true,
         project: target.name,
         projectSlug: target.slug,

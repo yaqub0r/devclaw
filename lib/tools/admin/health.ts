@@ -12,7 +12,6 @@
  *
  * Read-only by default (surfaces issues). Pass fix=true to apply fixes.
  */
-import { jsonResult } from "openclaw/plugin-sdk";
 import type { PluginContext } from "../../context.js";
 import type { ToolContext } from "../../types.js";
 import { readProjects, getProject } from "../../projects/index.js";
@@ -96,7 +95,7 @@ export function createHealthTool(ctx: PluginContext) {
         sessionsCached: sessions?.size ?? 0,
       });
 
-      return jsonResult({
+      return ({
         success: true,
         fix,
         projectsScanned: slugs.length,

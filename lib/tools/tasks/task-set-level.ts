@@ -5,7 +5,6 @@
  * applied as a role:level label and respected by the heartbeat when the
  * issue is later advanced via task_start.
  */
-import { jsonResult } from "openclaw/plugin-sdk";
 import type { PluginContext } from "../../context.js";
 import type { ToolContext } from "../../types.js";
 import { log as auditLog } from "../../audit.js";
@@ -110,7 +109,7 @@ Examples:
         reason: reason ?? null, provider: providerType,
       });
 
-      return jsonResult({
+      return ({
         success: true, issueId, issueTitle: issue.title,
         level: newLevel, changed: levelChanged,
         project: project.name, provider: providerType,

@@ -6,7 +6,6 @@
  * (auto-detach). This is the primary way to switch which project a chat
  * controls.
  */
-import { jsonResult } from "openclaw/plugin-sdk";
 import type { PluginContext } from "../../context.js";
 import type { ToolContext } from "../../types.js";
 import { readProjects, writeProjects, type Channel } from "../../projects/index.js";
@@ -83,7 +82,7 @@ export function createChannelLinkTool(_ctx: PluginContext) {
         (ch) => ch.channelId === channelId,
       );
       if (alreadyLinked) {
-        return jsonResult({
+        return ({
           success: true,
           changed: false,
           project: target.name,
@@ -129,7 +128,7 @@ export function createChannelLinkTool(_ctx: PluginContext) {
       const detachNote = detachedFrom
         ? ` (detached from "${detachedFrom}")`
         : "";
-      return jsonResult({
+      return ({
         success: true,
         changed: true,
         project: target.name,

@@ -6,7 +6,6 @@
  * - Developer worker posts implementation notes
  * - Orchestrator adds summary comments
  */
-import { jsonResult } from "openclaw/plugin-sdk";
 import type { PluginContext } from "../../context.js";
 import type { ToolContext } from "../../types.js";
 import { log as auditLog } from "../../audit.js";
@@ -121,7 +120,7 @@ Examples:
         provider: providerType,
       });
 
-      return jsonResult({
+      return ({
         success: true, issueId, issueTitle: issue.title, issueUrl: issue.web_url,
         commentAdded: true, authorRole: authorRole ?? null, bodyLength: body.length,
         project: project.name, provider: providerType,
