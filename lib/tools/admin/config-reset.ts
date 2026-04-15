@@ -6,7 +6,6 @@
  */
 import fs from "node:fs/promises";
 import path from "node:path";
-import { jsonResult } from "openclaw/plugin-sdk";
 import type { ToolContext } from "../../types.js";
 import type { PluginContext } from "../../context.js";
 import { requireWorkspaceDir } from "../helpers.js";
@@ -65,7 +64,7 @@ export function createConfigResetTool(_ctx: PluginContext) {
 
       await auditLog(workspaceDir, "config_reset", { target, files: resetFiles });
 
-      return jsonResult({
+      return ({
         reset: resetFiles,
         message: `Reset ${resetFiles.length} file(s) to defaults. Backups saved as .bak files.`,
       });

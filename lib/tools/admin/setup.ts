@@ -4,7 +4,6 @@
  * Creates agent, configures model levels, writes workspace files.
  * Thin wrapper around lib/setup/.
  */
-import { jsonResult } from "openclaw/plugin-sdk";
 import type { ToolContext } from "../../types.js";
 import type { PluginContext } from "../../context.js";
 import { runSetup, type SetupOpts } from "../../setup/index.js";
@@ -75,7 +74,7 @@ export function createSetupTool(ctx: PluginContext) {
         const force = !!params.resetDefaults;
         const written = await writeAllDefaults(workspacePath, force);
         const action = force ? "Reset (force-wrote)" : "Ejected (wrote missing)";
-        return jsonResult({
+        return ({
           success: true,
           action: force ? "reset-defaults" : "eject-defaults",
           filesWritten: written,
@@ -129,7 +128,7 @@ export function createSetupTool(ctx: PluginContext) {
         "Next: register a project, then create issues and pick them up.",
       );
 
-      return jsonResult({
+      return ({
         success: true,
         ...result,
         summary: lines.join("\n"),

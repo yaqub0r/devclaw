@@ -12,7 +12,6 @@
  *   → architect calls work_finish(result="done") → "Researching" → "Done" (issue closed)
  *   → operator reviews created tasks in Planning, moves to "To Do" when ready
  */
-import { jsonResult } from "openclaw/plugin-sdk";
 import type { ToolContext } from "../../types.js";
 import type { PluginContext } from "../../context.js";
 import type { StateLabel } from "../../providers/provider.js";
@@ -25,6 +24,7 @@ import { getActiveLabel, loadWorkflow } from "../../workflow/index.js";
 import { selectLevel } from "../../roles/model-selector.js";
 import { resolveModel } from "../../roles/index.js";
 import { findDuplicateCandidates, buildDuplicateConfirmationMessage } from "../../services/issue-dedup.js";
+import { getDispatchStatus, upsertDispatchStatus } from "../../services/dispatch-status.js";
 
 /** Queue label for research tasks. */
 const TO_RESEARCH_LABEL = "To Research";
@@ -135,7 +135,7 @@ Example:
       const model = resolveModel(role, level, resolvedRole);
 
       if (dryRun) {
-        return jsonResult({
+        return ({
           success: true,
           dryRun: true,
           issue: { title, label: TO_RESEARCH_LABEL },
@@ -152,7 +152,7 @@ Example:
       }
 
       if (duplicateCheck.shouldRequireConfirmation && !confirmDuplicate) {
-        return jsonResult({
+        return ({
           success: false,
           duplicateCheck: {
             confidence: duplicateCheck.confidence,
@@ -185,7 +185,7 @@ Example:
         const activeIssueId = Object.values(roleWorker.levels)
           .flat()
           .find((s) => s.active)?.issueId;
-        return jsonResult({
+        return ({
           success: true,
           issue: { id: issue.iid, title: issue.title, url: issue.web_url, label: TO_RESEARCH_LABEL },
           research: {
@@ -219,7 +219,17 @@ Example:
         runCommand: ctx.runCommand,
       });
 
-      return jsonResult({
+      const progressCommentId = await provider.addComment(
+        issue.iid,
+        `📡 Research dispatch started.\n\n- Architect: **${level}**\n- Session: \`${dr.sessionKey}\`\n- Delivery: session prepared, awaiting architect output.`,
+      );
+      provider.reactToIssueComment(issue.iid, progressCommentId, "eyes").catch(() => {});
+      await upsertDispatchStatus(workspaceDir, { projectSlug: project.slug, issueId: issue.iid, role }, {
+        progressCommentId,
+      }).catch(() => {});
+      await getDispatchStatus(workspaceDir, { projectSlug: project.slug, issueId: issue.iid, role });
+
+      return ({
         success: true,
         issue: { id: issue.iid, title: issue.title, url: issue.web_url, label: toLabel },
         research: {

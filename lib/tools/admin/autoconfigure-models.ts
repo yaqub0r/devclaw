@@ -3,7 +3,6 @@
  *
  * Queries available authenticated models and intelligently assigns them to DevClaw roles.
  */
-import { jsonResult } from "openclaw/plugin-sdk";
 import type { ToolContext } from "../../types.js";
 import type { PluginContext, RunCommand } from "../../context.js";
 import {
@@ -67,7 +66,7 @@ export function createAutoConfigureModelsTool(ctx: PluginContext) {
             (m) => m.provider.toLowerCase() === preferProvider.toLowerCase(),
           );
           if (filtered.length === 0) {
-            return jsonResult({
+            return ({
               success: false,
               error: `No authenticated models found for provider: ${preferProvider}`,
               message: `❌ No authenticated models found for provider "${preferProvider}".\n\nAvailable providers: ${[...new Set(authenticatedModels.map((m) => m.provider))].join(", ")}`,
@@ -82,7 +81,7 @@ export function createAutoConfigureModelsTool(ctx: PluginContext) {
         if (!assignment) {
           // No models available
           const instructions = generateSetupInstructions();
-          return jsonResult({
+          return ({
             success: false,
             modelCount: 0,
             message: instructions,
@@ -112,7 +111,7 @@ export function createAutoConfigureModelsTool(ctx: PluginContext) {
         message += "setup({ models: <this-configuration> })\n";
         message += "```";
 
-        return jsonResult({
+        return ({
           success: true,
           modelCount,
           assignment,
@@ -123,7 +122,7 @@ export function createAutoConfigureModelsTool(ctx: PluginContext) {
       } catch (err) {
         const errorMsg = (err as Error).message;
         ctx.logger.error(`Auto-configure models error: ${errorMsg}`);
-        return jsonResult({
+        return ({
           success: false,
           error: errorMsg,
           message: `❌ Failed to auto-configure models: ${errorMsg}`,

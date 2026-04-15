@@ -3,7 +3,6 @@
  *
  * Returns step-by-step guidance. Call this before setup.
  */
-import { jsonResult } from "openclaw/plugin-sdk";
 import type { ToolContext } from "../../types.js";
 import type { PluginContext } from "../../context.js";
 import { isPluginConfigured, hasWorkspaceFiles, buildOnboardToolContext, buildReconfigContext } from "../../setup/onboarding.js";
@@ -28,7 +27,7 @@ export function createOnboardTool(ctx: PluginContext) {
 
       const instructions = mode === "first-run" ? buildOnboardToolContext() : buildReconfigContext();
 
-      return jsonResult({
+      return ({
         success: true, mode, configured, instructions,
         nextSteps: ["Follow instructions above", "Call setup with collected answers", mode === "first-run" ? "Register a project afterward" : null].filter(Boolean),
       });

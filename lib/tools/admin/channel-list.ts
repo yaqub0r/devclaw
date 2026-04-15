@@ -4,7 +4,6 @@
  * Shows registered channels with their type, ID, name, and event subscriptions.
  * Can list channels for a specific project or all projects.
  */
-import { jsonResult } from "openclaw/plugin-sdk";
 import type { PluginContext } from "../../context.js";
 import type { ToolContext } from "../../types.js";
 import { readProjects } from "../../projects/index.js";
@@ -72,7 +71,7 @@ export function createChannelListTool(_ctx: PluginContext) {
                 )
                 .join("\n\n"));
 
-        return jsonResult({
+        return ({
           success: true,
           project: target.name,
           projectSlug: target.slug,
@@ -84,7 +83,7 @@ export function createChannelListTool(_ctx: PluginContext) {
         const projects = Object.values(data.projects);
 
         if (projects.length === 0) {
-          return jsonResult({
+          return ({
             success: true,
             projects: [],
             announcement: "No projects registered.",
@@ -120,7 +119,7 @@ export function createChannelListTool(_ctx: PluginContext) {
             })
             .join("\n\n");
 
-        return jsonResult({
+        return ({
           success: true,
           projects: projectChannels,
           announcement,

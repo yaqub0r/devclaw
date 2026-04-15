@@ -8,7 +8,6 @@
  */
 import fs from "node:fs/promises";
 import path from "node:path";
-import { jsonResult } from "openclaw/plugin-sdk";
 import type { ToolContext } from "../../types.js";
 import type { PluginContext } from "../../context.js";
 import { writeAllDefaults, backupAndWrite, fileExists } from "../../setup/workspace.js";
@@ -96,7 +95,7 @@ async function handleReset(workspacePath: string, scope: string) {
     throw new Error(`Unknown scope: ${scope}. Use: prompts, workflow, or all.`);
   }
 
-  return jsonResult({
+  return ({
     success: true,
     action: "reset",
     scope,
@@ -111,7 +110,7 @@ async function handleDiff(workspacePath: string) {
   const workflowPath = path.join(workspacePath, DATA_DIR, "workflow.yaml");
 
   if (!await fileExists(workflowPath)) {
-    return jsonResult({
+    return ({
       success: true,
       action: "diff",
       summary: "No workflow.yaml found in workspace — using package defaults.",
@@ -122,7 +121,7 @@ async function handleDiff(workspacePath: string) {
   const template = WORKFLOW_YAML_TEMPLATE;
 
   if (current.trim() === template.trim()) {
-    return jsonResult({
+    return ({
       success: true,
       action: "diff",
       summary: "workflow.yaml matches the package default — no differences.",
@@ -148,7 +147,7 @@ async function handleDiff(workspacePath: string) {
     }
   }
 
-  return jsonResult({
+  return ({
     success: true,
     action: "diff",
     differences: diffs.length,
@@ -163,7 +162,7 @@ async function handleVersion(workspacePath: string) {
 
   const match = workspaceVersion === packageVersion;
 
-  return jsonResult({
+  return ({
     success: true,
     action: "version",
     packageVersion,

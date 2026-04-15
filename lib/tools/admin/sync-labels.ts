@@ -8,7 +8,6 @@
  * Calls provider.ensureLabel() directly instead of provider.ensureAllStateLabels()
  * so that custom workflow states from workspace/project overrides are included.
  */
-import { jsonResult } from "openclaw/plugin-sdk";
 import type { ToolContext } from "../../types.js";
 import type { PluginContext } from "../../context.js";
 import { requireWorkspaceDir } from "../helpers.js";
@@ -61,7 +60,7 @@ export function createSyncLabelsTool(ctx: PluginContext) {
       }
 
       if (slugs.length === 0) {
-        return jsonResult({ success: true, synced: [], message: "No projects registered." });
+        return ({ success: true, synced: [], message: "No projects registered." });
       }
 
       const results: Array<{
@@ -117,7 +116,7 @@ export function createSyncLabelsTool(ctx: PluginContext) {
         errors: results.filter((r) => r.error).length,
       });
 
-      return jsonResult({
+      return ({
         success: results.every((r) => !r.error),
         synced: results,
       });
