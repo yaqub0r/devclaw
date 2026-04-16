@@ -5,7 +5,8 @@
  * Replaces the global singleton in run-command.ts with explicit injection.
  */
 import type { OpenClawPluginApi, PluginRuntime } from "openclaw/plugin-sdk";
-import { spawn } from "node:child_process";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 
 /**
  * RunCommand — the signature of api.runtime.system.runCommandWithTimeout.
@@ -37,6 +38,7 @@ export type PluginContext = {
  */
 export function createPluginContext(api: OpenClawPluginApi): PluginContext {
   const sdkRunCommand = api.runtime.system.runCommandWithTimeout;
+  const execFileAsync = promisify(execFile);
 
   const runCommand: RunCommand = async (argv, optionsOrTimeout) => {
     const command = argv[0] ?? "";
@@ -49,44 +51,28 @@ export function createPluginContext(api: OpenClawPluginApi): PluginContext {
     const timeoutMs = options.timeoutMs ?? 30_000;
     const env = { ...process.env, ...(options.env ?? {}) } as Record<string, string>;
 
-    return await new Promise<any>((resolve, reject) => {
-      const child = spawn(command, argv.slice(1), {
+    try {
+      const { stdout, stderr } = await execFileAsync(command, argv.slice(1), {
         cwd: options.cwd,
         env,
-        stdio: [options.input !== undefined ? "pipe" : "ignore", "pipe", "pipe"],
+        timeout: timeoutMs,
         windowsHide: true,
+        maxBuffer: 10 * 1024 * 1024,
       });
-
-      let stdout = "";
-      let stderr = "";
-      let settled = false;
-      let timedOut = false;
-      const timer = setTimeout(() => {
-        if (settled) return;
-        timedOut = true;
-        child.kill("SIGKILL");
-      }, timeoutMs);
-
-      child.stdout?.on("data", (d) => { stdout += d.toString(); });
-      child.stderr?.on("data", (d) => { stderr += d.toString(); });
-      child.on("error", (err) => {
-        if (settled) return;
-        settled = true;
-        clearTimeout(timer);
-        reject(err);
-      });
-      child.on("close", (code, signal) => {
-        if (settled) return;
-        settled = true;
-        clearTimeout(timer);
-        resolve({ stdout, stderr, code, signal, killed: timedOut, termination: timedOut ? "timeout" : "exit" });
-      });
-
-      if (options.input !== undefined && child.stdin) {
-        child.stdin.write(options.input);
-        child.stdin.end();
+      return { stdout, stderr, code: 0, signal: null, killed: false, termination: "exit" } as any;
+    } catch (error: any) {
+      if (typeof error?.stdout === "string" || typeof error?.stderr === "string") {
+        return {
+          stdout: error.stdout ?? "",
+          stderr: error.stderr ?? (error.message ?? ""),
+          code: typeof error.code === "number" ? error.code : 1,
+          signal: error.signal ?? null,
+          killed: Boolean(error.killed),
+          termination: error.killed ? "timeout" : "exit",
+        } as any;
       }
-    });
+      throw error;
+    }
   };
 
   return {
