@@ -34,7 +34,7 @@ export async function createProvider(opts: ProviderOptions): Promise<ProviderWit
   const rc = opts.runCommand;
   const type = opts.provider ?? await detectProvider(repoPath, rc);
   const provider = type === "github"
-    ? new GitHubProvider({ repoPath, runCommand: rc, ghExecutable: "/usr/bin/gh" })
-    : new GitLabProvider({ repoPath, runCommand: rc, glabExecutable: "/usr/bin/glab" });
+    ? new GitHubProvider({ repoPath, runCommand: rc })
+    : new GitLabProvider({ repoPath, runCommand: rc });
   return { provider, type };
 }

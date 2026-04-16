@@ -82,19 +82,17 @@ export class GitHubProvider implements IssueProvider {
   private workflow: WorkflowConfig;
   private runCommand: RunCommand;
   private resilienceScopeKey: string;
-  private ghExecutable: string;
 
-  constructor(opts: { repoPath: string; runCommand: RunCommand; workflow?: WorkflowConfig; ghExecutable?: string }) {
+  constructor(opts: { repoPath: string; runCommand: RunCommand; workflow?: WorkflowConfig }) {
     this.repoPath = opts.repoPath;
     this.runCommand = opts.runCommand;
     this.workflow = opts.workflow ?? DEFAULT_WORKFLOW;
     this.resilienceScopeKey = `github:${this.repoPath}`;
-    this.ghExecutable = opts.ghExecutable ?? "/usr/bin/gh";
   }
 
   private async gh(args: string[]): Promise<string> {
     return withResilience(this.resilienceScopeKey, async () => {
-      const result = await this.runCommand([this.ghExecutable, ...args], { timeoutMs: 30_000, cwd: this.repoPath });
+      const result = await this.runCommand(["gh", ...args], { timeoutMs: 30_000, cwd: this.repoPath });
       if (result.code != null && result.code !== 0) {
         throw new Error(result.stderr?.trim() || `gh command failed with exit code ${result.code}`);
       }

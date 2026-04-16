@@ -5,8 +5,6 @@
  * Replaces the global singleton in run-command.ts with explicit injection.
  */
 import type { OpenClawPluginApi, PluginRuntime } from "openclaw/plugin-sdk";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 
 /**
  * RunCommand — the signature of api.runtime.system.runCommandWithTimeout.
@@ -37,46 +35,8 @@ export type PluginContext = {
  * Build a PluginContext from the raw plugin API. Called once in register().
  */
 export function createPluginContext(api: OpenClawPluginApi): PluginContext {
-  const sdkRunCommand = api.runtime.system.runCommandWithTimeout;
-  const execFileAsync = promisify(execFile);
-
-  const runCommand: RunCommand = async (argv, optionsOrTimeout) => {
-    const command = argv[0] ?? "";
-    const isPinnedCli = command === "/usr/bin/gh" || command === "/usr/local/bin/gh" || command === "/usr/bin/glab" || command === "/usr/local/bin/glab";
-    if (!isPinnedCli) {
-      return sdkRunCommand(argv, optionsOrTimeout as any);
-    }
-
-    const options = typeof optionsOrTimeout === "number" ? { timeoutMs: optionsOrTimeout } : (optionsOrTimeout ?? {});
-    const timeoutMs = options.timeoutMs ?? 30_000;
-    const env = { ...process.env, ...(options.env ?? {}) } as Record<string, string>;
-
-    try {
-      const { stdout, stderr } = await execFileAsync(command, argv.slice(1), {
-        cwd: options.cwd,
-        env,
-        timeout: timeoutMs,
-        windowsHide: true,
-        maxBuffer: 10 * 1024 * 1024,
-      });
-      return { stdout, stderr, code: 0, signal: null, killed: false, termination: "exit" } as any;
-    } catch (error: any) {
-      if (typeof error?.stdout === "string" || typeof error?.stderr === "string") {
-        return {
-          stdout: error.stdout ?? "",
-          stderr: error.stderr ?? (error.message ?? ""),
-          code: typeof error.code === "number" ? error.code : 1,
-          signal: error.signal ?? null,
-          killed: Boolean(error.killed),
-          termination: error.killed ? "timeout" : "exit",
-        } as any;
-      }
-      throw error;
-    }
-  };
-
   return {
-    runCommand,
+    runCommand: api.runtime.system.runCommandWithTimeout,
     runtime: api.runtime,
     pluginConfig: api.pluginConfig as Record<string, unknown> | undefined,
     config: api.config,

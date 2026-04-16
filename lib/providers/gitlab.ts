@@ -37,19 +37,17 @@ export class GitLabProvider implements IssueProvider {
   private workflow: WorkflowConfig;
   private runCommand: RunCommand;
   private resilienceScopeKey: string;
-  private glabExecutable: string;
 
-  constructor(opts: { repoPath: string; runCommand: RunCommand; workflow?: WorkflowConfig; glabExecutable?: string }) {
+  constructor(opts: { repoPath: string; runCommand: RunCommand; workflow?: WorkflowConfig }) {
     this.repoPath = opts.repoPath;
     this.runCommand = opts.runCommand;
     this.workflow = opts.workflow ?? DEFAULT_WORKFLOW;
     this.resilienceScopeKey = `gitlab:${this.repoPath}`;
-    this.glabExecutable = opts.glabExecutable ?? "/usr/bin/glab";
   }
 
   private async glab(args: string[]): Promise<string> {
     return withResilience(this.resilienceScopeKey, async () => {
-      const result = await this.runCommand([this.glabExecutable, ...args], { timeoutMs: 30_000, cwd: this.repoPath });
+      const result = await this.runCommand(["glab", ...args], { timeoutMs: 30_000, cwd: this.repoPath });
       return result.stdout.trim();
     });
   }
