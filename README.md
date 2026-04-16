@@ -32,9 +32,9 @@ Then start onboarding by chatting with your agent in any channel:
 For local DevClaw work in this environment:
 
 - canonical repo checkout: `~/git/devclaw`
-- default local working branch: `local-development`
-- promotion branch: `local-stable`
-- upstream alignment branch: `upstream-sync`
+- upstream sync branch: `main`
+- active local integration branch: `devclaw-local-current` (live local runtime lane)
+- tested deployment branch: `devclaw-local-stable` (known-good fallback lane)
 
 See [`docs/BRANCHES.md`](docs/BRANCHES.md) for the full workflow.
 

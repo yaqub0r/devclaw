@@ -82,6 +82,7 @@ export class GitHubProvider implements IssueProvider {
   private workflow: WorkflowConfig;
   private runCommand: RunCommand;
   private resilienceScopeKey: string;
+  private ghExecutable: string | null | undefined = undefined;
 
   constructor(opts: { repoPath: string; runCommand: RunCommand; workflow?: WorkflowConfig }) {
     this.repoPath = opts.repoPath;
@@ -90,9 +91,31 @@ export class GitHubProvider implements IssueProvider {
     this.resilienceScopeKey = `github:${this.repoPath}`;
   }
 
+  private async resolveGhExecutable(): Promise<string> {
+    if (this.ghExecutable) return this.ghExecutable;
+    if (this.ghExecutable === null) return "gh";
+
+    const candidates = ["/usr/bin/gh", "/usr/local/bin/gh", "gh"];
+    for (const candidate of candidates) {
+      try {
+        const result = await this.runCommand([candidate, "--version"], { timeoutMs: 5_000, cwd: this.repoPath });
+        if (result.code === 0) {
+          this.ghExecutable = candidate;
+          return candidate;
+        }
+      } catch {
+        // try next candidate
+      }
+    }
+
+    this.ghExecutable = null;
+    return "gh";
+  }
+
   private async gh(args: string[]): Promise<string> {
     return withResilience(this.resilienceScopeKey, async () => {
-      const result = await this.runCommand(["gh", ...args], { timeoutMs: 30_000, cwd: this.repoPath });
+      const ghExecutable = await this.resolveGhExecutable();
+      const result = await this.runCommand([ghExecutable, ...args], { timeoutMs: 30_000, cwd: this.repoPath });
       if (result.code != null && result.code !== 0) {
         throw new Error(result.stderr?.trim() || `gh command failed with exit code ${result.code}`);
       }
