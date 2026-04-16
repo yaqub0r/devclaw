@@ -8,10 +8,12 @@ import assert from "node:assert";
 import { mkdtemp, writeFile, readFile, mkdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { validatePrExistsForDeveloper } from "./work-finish.js";
+import { findCompletionTarget, validatePrExistsForDeveloper } from "./work-finish.js";
+import { createTestHarness, type TestHarness } from "../../testing/index.js";
 import { TestProvider } from "../../testing/test-provider.js";
 import { GitHubProvider } from "../../providers/github.js";
 import { PrState } from "../../providers/provider.js";
+import { upsertDispatchStatus } from "../../services/dispatch-status.js";
 
 async function createMockAuditLog(workspaceDir: string, issueId: number, hasMergeConflict: boolean): Promise<void> {
   const logDir = join(workspaceDir, "devclaw", "log");
@@ -303,5 +305,127 @@ describe("work_finish PR validation", () => {
         /still shows merge conflicts/,
       );
     });
+  });
+});
+
+describe("findCompletionTarget", () => {
+  let h: TestHarness;
+
+  after(async () => {
+    if (h) await h.cleanup();
+  });
+
+  it("prefers the active slot when worker state is still present", async () => {
+    h = await createTestHarness({
+      workers: {
+        developer: {
+          active: true,
+          issueId: "72",
+          level: "senior",
+          sessionKey: "agent:test:subagent:test-project-developer-senior-cordelia",
+        },
+      },
+    });
+
+    const target = await findCompletionTarget({
+      workspaceDir: h.workspaceDir,
+      project: h.project,
+      role: "developer",
+      sessionKey: "agent:test:subagent:test-project-developer-senior-cordelia",
+    });
+
+    assert.deepStrictEqual(target, {
+      issueId: 72,
+      level: "senior",
+      slotIndex: 0,
+      source: "slot",
+    });
+  });
+
+  it("falls back to dispatch status when the slot was lost", async () => {
+    h = await createTestHarness({
+      workers: {
+        developer: {
+          active: false,
+          issueId: null,
+          level: "senior",
+          sessionKey: "agent:test:subagent:test-project-developer-senior-cordelia",
+        },
+      },
+    });
+
+    await upsertDispatchStatus(h.workspaceDir, {
+      projectSlug: h.project.slug,
+      issueId: 72,
+      role: "developer",
+    }, {
+      projectName: h.project.name,
+      level: "senior",
+      sessionKey: "agent:test:subagent:test-project-developer-senior-cordelia",
+      sessionAction: "spawn",
+      labelMovedAt: new Date().toISOString(),
+      firstWorkerOutputAt: new Date().toISOString(),
+    });
+
+    const target = await findCompletionTarget({
+      workspaceDir: h.workspaceDir,
+      project: h.project,
+      role: "developer",
+      sessionKey: "agent:test:subagent:test-project-developer-senior-cordelia",
+    });
+
+    assert.deepStrictEqual(target, {
+      issueId: 72,
+      level: "senior",
+      source: "dispatch_status",
+    });
+  });
+
+  it("uses the newest incomplete dispatch record for reused sessions", async () => {
+    h = await createTestHarness({
+      workers: {
+        developer: {
+          active: false,
+          issueId: null,
+          level: "senior",
+          sessionKey: "agent:test:subagent:test-project-developer-senior-cordelia",
+        },
+      },
+    });
+
+    await upsertDispatchStatus(h.workspaceDir, {
+      projectSlug: h.project.slug,
+      issueId: 65,
+      role: "developer",
+    }, {
+      projectName: h.project.name,
+      level: "senior",
+      sessionKey: "agent:test:subagent:test-project-developer-senior-cordelia",
+      sessionAction: "send",
+      labelMovedAt: "2026-04-16T02:00:00.000Z",
+      completedAt: "2026-04-16T02:05:00.000Z",
+    });
+
+    await upsertDispatchStatus(h.workspaceDir, {
+      projectSlug: h.project.slug,
+      issueId: 72,
+      role: "developer",
+    }, {
+      projectName: h.project.name,
+      level: "senior",
+      sessionKey: "agent:test:subagent:test-project-developer-senior-cordelia",
+      sessionAction: "send",
+      labelMovedAt: "2026-04-16T02:06:00.000Z",
+    });
+
+    const target = await findCompletionTarget({
+      workspaceDir: h.workspaceDir,
+      project: h.project,
+      role: "developer",
+      sessionKey: "agent:test:subagent:test-project-developer-senior-cordelia",
+    });
+
+    assert.strictEqual(target?.issueId, 72);
+    assert.strictEqual(target?.source, "dispatch_status");
   });
 });

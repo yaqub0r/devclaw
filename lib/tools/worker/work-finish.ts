@@ -21,7 +21,7 @@ import { getAllRoleIds, isValidResult, getCompletionResults } from "../../roles/
 import { loadWorkflow } from "../../workflow/index.js";
 import { GitHubProvider } from "../../providers/github.js";
 import { PrState, type PrStatus } from "../../providers/provider.js";
-import { upsertDispatchStatus } from "../../services/dispatch-status.js";
+import { findLatestIncompleteDispatchStatusBySession, upsertDispatchStatus } from "../../services/dispatch-status.js";
 
 /**
  * Get the current git branch name.
@@ -309,6 +309,45 @@ export async function validatePrExistsForDeveloper(
   }
 }
 
+export async function findCompletionTarget(opts: {
+  workspaceDir: string;
+  project: Awaited<ReturnType<typeof resolveProject>>["project"];
+  role: string;
+  sessionKey?: string;
+}): Promise<{ issueId: number; level?: string; slotIndex?: number; source: "slot" | "dispatch_status" } | null> {
+  const roleWorker = getRoleWorker(opts.project, opts.role);
+
+  for (const [level, slots] of Object.entries(roleWorker.levels)) {
+    for (let i = 0; i < slots.length; i++) {
+      if (slots[i]!.active && slots[i]!.issueId &&
+          (!opts.sessionKey || !slots[i]!.sessionKey || slots[i]!.sessionKey === opts.sessionKey)) {
+        return {
+          issueId: Number(slots[i]!.issueId),
+          level,
+          slotIndex: i,
+          source: "slot",
+        };
+      }
+    }
+  }
+
+  if (!opts.sessionKey) return null;
+
+  const fallback = await findLatestIncompleteDispatchStatusBySession(opts.workspaceDir, {
+    projectSlug: opts.project.slug,
+    role: opts.role,
+    sessionKey: opts.sessionKey,
+  });
+
+  if (!fallback) return null;
+
+  return {
+    issueId: fallback.issueId,
+    level: fallback.level,
+    source: "dispatch_status",
+  };
+}
+
 export function createWorkFinishTool(ctx: PluginContext) {
   return (toolCtx: ToolContext) => ({
     name: "work_finish",
@@ -356,30 +395,20 @@ export function createWorkFinishTool(ctx: PluginContext) {
 
       // Resolve project + worker
       const { project } = await resolveProject(workspaceDir, channelId);
-      const roleWorker = getRoleWorker(project, role);
+      const target = await findCompletionTarget({
+        workspaceDir,
+        project,
+        role,
+        sessionKey: toolCtx.sessionKey,
+      });
 
-      // Find the first active slot across all levels
-      let slotIndex: number | null = null;
-      let slotLevel: string | null = null;
-      let issueId: number | null = null;
-
-      for (const [level, slots] of Object.entries(roleWorker.levels)) {
-        for (let i = 0; i < slots.length; i++) {
-          if (slots[i]!.active && slots[i]!.issueId &&
-              (!toolCtx.sessionKey || !slots[i]!.sessionKey ||
-               slots[i]!.sessionKey === toolCtx.sessionKey)) {
-            slotLevel = level;
-            slotIndex = i;
-            issueId = Number(slots[i]!.issueId);
-            break;
-          }
-        }
-        if (issueId !== null) break;
-      }
-
-      if (slotIndex === null || slotLevel === null || issueId === null) {
+      if (!target) {
         throw new Error(`${role.toUpperCase()} worker not active on ${project.name}`);
       }
+
+      const slotIndex = target.slotIndex;
+      const slotLevel = target.level;
+      const issueId = target.issueId;
 
       const { provider } = await resolveProvider(project, ctx.runCommand);
       const workflow = await loadWorkflow(workspaceDir, project.name);
@@ -418,6 +447,15 @@ export function createWorkFinishTool(ctx: PluginContext) {
         completedAt: completionConfirmedAt,
         completionResult: result,
       }).catch(() => {});
+
+      if (target.source === "dispatch_status") {
+        await auditLog(workspaceDir, "work_finish_slot_recovered", {
+          project: project.name,
+          issue: issueId,
+          role,
+          sessionKey: toolCtx.sessionKey ?? null,
+        }).catch(() => {});
+      }
 
       await auditLog(workspaceDir, "work_finish", {
         project: project.name, issue: issueId, role, result,

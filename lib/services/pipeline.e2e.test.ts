@@ -176,6 +176,35 @@ describe("E2E pipeline", () => {
 
       assert.strictEqual(result.sessionAction, "send");
     });
+
+    it("should abort and roll back the label if durable worker state cannot be recorded", async () => {
+      const brokenProject = { ...h.project, slug: "missing-project" };
+
+      await assert.rejects(
+        () => dispatchTask({
+          workspaceDir: h.workspaceDir,
+          agentId: "test-agent",
+          project: brokenProject,
+          issueId: 42,
+          issueTitle: "Add login page",
+          issueDescription: "Build the login page",
+          issueUrl: "https://example.com/issues/42",
+          role: "developer",
+          level: "medior",
+          fromLabel: "To Do",
+          toLabel: "Doing",
+          provider: h.provider,
+          runCommand: h.runCommand,
+        }),
+        /worker state could not be recorded/,
+      );
+
+      const issue = await h.provider.getIssue(42);
+      assert.ok(issue.labels.includes("To Do"), `Expected rollback to \"To Do\", got: ${issue.labels}`);
+      assert.ok(!issue.labels.includes("Doing"), `Did not expect \"Doing\", got: ${issue.labels}`);
+      assert.strictEqual(h.commands.sessionPatches().length, 0, "Should not patch session after state failure");
+      assert.strictEqual(h.commands.taskMessages().length, 0, "Should not dispatch task after state failure");
+    });
   });
 
   // =========================================================================
