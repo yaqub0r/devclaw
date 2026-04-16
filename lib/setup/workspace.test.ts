@@ -28,6 +28,63 @@ afterEach(async () => {
 });
 
 describe("ensureDefaultFiles — write-once behavior", () => {
+  it("should migrate root-level legacy projects.json instead of creating an empty registry", async () => {
+    const ws = await makeTmpDir();
+    const legacy = {
+      projects: {
+        sample: {
+          slug: "sample",
+          name: "sample",
+          repo: "~/git/sample",
+          groupName: "Sample",
+          deployUrl: "",
+          baseBranch: "main",
+          deployBranch: "main",
+          channels: [{ channelId: "1", channel: "telegram", name: "primary", events: ["*"] }],
+          workers: {},
+        },
+      },
+    };
+    await fs.writeFile(path.join(ws, "projects.json"), JSON.stringify(legacy, null, 2) + "\n", "utf-8");
+
+    await ensureDefaultFiles(ws);
+
+    const canonicalPath = path.join(ws, DATA_DIR, "projects.json");
+    assert.ok(await fileExists(canonicalPath), "canonical projects.json should exist");
+    const migrated = JSON.parse(await fs.readFile(canonicalPath, "utf-8"));
+    assert.deepStrictEqual(migrated, legacy, "legacy registry should be preserved and migrated");
+    assert.ok(!(await fileExists(path.join(ws, "projects.json"))), "legacy root projects.json should be removed after migration");
+  });
+
+  it("should migrate old projects/projects.json instead of creating an empty registry", async () => {
+    const ws = await makeTmpDir();
+    const legacy = {
+      projects: {
+        sample: {
+          name: "sample",
+          repo: "~/git/sample",
+          groupName: "Sample",
+          deployUrl: "",
+          baseBranch: "main",
+          deployBranch: "main",
+          dev: { active: true, issueId: "42", startTime: null, level: "mid", sessions: { mid: "key-1" } },
+          qa: { active: false, issueId: null, startTime: null, level: null, sessions: {} },
+          architect: { active: false, issueId: null, startTime: null, level: null, sessions: {} },
+        },
+      },
+    };
+    await fs.mkdir(path.join(ws, "projects"), { recursive: true });
+    await fs.writeFile(path.join(ws, "projects", "projects.json"), JSON.stringify(legacy, null, 2) + "\n", "utf-8");
+
+    await ensureDefaultFiles(ws);
+
+    const canonicalPath = path.join(ws, DATA_DIR, "projects.json");
+    assert.ok(await fileExists(canonicalPath), "canonical projects.json should exist");
+    const migrated = JSON.parse(await fs.readFile(canonicalPath, "utf-8"));
+    assert.deepStrictEqual(migrated, legacy, "old-layout registry should be preserved and migrated");
+    assert.ok(!(await fileExists(path.join(ws, "projects", "projects.json"))), "old-layout projects.json should be removed after migration");
+  });
+
   it("should create workflow.yaml when missing", async () => {
     const ws = await makeTmpDir();
     await ensureDefaultFiles(ws);

@@ -41,6 +41,11 @@ const INITIALIZED_SENTINEL = ".initialized";
  *   - Runtime state (projects.json): create-only
  */
 export async function ensureDefaultFiles(workspacePath: string): Promise<void> {
+  // Migrate any legacy layout before creating defaults. Otherwise startup can
+  // create an empty devclaw/projects.json that masks a real registry still
+  // living at a legacy path such as projects.json or projects/projects.json.
+  await migrateWorkspaceLayout(workspacePath);
+
   const dataDir = path.join(workspacePath, DATA_DIR);
   await fs.mkdir(dataDir, { recursive: true });
 
