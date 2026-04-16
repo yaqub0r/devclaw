@@ -36,6 +36,7 @@ export class GitLabProvider implements IssueProvider {
   private workflow: WorkflowConfig;
   private runCommand: RunCommand;
   private resilienceScopeKey: string;
+  private glabExecutable: string | null | undefined = undefined;
 
   constructor(opts: { repoPath: string; runCommand: RunCommand; workflow?: WorkflowConfig }) {
     this.repoPath = opts.repoPath;
@@ -44,9 +45,31 @@ export class GitLabProvider implements IssueProvider {
     this.resilienceScopeKey = `gitlab:${this.repoPath}`;
   }
 
+  private async resolveGlabExecutable(): Promise<string> {
+    if (this.glabExecutable) return this.glabExecutable;
+    if (this.glabExecutable === null) return "glab";
+
+    const candidates = ["/usr/bin/glab", "/usr/local/bin/glab", "glab"];
+    for (const candidate of candidates) {
+      try {
+        const result = await this.runCommand([candidate, "--version"], { timeoutMs: 5_000, cwd: this.repoPath });
+        if (result.code === 0) {
+          this.glabExecutable = candidate;
+          return candidate;
+        }
+      } catch {
+        // try next candidate
+      }
+    }
+
+    this.glabExecutable = null;
+    return "glab";
+  }
+
   private async glab(args: string[]): Promise<string> {
     return withResilience(this.resilienceScopeKey, async () => {
-      const result = await this.runCommand(["glab", ...args], { timeoutMs: 30_000, cwd: this.repoPath });
+      const glabExecutable = await this.resolveGlabExecutable();
+      const result = await this.runCommand([glabExecutable, ...args], { timeoutMs: 30_000, cwd: this.repoPath });
       return result.stdout.trim();
     });
   }
