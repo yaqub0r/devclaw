@@ -13,6 +13,7 @@ import { createTestHarness, type TestHarness } from "../../testing/index.js";
 import { scanOrphanedLabels } from "./health.js";
 import { PrState } from "../../providers/provider.js";
 import { writeProjects, type ProjectsData } from "../../projects/index.js";
+import { upsertDispatchStatus } from "../dispatch-status.js";
 
 // ---------------------------------------------------------------------------
 // Test suite
@@ -228,6 +229,41 @@ describe("scanOrphanedLabels", () => {
 
       // Restore
       h.provider.getPrStatus = originalGetPrStatus;
+    });
+
+    it("should preserve the active label when worker output was already confirmed", async () => {
+      h.provider.seedIssue({ iid: 42, title: "Test issue", labels: ["Doing"] });
+
+      await upsertDispatchStatus(h.workspaceDir, {
+        projectSlug: h.project.slug,
+        issueId: 42,
+        role: "developer",
+      }, {
+        projectName: h.project.name,
+        level: "senior",
+        sessionKey: "agent:test:subagent:test-project-developer-senior-cordelia",
+        sessionAction: "send",
+        labelMovedAt: new Date().toISOString(),
+        firstWorkerOutputAt: new Date().toISOString(),
+      });
+
+      const fixes = await scanOrphanedLabels({
+        workspaceDir: h.workspaceDir,
+        projectSlug: h.project.slug,
+        project: h.project,
+        role: "developer",
+        autoFix: true,
+        provider: h.provider,
+        workflow: h.workflow,
+      });
+
+      assert.strictEqual(fixes.length, 1);
+      assert.strictEqual(fixes[0]!.fixed, false);
+      assert.match(fixes[0]!.issue.message, /worker output was already confirmed/);
+
+      const issue = await h.provider.getIssue(42);
+      assert.ok(issue.labels.includes("Doing"), `Expected "Doing", got: ${issue.labels}`);
+      assert.ok(!issue.labels.includes("To Do"), `Did not expect requeue, got: ${issue.labels}`);
     });
   });
 });

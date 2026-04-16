@@ -151,6 +151,27 @@ export async function findDispatchStatusBySession(
   ) ?? null;
 }
 
+export async function findLatestIncompleteDispatchStatusBySession(
+  workspaceDir: string,
+  identity: { projectSlug: string; role: string; sessionKey: string },
+): Promise<DispatchStatus | null> {
+  const data = await readStore(workspaceDir);
+  const matches = Object.values(data)
+    .filter((entry) =>
+      entry.projectSlug === identity.projectSlug &&
+      entry.role === identity.role &&
+      entry.sessionKey === identity.sessionKey &&
+      !entry.completedAt,
+    )
+    .sort((a, b) => {
+      const aTs = Date.parse(a.updatedAt || a.labelMovedAt || "1970-01-01T00:00:00.000Z");
+      const bTs = Date.parse(b.updatedAt || b.labelMovedAt || "1970-01-01T00:00:00.000Z");
+      return bTs - aTs;
+    });
+
+  return matches[0] ?? null;
+}
+
 export function summarizeDispatchStatus(status: DispatchStatus | null, sessionAlive?: boolean | null): string {
   if (!status) return "unknown";
   if (status.completedAt) return "completed";
