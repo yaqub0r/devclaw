@@ -65,6 +65,10 @@ const STALL_CONTEXT_THRESHOLD = 1_000;
 /** Message sent to nudge a stalled session back to life. */
 const NUDGE_MESSAGE = `You appear to have stalled. Continue working on your current task. If you are blocked or unable to proceed, call work_finish with result "blocked".`;
 
+function hasConfirmedWorkerOutput(status: Awaited<ReturnType<typeof getDispatchStatus>>): boolean {
+  return Boolean(status?.firstWorkerOutputAt || status?.completionOutputConfirmedAt);
+}
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -219,6 +223,9 @@ export async function checkWorkerHealth(opts: {
 
       // Parse issueId
       const issueIdNum = slot.issueId ? Number(slot.issueId) : null;
+      const dispatchStatus = issueIdNum
+        ? await getDispatchStatus(workspaceDir, { projectSlug, issueId: issueIdNum, role })
+        : null;
 
       // Fetch issue state if we have an issueId
       let issue: Issue | null = null;
@@ -492,7 +499,6 @@ export async function checkWorkerHealth(opts: {
       }
 
       if (role === "architect" && slot.active && issueIdNum && sessionKey && sessions && isSessionAlive(sessionKey, sessions)) {
-        const dispatchStatus = await getDispatchStatus(workspaceDir, { projectSlug, issueId: issueIdNum, role });
         const labelMovedAtMs = dispatchStatus?.labelMovedAt ? new Date(dispatchStatus.labelMovedAt).getTime() : workerStartTime;
         if (labelMovedAtMs && !dispatchStatus?.firstWorkerOutputAt && !dispatchStatus?.completionOutputConfirmedAt && (Date.now() - labelMovedAtMs) > GRACE_PERIOD_MS) {
           const fix: HealthFix = {
@@ -568,6 +574,25 @@ export async function checkWorkerHealth(opts: {
 
       // Case 4: Inactive but issue has stuck active label
       if (!slot.active && issue && currentLabel === expectedLabel) {
+        if (hasConfirmedWorkerOutput(dispatchStatus) && !dispatchStatus?.completedAt) {
+          fixes.push({
+            issue: {
+              type: "stuck_label",
+              severity: "warning",
+              project: project.name,
+              projectSlug,
+              role,
+              issueId: slot.issueId,
+              expectedLabel: slotQueueLabel,
+              actualLabel: currentLabel,
+              slotIndex,
+              message: `${role.toUpperCase()} ${level}[${slotIndex}] lost slot state for issue #${issueIdNum}, but worker output was already confirmed — preserving "${currentLabel}"`,
+            },
+            fixed: false,
+          });
+          continue;
+        }
+
         const fix: HealthFix = {
           issue: {
             type: "stuck_label",
@@ -692,6 +717,11 @@ export async function scanOrphanedLabels(opts: {
   // Check each issue to see if it's tracked in any slot across all levels
   for (const issue of ownedIssues) {
     const issueIdStr = String(issue.iid);
+    const dispatchStatus = await getDispatchStatus(workspaceDir, {
+      projectSlug,
+      issueId: issue.iid,
+      role,
+    });
 
     let isTracked = false;
     for (const slots of Object.values(roleWorker.levels)) {
@@ -702,6 +732,24 @@ export async function scanOrphanedLabels(opts: {
     }
 
     if (!isTracked) {
+      if (hasConfirmedWorkerOutput(dispatchStatus) && !dispatchStatus?.completedAt) {
+        fixes.push({
+          issue: {
+            type: "orphaned_label",
+            severity: "warning",
+            project: project.name,
+            projectSlug,
+            role,
+            issueId: issueIdStr,
+            expectedLabel: queueLabel,
+            actualLabel: activeLabel,
+            message: `Issue #${issue.iid} has "${activeLabel}" with no tracked ${role.toUpperCase()} slot, but worker output was already confirmed — preserving active label`,
+          },
+          fixed: false,
+        });
+        continue;
+      }
+
       // Orphaned label: issue has active label but no slot tracking it
       const fix: HealthFix = {
         issue: {

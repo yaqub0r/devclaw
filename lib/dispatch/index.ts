@@ -250,8 +250,45 @@ export async function dispatchTask(
     // Best-effort — label failure must not abort dispatch
   }
 
-  // Step 2: Send notification early (before session dispatch which can timeout)
-  // This ensures users see the notification even if gateway is slow
+  // Step 2: Persist dispatch state before any visible notification or session work.
+  // If slot activation fails, roll the label back and abort without spamming starts.
+  await upsertDispatchStatus(workspaceDir, { projectSlug: project.slug, issueId, role }, {
+    projectName: project.name,
+    level,
+    sessionKey,
+    sessionAction,
+    labelMovedAt,
+    workerName: botName,
+  });
+
+  try {
+    await recordWorkerState(workspaceDir, project.slug, role, slotIndex, {
+      issueId, level, sessionKey, sessionAction, fromLabel, name: botName,
+    });
+  } catch (err) {
+    try {
+      await provider.transitionLabel(issueId, toLabel, fromLabel);
+    } catch (revertErr) {
+      await auditLog(workspaceDir, "dispatch_warning", {
+        step: "revert_label_after_state_failure",
+        issue: issueId,
+        role,
+        error: (revertErr as Error).message ?? String(revertErr),
+      }).catch(() => {});
+    }
+
+    await auditLog(workspaceDir, "dispatch_warning", {
+      step: "recordWorkerState",
+      issue: issueId,
+      role,
+      error: (err as Error).message ?? String(err),
+      revertedTo: fromLabel,
+    });
+
+    throw new Error(`Dispatch aborted because worker state could not be recorded: ${(err as Error).message ?? String(err)}`);
+  }
+
+  // Step 3: Send notification only after durable slot state is recorded.
   const notifyConfig = getNotificationConfig(pluginConfig);
   const notifyTarget = resolveNotifyChannel(issue?.labels ?? [], project.channels);
   notify(
@@ -282,17 +319,9 @@ export async function dispatchTask(
     }).catch(() => {});
   });
 
-  // Step 3: Ensure session exists (fire-and-forget — don't wait for gateway)
+  // Step 4: Ensure session exists (fire-and-forget — don't wait for gateway)
   // Session key is deterministic, so we can proceed immediately
   const sessionLabel = formatSessionLabel(project.name, role, level, botName);
-  await upsertDispatchStatus(workspaceDir, { projectSlug: project.slug, issueId, role }, {
-    projectName: project.name,
-    level,
-    sessionKey,
-    sessionAction,
-    labelMovedAt,
-    workerName: botName,
-  });
   ensureSessionFireAndForget(sessionKey, model, workspaceDir, rc, {
     timeoutMs: timeouts.sessionPatchMs,
     label: sessionLabel,
@@ -318,21 +347,7 @@ export async function dispatchTask(
     runCommand: rc,
   });
 
-  // Step 5: Update worker state
-  try {
-    await recordWorkerState(workspaceDir, project.slug, role, slotIndex, {
-      issueId, level, sessionKey, sessionAction, fromLabel, name: botName,
-    });
-  } catch (err) {
-    // Session is already dispatched — log warning but don't fail
-    await auditLog(workspaceDir, "dispatch", {
-      project: project.name, issue: issueId, role,
-      warning: "State update failed after successful dispatch",
-      error: (err as Error).message, sessionKey,
-    });
-  }
-
-  // Step 6: Audit
+  // Step 5: Audit
   await auditDispatch(workspaceDir, {
     project: project.name, issueId, issueTitle,
     role, level, model, sessionAction, sessionKey,
@@ -386,4 +401,3 @@ async function auditDispatch(
     issue: opts.issueId, role: opts.role, level: opts.level, model: opts.model,
   });
 }
-
