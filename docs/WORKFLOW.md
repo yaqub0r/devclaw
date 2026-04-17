@@ -4,6 +4,8 @@ The issue lifecycle in DevClaw is a configurable state machine defined in `workf
 
 For config file format and location, see [Configuration](CONFIGURATION.md).
 
+> For workflow validation and smoke tests, prefer a fresh issue when older issues have been manually relabeled, redispatched, or otherwise modified outside the normal pipeline. That keeps state history clean and makes stale redispatch or ghost-announcement bugs easier to detect.
+
 ---
 
 ## Default Pipeline
