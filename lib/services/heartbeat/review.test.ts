@@ -1,5 +1,8 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert';
+import { mkdtemp, mkdir, readFile, writeFile } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import { reviewPass } from './review.js';
 import { TestProvider } from '../../testing/test-provider.js';
 import { DEFAULT_WORKFLOW } from '../../workflow/index.js';
@@ -91,5 +94,54 @@ describe('reviewPass ambiguity reconciliation', () => {
     assert.strictEqual(provider.callsTo('transitionLabel').length, 0);
     assert.strictEqual(provider.callsTo('addComment').length, 1);
     assert.match(provider.callsTo('addComment')[0].args.body, /cannot reconcile review state safely/i);
+  });
+
+  it('escalates repeated unchanged review loops to Refining instead of requeueing', async () => {
+    const workspaceDir = await mkdtemp(path.join(os.tmpdir(), 'devclaw-review-loop-'));
+    await mkdir(path.join(workspaceDir, 'devclaw', 'log'), { recursive: true });
+    await writeFile(
+      path.join(workspaceDir, 'devclaw', 'log', 'audit.log'),
+      [
+        JSON.stringify({ event: 'review_transition', issueId: 140, from: 'To Review', to: 'To Improve', reason: 'changes_requested', prUrl: 'https://example.com/pr/140', sourceBranch: 'feature/140-loop' }),
+        JSON.stringify({ event: 'review_transition', issueId: 140, from: 'To Review', to: 'To Improve', reason: 'changes_requested', prUrl: 'https://example.com/pr/140', sourceBranch: 'feature/140-loop' }),
+      ].join('\n') + '\n',
+    );
+
+    const provider = new TestProvider();
+    provider.seedIssue({ iid: 140, title: 'Looping review', labels: ['To Review', 'review:human'] });
+    provider.setPrStatus(140, {
+      state: PrState.CHANGES_REQUESTED,
+      url: 'https://example.com/pr/140',
+      sourceBranch: 'feature/140-loop',
+      title: 'feat: looping branch',
+    });
+
+    const transitions = await reviewPass({
+      workspaceDir,
+      projectName: 'devclaw',
+      workflow: DEFAULT_WORKFLOW,
+      provider,
+      repoPath: '/tmp',
+      runCommand,
+    });
+
+    assert.strictEqual(transitions, 1);
+    assert.deepStrictEqual(provider.callsTo('transitionLabel')[0]?.args, {
+      issueId: 140,
+      from: 'To Review',
+      to: 'Refining',
+    });
+
+    const issue = await provider.getIssue(140);
+    assert.ok(issue.labels.includes('Refining'));
+    assert.ok(!issue.labels.includes('To Improve'));
+
+    const comments = provider.callsTo('addComment');
+    assert.strictEqual(comments.length, 1);
+    assert.match(comments[0].args.body, /escalated this issue to Refining/i);
+
+    const audit = await readFile(path.join(workspaceDir, 'devclaw', 'log', 'audit.log'), 'utf-8');
+    assert.match(audit, /"event":"review_loop_escalated"/);
+    assert.match(audit, /"threshold":3/);
   });
 });

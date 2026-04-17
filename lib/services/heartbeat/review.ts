@@ -18,6 +18,7 @@ import { detectStepRouting } from "../queue-scan.js";
 import type { RunCommand } from "../../context.js";
 import { log as auditLog } from "../../audit.js";
 import { cleanupTerminalWorkflowResidue } from "../terminal-cleanup.js";
+import { assessReviewLoop } from "../review-loop.js";
 
 /**
  * Scan review-type states and transition issues whose PR check condition is met.
@@ -116,14 +117,52 @@ export async function reviewPass(opts: {
           const targetKey = typeof changesTransition === "string" ? changesTransition : changesTransition.target;
           const targetState = workflow.states[targetKey];
           if (targetState) {
-            await provider.transitionLabel(issue.iid, state.label, targetState.label);
+            const loop = await assessReviewLoop({
+              workspaceDir,
+              issueId: issue.iid,
+              prUrl: status.url,
+              sourceBranch: status.sourceBranch,
+            });
+            const escalationState = Object.values(workflow.states).find((candidate) => candidate.label === "Refining");
+            const finalTarget = loop.shouldEscalate && escalationState ? escalationState : targetState;
+            const escalated = finalTarget.label !== targetState.label;
+
+            await provider.transitionLabel(issue.iid, state.label, finalTarget.label);
+            if (escalated) {
+              const reason = status.state === PrState.HAS_COMMENTS ? "pr_comments_loop" : "changes_requested_loop";
+              await auditLog(workspaceDir, "review_loop_escalated", {
+                project: projectName,
+                issueId: issue.iid,
+                from: state.label,
+                to: finalTarget.label,
+                originalTarget: targetState.label,
+                reason,
+                prUrl: status.url,
+                sourceBranch: status.sourceBranch,
+                repeatedCycles: loop.repeatedCycles + 1,
+                threshold: loop.threshold,
+                correlatedBy: loop.correlatedBy,
+                fingerprint: loop.fingerprint,
+              });
+              try {
+                await provider.addComment(
+                  issue.iid,
+                  `⚠️ DevClaw escalated this issue to ${finalTarget.label} after ${loop.repeatedCycles + 1} repeated review/dev cycles on the same ${loop.correlatedBy}. Please inspect the PR and branch state before requeueing.`,
+                );
+              } catch {}
+            }
             await auditLog(workspaceDir, "review_transition", {
               project: projectName, issueId: issue.iid,
-              from: state.label, to: targetState.label,
-              reason: status.state === PrState.HAS_COMMENTS ? "pr_comments" : "changes_requested",
+              from: state.label, to: finalTarget.label,
+              reason: escalated
+                ? (status.state === PrState.HAS_COMMENTS ? "pr_comments_loop_escalated" : "changes_requested_loop_escalated")
+                : status.state === PrState.HAS_COMMENTS ? "pr_comments" : "changes_requested",
               prUrl: status.url,
+              sourceBranch: status.sourceBranch,
             });
-            onFeedback?.(issue.iid, "changes_requested", status.url, issue.title, issue.web_url);
+            if (!escalated) {
+              onFeedback?.(issue.iid, "changes_requested", status.url, issue.title, issue.web_url);
+            }
             // React to each review comment with 🤖 to acknowledge processing (best-effort)
             reactToFeedbackComments(provider, issue.iid).catch(() => {});
             transitions++;
@@ -145,6 +184,7 @@ export async function reviewPass(opts: {
               from: state.label, to: targetState.label,
               reason: "merge_conflict",
               prUrl: status.url,
+              sourceBranch: status.sourceBranch,
             });
             onFeedback?.(issue.iid, "merge_conflict", status.url, issue.title, issue.web_url);
             transitions++;
@@ -183,6 +223,7 @@ export async function reviewPass(opts: {
               from: state.label, to: targetState.label,
               reason: "pr_closed",
               prUrl: status.url,
+              sourceBranch: status.sourceBranch,
               actions: closedActions,
             });
             onPrClosed?.(issue.iid, status.url, issue.title, issue.web_url);
@@ -240,6 +281,8 @@ export async function reviewPass(opts: {
                       from: state.label,
                       to: failedState.label,
                       reason: "merge_failed",
+                      prUrl: status.url,
+                      sourceBranch: status.sourceBranch,
                     });
                     transitions++;
                   }
@@ -277,6 +320,7 @@ export async function reviewPass(opts: {
         check: state.check,
         prState: status.state,
         prUrl: status.url,
+        sourceBranch: status.sourceBranch,
       });
 
       transitions++;
