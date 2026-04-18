@@ -2,7 +2,7 @@
  * workspace.test.ts — Tests for write-once default file behavior.
  *
  * Verifies that ensureDefaultFiles() creates missing files but never
- * overwrites user-owned config (workflow.yaml, prompts, IDENTITY.md).
+ * overwrites existing workspace bootstrap/config files during normal startup.
  *
  * Run: npx tsx --test lib/setup/workspace.test.ts
  */
@@ -11,7 +11,7 @@ import assert from "node:assert";
 import fs from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import { ensureDefaultFiles, fileExists } from "./workspace.js";
+import { ensureDefaultFiles, fileExists, writeAllDefaults } from "./workspace.js";
 import { DATA_DIR } from "./migrate-layout.js";
 
 let tmpDir: string;
@@ -100,15 +100,57 @@ describe("ensureDefaultFiles — write-once behavior", () => {
     assert.strictEqual(afterContent, customIdentity, "IDENTITY.md should not be overwritten");
   });
 
-  it("should always overwrite AGENTS.md (system instructions)", async () => {
+  it("should NOT overwrite existing AGENTS.md on normal startup", async () => {
     const ws = await makeTmpDir();
     const agentsPath = path.join(ws, "AGENTS.md");
-    await fs.writeFile(agentsPath, "# Old agents content", "utf-8");
+    const customContent = "# Old agents content";
+    await fs.writeFile(agentsPath, customContent, "utf-8");
 
     await ensureDefaultFiles(ws);
 
     const afterContent = await fs.readFile(agentsPath, "utf-8");
-    assert.notStrictEqual(afterContent, "# Old agents content", "AGENTS.md should be overwritten");
+    assert.strictEqual(afterContent, customContent, "AGENTS.md should not be overwritten on normal startup");
+  });
+
+  it("should NOT overwrite existing HEARTBEAT.md on normal startup", async () => {
+    const ws = await makeTmpDir();
+    const heartbeatPath = path.join(ws, "HEARTBEAT.md");
+    const customContent = "# custom heartbeat";
+    await fs.writeFile(heartbeatPath, customContent, "utf-8");
+
+    await ensureDefaultFiles(ws);
+
+    const afterContent = await fs.readFile(heartbeatPath, "utf-8");
+    assert.strictEqual(afterContent, customContent, "HEARTBEAT.md should not be overwritten on normal startup");
+  });
+
+  it("should NOT overwrite existing TOOLS.md on normal startup", async () => {
+    const ws = await makeTmpDir();
+    const toolsPath = path.join(ws, "TOOLS.md");
+    const customContent = "# custom tools";
+    await fs.writeFile(toolsPath, customContent, "utf-8");
+
+    await ensureDefaultFiles(ws);
+
+    const afterContent = await fs.readFile(toolsPath, "utf-8");
+    assert.strictEqual(afterContent, customContent, "TOOLS.md should not be overwritten on normal startup");
+  });
+
+  it("should still overwrite bootstrap files when writeAllDefaults is forced", async () => {
+    const ws = await makeTmpDir();
+    const agentsPath = path.join(ws, "AGENTS.md");
+    const heartbeatPath = path.join(ws, "HEARTBEAT.md");
+    const toolsPath = path.join(ws, "TOOLS.md");
+
+    await fs.writeFile(agentsPath, "# custom agents", "utf-8");
+    await fs.writeFile(heartbeatPath, "# custom heartbeat", "utf-8");
+    await fs.writeFile(toolsPath, "# custom tools", "utf-8");
+
+    await writeAllDefaults(ws, true);
+
+    assert.notStrictEqual(await fs.readFile(agentsPath, "utf-8"), "# custom agents", "forced defaults should overwrite AGENTS.md");
+    assert.notStrictEqual(await fs.readFile(heartbeatPath, "utf-8"), "# custom heartbeat", "forced defaults should overwrite HEARTBEAT.md");
+    assert.notStrictEqual(await fs.readFile(toolsPath, "utf-8"), "# custom tools", "forced defaults should overwrite TOOLS.md");
   });
 
   it("should write .version file", async () => {

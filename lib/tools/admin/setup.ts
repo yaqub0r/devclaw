@@ -16,7 +16,7 @@ export function createSetupTool(ctx: PluginContext) {
   return (toolCtx: ToolContext) => ({
     name: "setup",
     label: "Setup",
-    description: `Execute DevClaw setup. Creates AGENTS.md, HEARTBEAT.md, TOOLS.md, devclaw/projects.json, devclaw/prompts/, and model level config. Optionally creates a new agent with channel binding. Called after onboard collects configuration.`,
+    description: `Execute DevClaw setup. Scaffolds missing workspace bootstrap files, devclaw/projects.json, devclaw/prompts/, and model level config. Optionally creates a new agent with channel binding. Called after onboard collects configuration. Use ejectDefaults/resetDefaults for intentional default writes.`, 
     parameters: {
       type: "object",
       properties: {

@@ -23,6 +23,8 @@ import type { PluginContext } from "../context.js";
 export type BootstrapResult = {
   /** Whether AGENTS.md was stripped from bootstrap files. */
   agentsMdStripped: boolean;
+  /** Final AGENTS.md content after bootstrap hook mutation. */
+  agentsMdContent?: string;
 };
 
 // ---------------------------------------------------------------------------
@@ -320,12 +322,13 @@ export async function createTestHarness(opts?: HarnessOptions): Promise<TestHarn
       if (hookCb) {
         await hookCb({
           sessionKey,
-          context: { bootstrapFiles },
+          context: { workspaceDir, bootstrapFiles },
         });
       }
 
       return {
         agentsMdStripped: bootstrapFiles[0].missing === true && bootstrapFiles[0].content === "",
+        agentsMdContent: bootstrapFiles[0].content,
       };
     },
     async cleanup() {

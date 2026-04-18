@@ -2,9 +2,8 @@
  * setup/workspace.ts — Workspace file scaffolding.
  *
  * On startup, ensureDefaultFiles() creates missing workspace files with curated
- * defaults. User-owned config files (workflow.yaml, prompts, IDENTITY.md) are
- * write-once: created if missing, never overwritten. System instruction files
- * (AGENTS.md, HEARTBEAT.md, TOOLS.md) are always refreshed.
+ * defaults. Workspace bootstrap/config files are write-once: created if missing,
+ * never overwritten during normal startup.
  *
  * The runtime config loader (lib/config/loader.ts) uses a three-layer merge with
  * built-in fallbacks, so missing keys in workflow.yaml are handled automatically.
@@ -36,8 +35,8 @@ const INITIALIZED_SENTINEL = ".initialized";
  * Called on every heartbeat startup.
  *
  * File categories:
- *   - System instructions (AGENTS.md, HEARTBEAT.md, TOOLS.md): always overwrite
- *   - User-owned config (workflow.yaml, prompts, IDENTITY.md): create-only
+ *   - Workspace bootstrap/docs (AGENTS.md, HEARTBEAT.md, TOOLS.md, IDENTITY.md): create-only
+ *   - User-owned config (workflow.yaml, prompts): create-only
  *   - Runtime state (projects.json): create-only
  */
 export async function ensureDefaultFiles(workspacePath: string): Promise<void> {
@@ -49,10 +48,10 @@ export async function ensureDefaultFiles(workspacePath: string): Promise<void> {
   await fs.mkdir(path.join(dataDir, "prompts"), { recursive: true });
   await fs.mkdir(path.join(dataDir, "log"), { recursive: true });
 
-  // --- System instruction files — always overwrite with latest ---
-  await backupAndWrite(path.join(workspacePath, "AGENTS.md"), AGENTS_MD_TEMPLATE);
-  await backupAndWrite(path.join(workspacePath, "HEARTBEAT.md"), HEARTBEAT_MD_TEMPLATE);
-  await backupAndWrite(path.join(workspacePath, "TOOLS.md"), TOOLS_MD_TEMPLATE);
+  // --- Workspace bootstrap/docs — create-only, never overwrite on normal startup ---
+  await writeIfMissing(path.join(workspacePath, "AGENTS.md"), AGENTS_MD_TEMPLATE);
+  await writeIfMissing(path.join(workspacePath, "HEARTBEAT.md"), HEARTBEAT_MD_TEMPLATE);
+  await writeIfMissing(path.join(workspacePath, "TOOLS.md"), TOOLS_MD_TEMPLATE);
 
   // --- User-owned files — create-only, never overwrite ---
 

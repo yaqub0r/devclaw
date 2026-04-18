@@ -79,11 +79,9 @@ describe("E2E bootstrap — extraSystemPrompt injection", () => {
     assert.ok(prompts[0].includes("Follow coding standards"));
   });
 
-  it("should inject scaffolded default instructions when no overrides exist", async () => {
+  it("should inject package-default instructions when no workspace overrides exist", async () => {
     h = await createTestHarness({ projectName: "bare-app" });
     h.provider.seedIssue({ iid: 3, title: "Chore", labels: ["To Do"] });
-
-    // Don't write any custom prompts — ensureWorkspaceMigrated scaffolds defaults
 
     await dispatchTask({
       workspaceDir: h.workspaceDir,
@@ -102,8 +100,8 @@ describe("E2E bootstrap — extraSystemPrompt injection", () => {
     });
 
     const prompts = h.commands.extraSystemPrompts();
-    // No prompt files exist in this temp workspace — extraSystemPrompt should be absent
-    assert.strictEqual(prompts.length, 0, "No extraSystemPrompt when no prompt files exist");
+    assert.strictEqual(prompts.length, 1, "Package-default prompt should be injected when no workspace overrides exist");
+    assert.ok(prompts[0].includes("# DEVELOPER Worker Instructions"));
   });
 
   it("should resolve tester instructions independently from developer", async () => {
@@ -206,13 +204,16 @@ describe("E2E bootstrap — agent:bootstrap hook (AGENTS.md stripping)", () => {
     if (h) await h.cleanup();
   });
 
-  it("should strip AGENTS.md for DevClaw worker sessions", async () => {
+  it("should replace orchestrator AGENTS.md with plugin-owned role instructions for DevClaw worker sessions", async () => {
     h = await createTestHarness({ projectName: "my-app" });
+    await h.writePrompt("developer", "# My App Developer\nUse React. Follow our design system.", "my-app");
 
     const result = await h.simulateBootstrap(
       "agent:main:subagent:my-app-developer-medior-Ada",
     );
-    assert.strictEqual(result.agentsMdStripped, true);
+    assert.strictEqual(result.agentsMdStripped, false);
+    assert.ok(result.agentsMdContent?.includes("My App Developer"));
+    assert.ok(!result.agentsMdContent?.includes("Development Orchestration (DevClaw)"));
   });
 
   it("should NOT strip AGENTS.md for non-DevClaw sessions", async () => {

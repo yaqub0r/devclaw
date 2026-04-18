@@ -58,7 +58,7 @@ export type SetupResult = {
  *
  * 1. Create agent (optional) or resolve existing workspace
  * 2. Write plugin config to openclaw.json (heartbeat, tool restrictions — no models)
- * 3. Write workspace files (AGENTS.md, HEARTBEAT.md, workflow.yaml, prompts)
+ * 3. Scaffold missing workspace files (AGENTS.md, HEARTBEAT.md, workflow.yaml, prompts)
  * 4. Write model config to workflow.yaml (single source of truth)
  */
 export async function runSetup(opts: SetupOpts): Promise<SetupResult> {

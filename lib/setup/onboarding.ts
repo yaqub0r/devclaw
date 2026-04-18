@@ -23,11 +23,15 @@ export async function hasWorkspaceFiles(
 ): Promise<boolean> {
   if (!workspaceDir) return false;
   try {
-    const content = await fs.readFile(
-      path.join(workspaceDir, "AGENTS.md"),
-      "utf-8",
+    const [agentsContent, defaultPrompt] = await Promise.all([
+      fs.readFile(path.join(workspaceDir, "AGENTS.md"), "utf-8").catch(() => ""),
+      fs.readFile(path.join(workspaceDir, "devclaw", "prompts", "developer.md"), "utf-8").catch(() => ""),
+    ]);
+    return (
+      (agentsContent.includes("DevClaw") && (agentsContent.includes("task_start") || agentsContent.includes("work_start")))
+      || defaultPrompt.includes("task_start")
+      || defaultPrompt.includes("work_finish")
     );
-    return content.includes("DevClaw") && (content.includes("task_start") || content.includes("work_start"));
   } catch {
     return false;
   }
@@ -59,11 +63,11 @@ Models are configured in \`devclaw/workflow.yaml\`. Edit that file directly or c
 
 ## What can be changed
 1. **Model levels** — call \`setup\` with a \`models\` object containing only the levels to change
-2. **Workspace files** — \`setup\` re-writes AGENTS.md, HEARTBEAT.md (backs up existing files)
+2. **Workspace files** — \`setup\` scaffolds missing workspace files and can explicitly eject/reset defaults when requested
 3. **Register new projects** — use \`project_register\`
 
 Ask what they want to change, then call the appropriate tool.
-\`setup\` is safe to re-run — it backs up existing files before overwriting.
+\`setup\` is safe to re-run — normal setup does not overwrite existing workspace bootstrap files, and explicit reset/eject flows are available when the user wants to rewrite defaults.
 `;
 }
 
