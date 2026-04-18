@@ -95,9 +95,24 @@ openclaw gateway status
 
 Do not assume the installed extension copy at `~/.openclaw/extensions/devclaw/` is the live runtime source.
 
-`openclaw plugins inspect devclaw` is the source of truth.
+`openclaw plugins inspect devclaw` is the source of truth for the **live source path**.
 
 If it reports a source like `~/git/.../dist/index.js`, that configured source is what the gateway is actually loading.
+
+Important:
+- `openclaw plugins inspect devclaw` reliably tells us the loaded path and plugin version
+- it does **not** reliably tell us the exact git commit currently live
+
+To verify the exact live commit, take the source path from `inspect`, map it back to the checkout/worktree root if needed, and run for example:
+
+```bash
+openclaw plugins inspect devclaw
+git -C <live-source-root> rev-parse HEAD
+```
+
+So the verification split is:
+- `inspect` = what path is live
+- `git rev-parse` = what commit is live
 
 ## 5) Upgrade procedure
 
