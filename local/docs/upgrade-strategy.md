@@ -114,6 +114,32 @@ So the verification split is:
 - `inspect` = what path is live
 - `git rev-parse` = what commit is live
 
+### ACP / session-spawning prerequisites
+
+For DevClaw session spawning to work on this machine, ACP support must be available end-to-end. Two concrete gates were observed:
+
+1. **ACPX runtime must be enabled and allowlisted**
+   - `plugins.entries.acpx.enabled = true` alone was not enough
+   - ACPX remained disabled until `acpx` was also added to `plugins.allow`
+   - Verification:
+
+```bash
+openclaw plugins inspect acpx
+openclaw plugins list | grep acpx
+```
+
+2. **The actual DevClaw spawn target must be wired correctly**
+   - After ACPX loaded, a later failure appeared: `Failed to spawn agent command: devclaw`
+   - That suggests the system may be trying to execute a command named `devclaw` directly, instead of correctly routing through OpenClaw agent/session spawning
+   - Important distinction:
+     - agent id `devclaw` exists
+     - `openclaw devclaw ...` exists as a plugin CLI group
+     - but there is no standalone shell executable named `devclaw`
+
+Current best interpretation:
+- ACP backend failure was real and fixed by allowlisting `acpx`
+- any remaining `spawn agent command: devclaw` failure is a separate command-wiring or spawn-target issue, not proof that ACPX is still missing
+
 ## 5) Upgrade procedure
 
 When upgrading DevClaw to a newer upstream version:
