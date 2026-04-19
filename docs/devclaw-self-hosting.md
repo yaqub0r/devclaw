@@ -85,6 +85,26 @@ git -C <live-source-root> rev-parse HEAD
 
 Do not assume that the installed extension directory or your current shell checkout is the live commit.
 
+## Stronger proof for linked local installs
+
+If you are using a linked local install and want stronger proof that the live plugin really comes from the intended worktree, verify both the install path target and the branch name:
+
+```bash
+openclaw plugins inspect devclaw
+readlink -f ~/.openclaw/extensions/devclaw
+git -C <intended-worktree> rev-parse --abbrev-ref HEAD
+git -C <intended-worktree> rev-parse HEAD
+```
+
+This gives you four checks:
+
+- the live plugin id and loaded source
+- the real filesystem target behind the installed extension path
+- the branch name of the intended worktree
+- the exact commit of that worktree
+
+For example, if you intend to run from a `devclaw-local-stable` worktree, these checks should agree on both the path and the branch identity before you treat the switch as complete.
+
 ## Avoid duplicate plugin-source collisions
 
 A common failure mode is loading DevClaw from more than one place at once, for example:
