@@ -136,6 +136,11 @@ What this verifies:
 - the live agent can read tracker-backed task state
 - channel bindings are visible
 
+Expected result note:
+
+- in an unbound DM or admin session, `project_status` and `tasks_status` may correctly return `No project found` for that channel
+- treat that as a passing result for this smoke test unless you were specifically testing a known project-bound chat
+
 Avoid using project-creating or task-creating commands for smoke tests in a shared live environment unless you also have an explicit cleanup plan.
 
 ## Keep generic guidance separate from local policy
