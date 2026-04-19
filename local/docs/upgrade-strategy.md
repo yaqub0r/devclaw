@@ -82,9 +82,10 @@ If those point at a branch worktree, that branch is live.
 
 1. Check out or create the branch you want to run.
 2. Build that branch.
-3. Point OpenClaw's DevClaw plugin source/load path at that branch checkout or worktree.
-4. Restart the gateway.
-5. Verify the live source with:
+3. Ensure there is only **one** active DevClaw plugin source. Do not leave a previously installed copy at `~/.openclaw/extensions/devclaw` competing with a worktree/path load.
+4. Point OpenClaw's DevClaw plugin source/load path at that branch checkout or worktree.
+5. Restart the gateway.
+6. Verify the live source with:
 
 ```bash
 openclaw plugins inspect devclaw
@@ -96,6 +97,13 @@ openclaw gateway status
 Do not assume the installed extension copy at `~/.openclaw/extensions/devclaw/` is the live runtime source.
 
 `openclaw plugins inspect devclaw` is the source of truth for the **live source path**.
+
+If logs or startup warnings mention a duplicate plugin id for `devclaw`, stop and clean up the duplicate before treating any branch switch as successful. A common failure mode is mixing:
+
+- an installed plugin copy under `~/.openclaw/extensions/devclaw`
+- and a path/worktree-based load via `plugins.load.paths[]`
+
+In that state, the installed config plugin may override the intended worktree source, and a branch switch in the repo will not actually change the live payload.
 
 If it reports a source like `~/git/.../dist/index.js`, that configured source is what the gateway is actually loading.
 
@@ -113,6 +121,20 @@ git -C <live-source-root> rev-parse HEAD
 So the verification split is:
 - `inspect` = what path is live
 - `git rev-parse` = what commit is live
+
+### Duplicate-plugin cleanup rule
+
+If DevClaw was previously installed under `~/.openclaw/extensions/devclaw` and you want to switch to a worktree/path-based live source, remove the installed DevClaw plugin first or otherwise ensure it is no longer a competing load candidate.
+
+A safe pattern is:
+
+1. `openclaw plugins uninstall devclaw --force`
+2. confirm the old install path is not still being used as a live source
+3. install/link the intended worktree or path source
+4. restart gateway
+5. verify with `openclaw plugins inspect devclaw`
+
+Do not rely on changing `plugins.installs.devclaw.sourcePath` alone when an older installed copy is still present and winning plugin resolution.
 
 ### ACP / session-spawning prerequisites
 
