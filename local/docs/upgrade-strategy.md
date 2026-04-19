@@ -1,215 +1,113 @@
-# DevClaw upgrade and patch strategy
+# Local DevClaw branch and runtime strategy
 
-This repository uses two layers of customization:
+This document is the **local/operator overlay** for this fork and machine.
 
-1. **Supported overrides** in workspace-owned DevClaw config and prompt files
-2. **Source patches** for changes to DevClaw code itself
+For the generic workflow for developing DevClaw while running it through OpenClaw, see:
 
-That split keeps upgrades understandable and repeatable.
+- [`docs/devclaw-self-hosting.md`](../../docs/devclaw-self-hosting.md)
 
-## Current local policy
+That repo doc covers the general branch/worktree/live-switch model. This file only records the local policy choices layered on top.
 
-- Upstream repo: `yaqub0r/devclaw`
-- Default branch: `main`
-- Local-only docs branch: `local/docs`
-- Feature/fix branches may be used directly as live runtime sources
-- `-stable` is optional as a promotion/fallback lane, not the required install target
+## Repository roles in this environment
 
-## 1) Prefer supported overrides first
+- Fork / working repo: `yaqub0r/devclaw`
+- Upstream repo: `laurentenhoor/devclaw`
+- Clean integration branch: `main`
+- Local operator docs branch: `local/docs`
+- Local compatibility / carry branch when needed: `main-local`
+- Optional validated fallback lanes may exist, for example `devclaw-local-stable`
 
-If a change can be expressed through DevClaw configuration or prompts, do not patch source.
+These names are local conventions, not universal DevClaw requirements.
 
-Typical override locations live outside this source repo, for example:
+## Local branching policy
 
-- `devclaw/workflow.yaml`
-- `devclaw/projects/<project>/workflow.yaml`
-- `devclaw/prompts/*.md`
-- `devclaw/projects/<project>/prompts/*.md`
+### `main`
 
-Those should survive normal DevClaw upgrades.
+Use `main` as the clean integration line for this fork unless there is a deliberate reason to carry a local patch there.
 
-## 2) Use source branches for source patches
+### `local/docs`
 
-If the change modifies DevClaw product behavior, plugin logic, or implementation details not exposed through config, carry it in git as a normal source patch.
+Use `local/docs` for local runbooks, operator notes, and fork-specific documentation that is useful here but not intended as an upstream-facing doc lane.
 
-Examples:
+### `main-local`
 
-- bug fixes in source code
-- behavior changes in orchestration logic
-- plugin implementation changes
-- new internal features not represented by existing config
+Use `main-local` as a convenient carry branch when we need to adopt or test a patch on top of `main` before deciding what to merge or promote.
 
-## 3) Branching policy
+Typical uses:
 
-### Source branches
+- pulling in an upstream PR before it lands on `main`
+- carrying a small local compatibility patch
+- validating a repair before a cleaner upstreamed version is available
 
-- `main` tracks the clean integration line
-- `fix/*`, `feature/*`, or other working branches may carry source patches
-- any branch may become the live runtime source if we intentionally point OpenClaw at it
+### Fallback lanes
 
-### Optional promotion branches
+A `-stable` style branch is optional. Keep one only if it is actively useful as a fallback or promotion lane.
 
-- `devclaw-local-stable` may be used as a validated fallback or promotion lane
-- this is a workflow choice, not a technical requirement
-- do **not** assume every live install must go through `-stable`
+## Local runtime-switch checklist
 
-### Docs branch
+When changing the live DevClaw source on this machine:
 
-- `local/docs` is for local-only runbooks and operator documentation
-- it is not intended for PRs to `main`
+1. Verify the target worktree is the one you actually want.
+2. Build the target worktree.
+3. Confirm `dist/index.js` exists there.
+4. Check for duplicate DevClaw plugin sources.
+5. Point OpenClaw at the intended source path.
+6. Restart the gateway.
+7. Verify the live plugin path.
+8. Verify the exact live commit.
 
-### Commit style
+## Local verification commands
 
-Prefer small commits with clear intent. Recommended prefixes:
-
-- `patch(devclaw): ...`
-- `fix(devclaw): ...`
-- `docs(local): ...`
-- `chore(branching): ...`
-
-## 4) Install procedure for any branch
-
-A branch becomes live when OpenClaw is configured to load the plugin from that branch's checkout or worktree.
-
-What actually controls the live source is the OpenClaw plugin configuration, especially values such as:
-
-- `plugins.installs.devclaw.sourcePath`
-- `plugins.load.paths[]`
-
-If those point at a branch worktree, that branch is live.
-
-### Recommended live-switch procedure
-
-1. Check out or create the branch you want to run.
-2. Build that branch.
-3. Ensure there is only **one** active DevClaw plugin source. Do not leave a previously installed copy at `~/.openclaw/extensions/devclaw` competing with a worktree/path load.
-4. Point OpenClaw's DevClaw plugin source/load path at that branch checkout or worktree.
-5. Restart the gateway.
-6. Verify the live source with:
+Use these as the default verification sequence here:
 
 ```bash
 openclaw plugins inspect devclaw
 openclaw gateway status
-```
-
-### Verification rule
-
-Do not assume the installed extension copy at `~/.openclaw/extensions/devclaw/` is the live runtime source.
-
-`openclaw plugins inspect devclaw` is the source of truth for the **live source path**.
-
-If logs or startup warnings mention a duplicate plugin id for `devclaw`, stop and clean up the duplicate before treating any branch switch as successful. A common failure mode is mixing:
-
-- an installed plugin copy under `~/.openclaw/extensions/devclaw`
-- and a path/worktree-based load via `plugins.load.paths[]`
-
-In that state, the installed config plugin may override the intended worktree source, and a branch switch in the repo will not actually change the live payload.
-
-If it reports a source like `~/git/.../dist/index.js`, that configured source is what the gateway is actually loading.
-
-Important:
-- `openclaw plugins inspect devclaw` reliably tells us the loaded path and plugin version
-- it does **not** reliably tell us the exact git commit currently live
-
-To verify the exact live commit, take the source path from `inspect`, map it back to the checkout/worktree root if needed, and run for example:
-
-```bash
-openclaw plugins inspect devclaw
 git -C <live-source-root> rev-parse HEAD
 ```
 
-So the verification split is:
-- `inspect` = what path is live
-- `git rev-parse` = what commit is live
+Interpretation:
 
-### Duplicate-plugin cleanup rule
+- `inspect` tells us what source path is live
+- `gateway status` confirms the runtime is healthy after restart
+- `git rev-parse` confirms the exact live commit
 
-If DevClaw was previously installed under `~/.openclaw/extensions/devclaw` and you want to switch to a worktree/path-based live source, remove the installed DevClaw plugin first or otherwise ensure it is no longer a competing load candidate.
+## Local duplicate-source rule
 
-A safe pattern is:
+Do not trust a branch switch until duplicate DevClaw plugin sources are ruled out.
 
-1. `openclaw plugins uninstall devclaw --force`
-2. confirm the old install path is not still being used as a live source
-3. install/link the intended worktree or path source
-4. restart gateway
-5. verify with `openclaw plugins inspect devclaw`
+The main local failure mode has been mixing:
 
-Do not rely on changing `plugins.installs.devclaw.sourcePath` alone when an older installed copy is still present and winning plugin resolution.
+- a previously installed DevClaw plugin copy
+- and a path/worktree-based DevClaw load
 
-### ACP / session-spawning prerequisites
+If logs mention duplicate plugin ids or the inspected live path is not the path you expected, clean that up before continuing.
 
-For DevClaw session spawning to work on this machine, ACP support must be available end-to-end. Two concrete gates were observed:
+## Local policy for patches versus config
 
-1. **ACPX runtime must be enabled and allowlisted**
-   - `plugins.entries.acpx.enabled = true` alone was not enough
-   - ACPX remained disabled until `acpx` was also added to `plugins.allow`
-   - Verification:
+Prefer repo source changes only when the behavior change truly belongs in DevClaw itself.
 
-```bash
-openclaw plugins inspect acpx
-openclaw plugins list | grep acpx
-```
+Use workspace config and prompts first when the change can be expressed there.
 
-2. **The actual DevClaw spawn target must be wired correctly**
-   - After ACPX loaded, a later failure appeared: `Failed to spawn agent command: devclaw`
-   - That suggests the system may be trying to execute a command named `devclaw` directly, instead of correctly routing through OpenClaw agent/session spawning
-   - Important distinction:
-     - agent id `devclaw` exists
-     - `openclaw devclaw ...` exists as a plugin CLI group
-     - but there is no standalone shell executable named `devclaw`
+Examples that belong in git source history:
 
-Current best interpretation:
-- ACP backend failure was real and fixed by allowlisting `acpx`
-- any remaining `spawn agent command: devclaw` failure is a separate command-wiring or spawn-target issue, not proof that ACPX is still missing
+- runtime compatibility fixes
+- behavior changes in plugin logic
+- docs that explain repo development workflow
 
-## 5) Upgrade procedure
+Examples that usually belong outside the source repo:
 
-When upgrading DevClaw to a newer upstream version:
+- project-specific prompts
+- local workflow tuning in workspace config
+- machine-specific operational state
 
-1. Fetch upstream changes.
-2. Review the custom commits that must be preserved.
-3. Choose the target branch strategy:
-   - patch directly onto a new working branch, or
-   - reapply onto an optional promotion branch if we want a validated lane
-4. Reapply custom commits using cherry-pick or rebase.
-5. Resolve conflicts.
-6. Test behavior.
-7. Point the live plugin source at the branch we intend to run.
-8. Restart gateway and verify the loaded source.
-9. Update this document if the process changes.
+## Local operator rule
 
-### Cherry-pick vs rebase
+Before switching live or carrying a patch, ask:
 
-- Use **cherry-pick** when the patch queue is small and explicit carry-forward is safer.
-- Use **rebase** when the branch history is clean and linear.
+- is this a generic DevClaw behavior change
+- is this just local policy
+- should this live in repo docs, local docs, or workspace config
 
-For a modest local patch set, cherry-pick is usually the simpler default.
-
-## 6) Patch ledger rule
-
-Every source patch that we intend to carry across upgrades should be:
-
-- in a dedicated commit
-- described clearly in the commit message
-- easy to identify from `git log`
-
-Avoid burying multiple unrelated changes inside one large commit.
-
-## 7) What not to do
-
-Avoid:
-
-- editing installed package files without git history
-- mixing source patches with runtime state or scratch files
-- assuming `-stable` is mandatory for every install
-- relying on memory or chat history alone to reconstruct customizations
-
-## 8) Future operator rule
-
-Before making a change, ask:
-
-- Can this live in workspace config or prompts? If yes, use overrides.
-- Does this change DevClaw source behavior? If yes, do it in git on a normal source branch.
-- Do we want a validated fallback lane? If yes, promote to `-stable` deliberately. If not, install directly from the intended branch.
-
-That is the standing local policy for this repository.
+If it is generic, prefer the repo docs and normal source history.
+If it is local, keep it in `local/docs`.
