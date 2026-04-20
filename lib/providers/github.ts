@@ -73,6 +73,7 @@ export class GitHubProvider implements IssueProvider {
     if (args[0] === "repo") return true;
     if (args[0] === "issue") return true;
     if (args[0] === "pr") return true;
+    if (args[0] === "label") return true;
     if (args[0] !== "api") return false;
     return !args.includes("graphql");
   }
