@@ -66,7 +66,25 @@ export async function resolveProject(
  * Uses stored provider type from project config if available, otherwise auto-detects.
  */
 export async function resolveProvider(project: Project, runCommand: RunCommand): Promise<ProviderWithType> {
-  return createProvider({ repo: project.repo, provider: project.provider, runCommand });
+  const target = project.repoRemote ? { repo: normalizeRepoTarget(project.repoRemote) } : undefined;
+  return createProvider({ repo: project.repo, provider: project.provider, target, runCommand });
+}
+
+function normalizeRepoTarget(repoRemote: string): string | undefined {
+  const trimmed = repoRemote.trim();
+  if (!trimmed) return undefined;
+
+  const sshMatch = trimmed.match(/github\.com[:/]([^/]+\/[^/.]+)(?:\.git)?$/i)
+    ?? trimmed.match(/gitlab\.com[:/]([^/]+\/[^/.]+)(?:\.git)?$/i);
+  if (sshMatch) return sshMatch[1];
+
+  try {
+    const url = new URL(trimmed);
+    const path = url.pathname.replace(/^\/+/, "").replace(/\.git$/i, "");
+    return path || undefined;
+  } catch {
+    return trimmed.replace(/\.git$/i, "");
+  }
 }
 
 /**
