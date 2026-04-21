@@ -1,13 +1,30 @@
-# DevClaw developer package
+# DevClaw developer tree
 
 This `dev/` tree is the canonical in-repo home for developer-only material.
+It is versioned with the repository so developer guidance and regression artifacts travel with the codebase, but it is not intended to be part of the end-user release payload.
 
-## Layout
+## Required layout
 
-- `dev/regression/tests/` executable regression coverage for release-relevant fixes
-- `dev/regression/issues/` issue-linked bug notes, triggering conditions, and validation context
-- `dev/regression/fixtures/` sample inputs and future regression fixtures
-- `dev/runbooks/` developer and self-hosting procedures
+At minimum, the developer tree should contain:
+
+- `dev/README.md`, the top-level guide to the developer-only tree
+- `dev/runbooks/`, for developer and operator runbooks
+- self-hosting documentation under `dev/runbooks/`
+- `dev/regression/tests/`, for executable regression coverage
+- `dev/regression/issues/`, for issue-linked notes, bug summaries, and validation rationale
+- `dev/regression/fixtures/`, or equivalent supporting fixture/helper material when tests need stable inputs
 
 Release-user documentation stays under `docs/`.
-Developer-only runbooks and release hardening notes belong here.
+Developer-only runbooks, issue-linked regression notes, and release-hardening checks belong under `dev/`.
+
+## Definition of Done for release-relevant fixes
+
+Do not consider an issue done until the regression story is addressed.
+
+When a bug fix is release-relevant or likely to regress:
+
+1. add or update executable regression coverage under `dev/regression/tests/`
+2. document the bug summary, triggering conditions, automated coverage, and any manual validation notes under `dev/regression/issues/`
+3. add fixtures or helpers under `dev/regression/fixtures/` when the regression needs stable inputs
+
+If a fix does not need a regression artifact, the developer handling the issue should be able to explain why.
