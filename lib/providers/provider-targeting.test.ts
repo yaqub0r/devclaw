@@ -6,8 +6,57 @@
 import { describe, it, mock } from "node:test";
 import assert from "node:assert/strict";
 import { GitHubProvider } from "./github.js";
+import { resolveProvider } from "../tools/helpers.js";
 
 describe("GitHubProvider explicit repo targeting", () => {
+  it("derives the tracker target from project repoRemote and forces issue creation onto that repo", async () => {
+    const calls: string[][] = [];
+    const runCommand = mock.fn(async (args: string[]) => {
+      calls.push(args);
+
+      if (args[0] === "gh" && args[1] === "issue" && args[2] === "create") {
+        const explicitRepoIndex = args.indexOf("--repo");
+        const targetRepo = explicitRepoIndex >= 0 ? args[explicitRepoIndex + 1] : "upstream/wrong-repo";
+        return { stdout: `https://github.com/${targetRepo}/issues/321\n`, stderr: "", code: 0 };
+      }
+
+      if (args[0] === "gh" && args[1] === "issue" && args[2] === "view") {
+        return {
+          stdout: JSON.stringify({
+            number: 321,
+            title: "stable regression",
+            body: "protect repo routing",
+            labels: [{ name: "Planning" }],
+            state: "OPEN",
+            url: "https://github.com/yaqub0r/devclaw/issues/321",
+          }),
+          stderr: "",
+          code: 0,
+        };
+      }
+
+      throw new Error(`Unexpected command: ${args.join(" ")}`);
+    });
+
+    const { provider, type } = await resolveProvider({
+      name: "devclaw",
+      repo: "~/git/devclaw-fork",
+      repoRemote: "git@github.com:yaqub0r/devclaw.git",
+      provider: "github",
+      baseBranch: "main",
+      channels: [],
+    } as any, runCommand as any);
+
+    assert.equal(type, "github");
+    const issue = await provider.createIssue("stable regression", "protect repo routing", "Planning");
+    assert.equal(issue.iid, 321);
+    assert.equal(issue.web_url, "https://github.com/yaqub0r/devclaw/issues/321");
+
+    const createCall = calls.find((c) => c[0] === "gh" && c[1] === "issue" && c[2] === "create");
+    assert.ok(createCall, "expected issue create call");
+    assert.deepEqual(createCall.slice(-2), ["--repo", "yaqub0r/devclaw"]);
+  });
+
   it("passes --repo for issue creation when target repo is configured", async () => {
     const calls: string[][] = [];
     const runCommand = mock.fn(async (args: string[]) => {
