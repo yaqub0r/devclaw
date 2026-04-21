@@ -61,11 +61,25 @@ export class GitHubProvider implements IssueProvider {
   }
 
   private withRepo(args: string[]): string[] {
-    if (!this.targetRepo) return args;
-    const needsExplicitRepo = this.commandSupportsRepo(args);
-    if (!needsExplicitRepo) return args;
+    if (!this.targetRepo || args.length === 0) return args;
+    if (args[0] === "api") return this.withApiTarget(args);
+    if (!this.commandSupportsRepo(args)) return args;
     if (args.includes("--repo") || args.includes("-R")) return args;
     return [...args, "--repo", this.targetRepo];
+  }
+
+  private withApiTarget(args: string[]): string[] {
+    if (args.includes("graphql")) return args;
+    const repo = this.getTargetRepoParts();
+    if (!repo) return args;
+    if (args.length < 2) return args;
+
+    const route = args[1]
+      .replace(/(^|\/)repos\/:owner\/:repo(?=\/|$)/, `$1repos/${repo.owner}/${repo.name}`)
+      .replace(/(^|\/)projects\/:id(?=\/|$)/, `$1repos/${repo.owner}/${repo.name}`);
+
+    if (route === args[1]) return args;
+    return [args[0], route, ...args.slice(2)];
   }
 
   private commandSupportsRepo(args: string[]): boolean {
@@ -74,8 +88,13 @@ export class GitHubProvider implements IssueProvider {
     if (args[0] === "issue") return true;
     if (args[0] === "pr") return true;
     if (args[0] === "label") return true;
-    if (args[0] !== "api") return false;
-    return !args.includes("graphql");
+    return false;
+  }
+
+  private getTargetRepoParts(): { owner: string; name: string } | null {
+    if (!this.targetRepo) return null;
+    const [owner, name] = this.targetRepo.split("/");
+    return owner && name ? { owner, name } : null;
   }
 
   /** Cached repo owner/name for GraphQL queries. */
@@ -88,12 +107,10 @@ export class GitHubProvider implements IssueProvider {
   private async getRepoInfo(): Promise<{ owner: string; name: string } | null> {
     if (this.repoInfo !== undefined) return this.repoInfo;
     try {
-      if (this.targetRepo) {
-        const [owner, name] = this.targetRepo.split("/");
-        if (owner && name) {
-          this.repoInfo = { owner, name };
-          return this.repoInfo;
-        }
+      const targetRepo = this.getTargetRepoParts();
+      if (targetRepo) {
+        this.repoInfo = targetRepo;
+        return this.repoInfo;
       }
       const raw = await this.gh(["repo", "view", "--json", "owner,name"]);
       const data = JSON.parse(raw);
