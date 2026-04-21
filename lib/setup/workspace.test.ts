@@ -111,10 +111,10 @@ describe("ensureDefaultFiles — managed root-block behavior", () => {
     assert.match(content, /<!-- DEVCLAW:END agents -->/);
   });
 
-  it("should preserve existing AGENTS.md content outside the managed block", async () => {
+  it("should insert a managed block into an existing AGENTS.md without destroying user content", async () => {
     const ws = await makeTmpDir();
     const agentsPath = path.join(ws, "AGENTS.md");
-    const before = "# My workspace rules\n\nKeep this.\n";
+    const before = "# My workspace rules\n\nKeep this.\n\n## After\nStill mine.\n";
     await fs.writeFile(agentsPath, before, "utf-8");
 
     await ensureDefaultFiles(ws);
@@ -122,6 +122,8 @@ describe("ensureDefaultFiles — managed root-block behavior", () => {
     const afterContent = await fs.readFile(agentsPath, "utf-8");
     assert.match(afterContent, /^# My workspace rules/m);
     assert.match(afterContent, /Keep this\./);
+    assert.match(afterContent, /^## After$/m);
+    assert.match(afterContent, /Still mine\./);
     assert.match(afterContent, /<!-- DEVCLAW:START agents -->[\s\S]*<!-- DEVCLAW:END agents -->/);
   });
 
@@ -149,16 +151,18 @@ describe("ensureDefaultFiles — managed root-block behavior", () => {
     const ws = await makeTmpDir();
     const heartbeatPath = path.join(ws, "HEARTBEAT.md");
     const toolsPath = path.join(ws, "TOOLS.md");
-    await fs.writeFile(heartbeatPath, "Before\n", "utf-8");
-    await fs.writeFile(toolsPath, "Before tools\n", "utf-8");
+    await fs.writeFile(heartbeatPath, "Before\n\nAfter heartbeat\n", "utf-8");
+    await fs.writeFile(toolsPath, "Before tools\n\nAfter tools\n", "utf-8");
 
     await ensureDefaultFiles(ws);
 
     const heartbeat = await fs.readFile(heartbeatPath, "utf-8");
     const tools = await fs.readFile(toolsPath, "utf-8");
     assert.match(heartbeat, /^Before/m);
+    assert.match(heartbeat, /^After heartbeat$/m);
     assert.match(heartbeat, /<!-- DEVCLAW:START heartbeat -->/);
     assert.match(tools, /^Before tools/m);
+    assert.match(tools, /^After tools$/m);
     assert.match(tools, /<!-- DEVCLAW:START tools -->/);
   });
 
@@ -173,6 +177,18 @@ describe("ensureDefaultFiles — managed root-block behavior", () => {
     assert.ok(written.includes("AGENTS.md"));
     assert.ok(!afterContent.includes("# Custom root file"), "reset-defaults should replace the full file");
     assert.ok(afterContent.includes("DevClaw"), "reset-defaults should restore the package template");
+  });
+
+  it("should let eject-defaults skip existing customized root files", async () => {
+    const ws = await makeTmpDir();
+    const toolsPath = path.join(ws, "TOOLS.md");
+    await fs.writeFile(toolsPath, "# Custom tools\n", "utf-8");
+
+    const written = await writeAllDefaults(ws, false);
+    const afterContent = await fs.readFile(toolsPath, "utf-8");
+
+    assert.ok(!written.includes("TOOLS.md"));
+    assert.strictEqual(afterContent, "# Custom tools\n");
   });
 
   it("should write .version file", async () => {

@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **Critical:** work_finish now re-validates PR mergeable status during conflict resolution cycles, preventing infinite loops where developers claim "fixed" without pushing changes (#482, #480, #464, #483)
+- **Workspace root file ownership boundary** — Startup now updates only DevClaw-managed tagged sections inside `AGENTS.md`, `HEARTBEAT.md`, and `TOOLS.md`, preserving user content outside those blocks while keeping explicit reset flows able to rewrite full defaults (#88)
+- **Defaults loading in source/test runs** — Template resolution now finds `defaults/` correctly in both bundled and source layouts, restoring setup/workspace tests and local development flows
 
 ### Improved
 

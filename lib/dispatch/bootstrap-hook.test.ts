@@ -5,6 +5,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert";
 import { parseDevClawSessionKey, loadRoleInstructions } from "./bootstrap-hook.js";
+import { DEFAULT_ROLE_INSTRUCTIONS } from "../setup/templates.js";
 import fs from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
@@ -81,10 +82,19 @@ describe("loadRoleInstructions", () => {
     await fs.rm(tmpDir, { recursive: true });
   });
 
-  it("should return empty string when no instructions exist", async () => {
+  it("should fall back to package defaults when no workspace instructions exist", async () => {
     const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "devclaw-test-"));
 
     const result = await loadRoleInstructions(tmpDir, "missing", "developer");
+    assert.strictEqual(result, DEFAULT_ROLE_INSTRUCTIONS.developer);
+
+    await fs.rm(tmpDir, { recursive: true });
+  });
+
+  it("should return empty string for unknown roles with no defaults", async () => {
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "devclaw-test-"));
+
+    const result = await loadRoleInstructions(tmpDir, "missing", "unknown-role");
     assert.strictEqual(result, "");
 
     await fs.rm(tmpDir, { recursive: true });
