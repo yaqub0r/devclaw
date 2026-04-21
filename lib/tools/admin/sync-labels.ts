@@ -14,6 +14,7 @@ import type { PluginContext } from "../../context.js";
 import { requireWorkspaceDir } from "../helpers.js";
 import { readProjects, getProject } from "../../projects/index.js";
 import { createProvider } from "../../providers/index.js";
+import { normalizeRepoTarget } from "../helpers.js";
 import { loadConfig } from "../../config/index.js";
 import {
   getStateLabels,
@@ -81,6 +82,7 @@ export function createSyncLabelsTool(ctx: PluginContext) {
           const { provider } = await createProvider({
             repo: project.repo,
             provider: project.provider,
+            target: project.repoRemote ? { repo: normalizeRepoTarget(project.repoRemote) } : undefined,
             runCommand: ctx.runCommand,
           });
 

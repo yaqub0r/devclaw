@@ -62,7 +62,7 @@ export async function resolveProvider(project: Project, runCommand: RunCommand):
   return createProvider({ repo: project.repo, provider: project.provider, target, runCommand });
 }
 
-function normalizeRepoTarget(repoRemote: string): string | undefined {
+export function normalizeRepoTarget(repoRemote: string): string | undefined {
   const trimmed = repoRemote.trim();
   if (!trimmed) return undefined;
 
