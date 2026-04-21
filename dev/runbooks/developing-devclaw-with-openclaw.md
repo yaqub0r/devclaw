@@ -3,6 +3,7 @@
 This guide covers the generic workflow for developing DevClaw while running DevClaw through OpenClaw.
 
 It is intentionally environment-agnostic. If your machine or fork has local policy, branch names, or operator habits layered on top, keep those in local-only docs and link back here.
+This runbook lives under `dev/runbooks/` because it is self-hosting and developer-facing guidance, not release-user documentation.
 
 ## What this guide is for
 
