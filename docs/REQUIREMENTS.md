@@ -2,7 +2,7 @@
 
 Requirements for the next iteration of DevClaw's task model: step-based execution, plan-driven workflows, and PR lifecycle standardization.
 
-**Context:** [WORKFLOW-ALTERNATIVES.md](exploratory/WORKFLOW-ALTERNATIVES.md) (approach comparison), [STEP-BASED-TASKS.md](exploratory/STEP-BASED-TASKS.md) (early exploratory), [#443](https://github.com/laurentenhoor/devclaw/issues/443) (dependency gating)
+**Context:** [WORKFLOW-ALTERNATIVES.md](exploratory/WORKFLOW-ALTERNATIVES.md) (approach comparison), [STEP-BASED-TASKS.md](exploratory/STEP-BASED-TASKS.md) (early exploratory), #443 (dependency gating)
 
 ---
 
