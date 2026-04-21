@@ -10,6 +10,7 @@ import {
   type PrReviewComment,
   PrState,
 } from "./provider.js";
+import type { ProviderTarget } from "./provider.js";
 import type { RunCommand } from "../context.js";
 import { withResilience } from "./resilience.js";
 import {
@@ -39,21 +40,61 @@ export class GitHubProvider implements IssueProvider {
   private repoPath: string;
   private workflow: WorkflowConfig;
   private runCommand: RunCommand;
+  private targetRepo?: string;
 
-  constructor(opts: { repoPath: string; runCommand: RunCommand; workflow?: WorkflowConfig }) {
+  constructor(opts: { repoPath: string; runCommand: RunCommand; workflow?: WorkflowConfig; target?: ProviderTarget }) {
     this.repoPath = opts.repoPath;
     this.runCommand = opts.runCommand;
     this.workflow = opts.workflow ?? DEFAULT_WORKFLOW;
+    this.targetRepo = opts.target?.repo;
   }
 
   private async gh(args: string[]): Promise<string> {
     return withResilience(async () => {
-      const result = await this.runCommand(["gh", ...args], { timeoutMs: 30_000, cwd: this.repoPath });
+      const fullArgs = ["gh", ...this.withRepo(args)];
+      const result = await this.runCommand(fullArgs, { timeoutMs: 30_000, cwd: this.repoPath });
       if (result.code != null && result.code !== 0) {
         throw new Error(result.stderr?.trim() || `gh command failed with exit code ${result.code}`);
       }
       return result.stdout.trim();
     });
+  }
+
+  private withRepo(args: string[]): string[] {
+    if (!this.targetRepo || args.length === 0) return args;
+    if (args[0] === "api") return this.withApiTarget(args);
+    if (!this.commandSupportsRepo(args)) return args;
+    if (args.includes("--repo") || args.includes("-R")) return args;
+    return [...args, "--repo", this.targetRepo];
+  }
+
+  private withApiTarget(args: string[]): string[] {
+    if (args.includes("graphql")) return args;
+    const repo = this.getTargetRepoParts();
+    if (!repo) return args;
+    if (args.length < 2) return args;
+
+    const route = args[1]
+      .replace(/(^|\/)repos\/:owner\/:repo(?=\/|$)/, `$1repos/${repo.owner}/${repo.name}`)
+      .replace(/(^|\/)projects\/:id(?=\/|$)/, `$1repos/${repo.owner}/${repo.name}`);
+
+    if (route === args[1]) return args;
+    return [args[0], route, ...args.slice(2)];
+  }
+
+  private commandSupportsRepo(args: string[]): boolean {
+    if (args.length === 0) return false;
+    if (args[0] === "repo") return true;
+    if (args[0] === "issue") return true;
+    if (args[0] === "pr") return true;
+    if (args[0] === "label") return true;
+    return false;
+  }
+
+  private getTargetRepoParts(): { owner: string; name: string } | null {
+    if (!this.targetRepo) return null;
+    const [owner, name] = this.targetRepo.split("/");
+    return owner && name ? { owner, name } : null;
   }
 
   /** Cached repo owner/name for GraphQL queries. */
@@ -66,6 +107,11 @@ export class GitHubProvider implements IssueProvider {
   private async getRepoInfo(): Promise<{ owner: string; name: string } | null> {
     if (this.repoInfo !== undefined) return this.repoInfo;
     try {
+      const targetRepo = this.getTargetRepoParts();
+      if (targetRepo) {
+        this.repoInfo = targetRepo;
+        return this.repoInfo;
+      }
       const raw = await this.gh(["repo", "view", "--json", "owner,name"]);
       const data = JSON.parse(raw);
       this.repoInfo = { owner: data.owner.login, name: data.name };

@@ -13,6 +13,7 @@ import {
 } from "./health.js";
 import { projectTick } from "../tick.js";
 import { createProvider } from "../../providers/index.js";
+import { normalizeRepoTarget } from "../../tools/helpers.js";
 import { loadConfig } from "../../config/index.js";
 import { ExecutionMode } from "../../workflow/index.js";
 import type { HeartbeatConfig } from "./config.js";
@@ -91,6 +92,7 @@ export async function tick(opts: {
       const { provider } = await createProvider({
         repo: project.repo,
         provider: project.provider,
+        target: project.repoRemote ? { repo: normalizeRepoTarget(project.repoRemote) } : undefined,
         runCommand,
       });
       const resolvedConfig = await loadConfig(workspaceDir, project.name);
