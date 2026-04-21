@@ -174,7 +174,7 @@ describe("work_finish: PR validation and conflict resolution", () => {
       const errorMessage = 
         `Cannot complete work_finish(done) while PR still shows merge conflicts.\n\n` +
         `✗ PR status: CONFLICTING\n` +
-        `✗ PR URL: https://github.com/test/repo/pull/42\n` +
+        `✗ PR URL: https://github.com/example-owner/example-repo/pull/42\n` +
         `✗ Branch: feature/test\n\n` +
         `Your local rebase may have succeeded, but changes must be pushed to the remote.\n\n` +
         `Verify your changes were pushed:\n` +
@@ -210,7 +210,7 @@ describe("work_finish: PR validation and conflict resolution", () => {
       const errorMessage = 
         `Cannot complete work_finish(done) while PR still shows merge conflicts.\n\n` +
         `✗ PR status: CONFLICTING\n` +
-        `✗ PR URL: https://github.com/test/repo/pull/42\n` +
+        `✗ PR URL: https://github.com/example-owner/example-repo/pull/42\n` +
         `✗ Branch: ${branchName}`;
       
       assert.ok(
@@ -261,7 +261,7 @@ describe("work_finish: PR validation and conflict resolution", () => {
         project: "devclaw",
         issue: 123,
         reason: "pr_still_conflicting",
-        prUrl: "https://github.com/test/repo/pull/123",
+        prUrl: "https://github.com/example-owner/example-repo/pull/123",
         mergeable: false,
       };
       
@@ -275,7 +275,7 @@ describe("work_finish: PR validation and conflict resolution", () => {
         event: "conflict_resolution_verified",
         project: "devclaw",
         issue: 123,
-        prUrl: "https://github.com/test/repo/pull/123",
+        prUrl: "https://github.com/example-owner/example-repo/pull/123",
         mergeable: true,
       };
       
