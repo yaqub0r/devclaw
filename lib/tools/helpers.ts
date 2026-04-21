@@ -5,6 +5,14 @@
  * project resolution, provider creation.
  */
 import type { ToolContext } from "../types.js";
+
+/**
+ * Wrap a payload as a tool result with pretty-printed JSON text.
+ * Replaces the removed `jsonResult` export from openclaw/plugin-sdk.
+ */
+export function jsonResult(payload: unknown): { content: { type: "text"; text: string }[]; details: unknown } {
+  return { content: [{ type: "text", text: JSON.stringify(payload, null, 2) }], details: payload };
+}
 import type { RunCommand } from "../context.js";
 import { readProjects, getProject, type Project, type ProjectsData } from "../projects/index.js";
 import { createProvider, type ProviderWithType } from "../providers/index.js";

@@ -27,6 +27,8 @@ Then start onboarding by chatting with your agent in any channel:
 
 [Read more on onboarding &rarr;](#getting-started)
 
+For developing DevClaw while running it through OpenClaw, including a generic non-destructive smoke test, see [Developing DevClaw with OpenClaw](docs/devclaw-self-hosting.md).
+
 ---
 
 ## What it looks like
