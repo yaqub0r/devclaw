@@ -26,6 +26,14 @@ At minimum, the developer tree should contain:
 Release-user documentation stays under `docs/`.
 Developer-only runbooks, issue-linked regression notes, and release-hardening checks belong under `dev/`.
 
+## Neutral identifiers in generic materials
+
+Generic-facing code, tests, fixtures, and docs should use neutral placeholders such as `example-owner/example-repo` or `octo-org/octo-repo`.
+Do not hardcode fork-specific or operator-specific repo identifiers in generic materials.
+
+Local fork, branch, host, or operator details may appear only where they are operationally required for local-only runbooks or config.
+If a real upstream repo or package identity is intentionally required, keep it narrowly scoped and make the reason obvious from context.
+
 ## Definition of Done for release-relevant fixes
 
 Do not consider an issue done until the regression story is addressed.
