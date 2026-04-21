@@ -10,6 +10,7 @@ import {
   type PrReviewComment,
   PrState,
 } from "./provider.js";
+import type { ProviderTarget } from "./provider.js";
 import type { RunCommand } from "../context.js";
 import { withResilience } from "./resilience.js";
 import {
@@ -35,16 +36,19 @@ export class GitLabProvider implements IssueProvider {
   private repoPath: string;
   private workflow: WorkflowConfig;
   private runCommand: RunCommand;
+  private targetRepo?: string;
 
-  constructor(opts: { repoPath: string; runCommand: RunCommand; workflow?: WorkflowConfig }) {
+  constructor(opts: { repoPath: string; runCommand: RunCommand; workflow?: WorkflowConfig; target?: ProviderTarget }) {
     this.repoPath = opts.repoPath;
     this.runCommand = opts.runCommand;
     this.workflow = opts.workflow ?? DEFAULT_WORKFLOW;
+    this.targetRepo = opts.target?.repo;
   }
 
   private async glab(args: string[]): Promise<string> {
     return withResilience(async () => {
-      const result = await this.runCommand(["glab", ...args], { timeoutMs: 30_000, cwd: this.repoPath });
+      const fullArgs = this.targetRepo && !args.includes("--repo") ? ["glab", ...args, "--repo", this.targetRepo] : ["glab", ...args];
+      const result = await this.runCommand(fullArgs, { timeoutMs: 30_000, cwd: this.repoPath });
       return result.stdout.trim();
     });
   }
