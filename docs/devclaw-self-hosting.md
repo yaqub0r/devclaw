@@ -103,7 +103,7 @@ This gives you four checks:
 - the branch name of the intended worktree
 - the exact commit of that worktree
 
-For example, if you intend to run from a `feature/self-hosting-fix` worktree, these checks should agree on both the path and the branch identity before you treat the switch as complete.
+For example, if you intend to run from a `devclaw-local-stable` worktree, these checks should agree on both the path and the branch identity before you treat the switch as complete.
 
 ## Avoid duplicate plugin-source collisions
 
