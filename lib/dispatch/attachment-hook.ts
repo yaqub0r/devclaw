@@ -19,7 +19,6 @@ import {
 } from "./attachments.js";
 import { readProjects, type Project } from "../projects/index.js";
 import { createProvider } from "../providers/index.js";
-import { normalizeRepoTarget } from "../tools/helpers.js";
 import { log as auditLog } from "../audit.js";
 
 /**
@@ -94,12 +93,7 @@ export function registerAttachmentHook(api: OpenClawPluginApi, ctx: PluginContex
     // Process each referenced issue
     for (const issueId of issueIds) {
       try {
-        const { provider } = await createProvider({
-          repo: project.repo,
-          provider: project.provider,
-          target: project.repoRemote ? { repo: normalizeRepoTarget(project.repoRemote) } : undefined,
-          runCommand: ctx.runCommand,
-        });
+        const { provider } = await createProvider({ repo: project.repo, provider: project.provider, runCommand: ctx.runCommand });
 
         await processAttachmentMessage({
           workspaceDir,

@@ -3,7 +3,7 @@
  *
  * Queries available authenticated models and intelligently assigns them to DevClaw roles.
  */
-import { jsonResult } from "../helpers.js";
+import { jsonResult } from "openclaw/plugin-sdk";
 import type { ToolContext } from "../../types.js";
 import type { PluginContext, RunCommand } from "../../context.js";
 import {

@@ -12,13 +12,14 @@
  *   → architect calls work_finish(result="done") → "Researching" → "Done" (issue closed)
  *   → operator reviews created tasks in Planning, moves to "To Do" when ready
  */
+import { jsonResult } from "openclaw/plugin-sdk";
 import type { ToolContext } from "../../types.js";
 import type { PluginContext } from "../../context.js";
 import type { StateLabel } from "../../providers/provider.js";
 import { getRoleWorker, countActiveSlots } from "../../projects/index.js";
 import { dispatchTask } from "../../dispatch/index.js";
 import { log as auditLog } from "../../audit.js";
-import { jsonResult, requireWorkspaceDir, resolveChannelId, resolveProject, resolveProvider, autoAssignOwnerLabel, applyNotifyLabel } from "../helpers.js";
+import { requireWorkspaceDir, resolveChannelId, resolveProject, resolveProvider, autoAssignOwnerLabel, applyNotifyLabel } from "../helpers.js";
 import { loadConfig } from "../../config/index.js";
 import { getActiveLabel } from "../../workflow/index.js";
 import { selectLevel } from "../../roles/model-selector.js";

@@ -170,13 +170,3 @@ export interface IssueProvider {
   }): Promise<string | null>;
   healthCheck(): Promise<boolean>;
 }
-
-/**
- * Optional tracker target override derived from project configuration.
- *
- * Example GitHub target: "yaqub0r/devclaw"
- * Example GitLab target: "group/project"
- */
-export type ProviderTarget = {
-  repo?: string;
-};

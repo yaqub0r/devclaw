@@ -9,11 +9,12 @@
  * - A sub-agent finds a bug and needs to file a follow-up issue
  * - Breaking down an epic into smaller tasks
  */
+import { jsonResult } from "openclaw/plugin-sdk";
 import type { PluginContext } from "../../context.js";
 import type { ToolContext } from "../../types.js";
 import { log as auditLog } from "../../audit.js";
 import { DEFAULT_WORKFLOW } from "../../workflow/index.js";
-import { jsonResult, requireWorkspaceDir, resolveChannelId, resolveProject, resolveProvider, autoAssignOwnerLabel, applyNotifyLabel } from "../helpers.js";
+import { requireWorkspaceDir, resolveChannelId, resolveProject, resolveProvider, autoAssignOwnerLabel, applyNotifyLabel } from "../helpers.js";
 
 /** Derive the initial state label from the workflow config. */
 const INITIAL_LABEL = DEFAULT_WORKFLOW.states[DEFAULT_WORKFLOW.initial].label;

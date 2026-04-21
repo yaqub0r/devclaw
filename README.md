@@ -27,8 +27,6 @@ Then start onboarding by chatting with your agent in any channel:
 
 [Read more on onboarding &rarr;](#getting-started)
 
-For developing DevClaw while running it through OpenClaw, including a generic non-destructive smoke test, see [Developing DevClaw with OpenClaw](dev/runbooks/developing-devclaw-with-openclaw.md). Developer-only material and release regression coverage now live under the repo-local [`dev/`](dev/README.md) tree.
-
 ---
 
 ## What it looks like

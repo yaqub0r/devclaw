@@ -11,16 +11,23 @@
  */
 import { describe, it, before, after } from "node:test";
 import assert from "node:assert";
-import { mkdtemp, writeFile, readFile, rm, mkdir } from "node:fs/promises";
+import { mkdtemp, writeFile, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { rmdir } from "node:fs/promises";
 
 // Helper to create a mock audit log with a merge_conflict transition
 async function createMockAuditLog(workspaceDir: string, issueId: number, hasMergeConflict: boolean): Promise<void> {
   const logDir = join(workspaceDir, "devclaw", "log");
-  await mkdir(logDir, { recursive: true });
-
-  const auditPath = join(logDir, "audit.log");
+  
+  // Ensure directory exists
+  try {
+    await writeFile(join(workspaceDir, "devclaw", "placeholder"), "");
+  } catch {
+    // ignore
+  }
+  
+  const auditPath = join(workspaceDir, "devclaw", "log", "audit.log");
   const entries = [];
   
   // Add some dummy entries
@@ -67,7 +74,7 @@ describe("work_finish: PR validation and conflict resolution", () => {
   after(async () => {
     // Clean up
     try {
-      await rm(tempDir, { recursive: true, force: true });
+      await rmdir(tempDir, { recursive: true });
     } catch {
       // ignore
     }
@@ -236,12 +243,12 @@ describe("work_finish: PR validation and conflict resolution", () => {
 
     it("should handle non-Error exceptions gracefully", () => {
       // Test that non-Error objects don't cause issues
-      const notAnError: unknown = "some string";
-
-      const shouldRethrow =
-        notAnError instanceof Error &&
-        (notAnError.message.startsWith("Cannot mark work_finish(done)") ||
-         notAnError.message.startsWith("Cannot complete work_finish(done)"));
+      const notAnError = "some string";
+      
+      const shouldRethrow = 
+        notAnError instanceof Error && 
+        ((notAnError as any).message?.startsWith("Cannot mark work_finish(done)") || 
+         (notAnError as any).message?.startsWith("Cannot complete work_finish(done)"));
       
       assert.ok(!shouldRethrow, "Should not re-throw non-Error objects");
     });

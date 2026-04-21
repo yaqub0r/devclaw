@@ -8,7 +8,6 @@ import type { PluginRuntime } from "openclaw/plugin-sdk";
 import type { RunCommand } from "../context.js";
 import type { Issue, IssueProvider } from "../providers/provider.js";
 import { createProvider } from "../providers/index.js";
-import { normalizeRepoTarget } from "../tools/helpers.js";
 import { selectLevel } from "../roles/model-selector.js";
 import { getRoleWorker, getProject, readProjects, findFreeSlot, countActiveSlots, reconcileSlots } from "../projects/index.js";
 import { dispatchTask } from "../dispatch/index.js";
@@ -83,12 +82,7 @@ export async function projectTick(opts: {
   const resolvedConfig = await loadConfig(workspaceDir, project.name);
   const workflow = opts.workflow ?? resolvedConfig.workflow;
 
-  const provider = opts.provider ?? (await createProvider({
-    repo: project.repo,
-    provider: project.provider,
-    target: project.repoRemote ? { repo: normalizeRepoTarget(project.repoRemote) } : undefined,
-    runCommand: runCommand!,
-  })).provider;
+  const provider = opts.provider ?? (await createProvider({ repo: project.repo, provider: project.provider, runCommand: runCommand! })).provider;
   const roleExecution = workflow.roleExecution ?? ExecutionMode.PARALLEL;
   const enabledRoles = Object.entries(resolvedConfig.roles)
     .filter(([, r]) => r.enabled)

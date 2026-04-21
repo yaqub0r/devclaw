@@ -5,12 +5,13 @@
  * applied as a role:level label and respected by the heartbeat when the
  * issue is later advanced via task_start.
  */
+import { jsonResult } from "openclaw/plugin-sdk";
 import type { PluginContext } from "../../context.js";
 import type { ToolContext } from "../../types.js";
 import { log as auditLog } from "../../audit.js";
 import { StateType, findStateByLabel, getCurrentStateLabel, getRoleLabelColor } from "../../workflow/index.js";
 import { loadConfig } from "../../config/index.js";
-import { jsonResult, requireWorkspaceDir, resolveChannelId, resolveProject, resolveProvider, autoAssignOwnerLabel, applyNotifyLabel } from "../helpers.js";
+import { requireWorkspaceDir, resolveChannelId, resolveProject, resolveProvider, autoAssignOwnerLabel, applyNotifyLabel } from "../helpers.js";
 
 export function createTaskSetLevelTool(ctx: PluginContext) {
   return (toolCtx: ToolContext) => ({

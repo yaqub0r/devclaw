@@ -8,6 +8,7 @@
  * The heartbeat is the sole dispatcher — this tool only places issues in
  * queues, never dispatches workers directly.
  */
+import { jsonResult } from "openclaw/plugin-sdk";
 import type { PluginContext } from "../../context.js";
 import type { ToolContext } from "../../types.js";
 import { log as auditLog } from "../../audit.js";
@@ -25,7 +26,7 @@ import {
 } from "../../workflow/index.js";
 import { getLevelsForRole } from "../../roles/index.js";
 import { loadConfig } from "../../config/index.js";
-import { jsonResult, requireWorkspaceDir, resolveChannelId, resolveProject, resolveProvider, autoAssignOwnerLabel, applyNotifyLabel } from "../helpers.js";
+import { requireWorkspaceDir, resolveChannelId, resolveProject, resolveProvider, autoAssignOwnerLabel, applyNotifyLabel } from "../helpers.js";
 
 export function createTaskStartTool(ctx: PluginContext) {
   return (toolCtx: ToolContext) => ({

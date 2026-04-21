@@ -2,7 +2,6 @@
  * Provider factory — auto-detects GitHub vs GitLab from git remote.
  */
 import type { IssueProvider } from "./provider.js";
-import type { ProviderTarget } from "./provider.js";
 import type { RunCommand } from "../context.js";
 import { GitLabProvider } from "./gitlab.js";
 import { GitHubProvider } from "./github.js";
@@ -12,7 +11,6 @@ export type ProviderOptions = {
   provider?: "gitlab" | "github";
   repo?: string;
   repoPath?: string;
-  target?: ProviderTarget;
   runCommand: RunCommand;
 };
 
@@ -36,7 +34,7 @@ export async function createProvider(opts: ProviderOptions): Promise<ProviderWit
   const rc = opts.runCommand;
   const type = opts.provider ?? await detectProvider(repoPath, rc);
   const provider = type === "github"
-    ? new GitHubProvider({ repoPath, runCommand: rc, target: opts.target })
-    : new GitLabProvider({ repoPath, runCommand: rc, target: opts.target });
+    ? new GitHubProvider({ repoPath, runCommand: rc })
+    : new GitLabProvider({ repoPath, runCommand: rc });
   return { provider, type };
 }
