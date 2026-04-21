@@ -22,11 +22,12 @@ for needle in [
 
 for needle in [
     'return [...args, "--repo", this.targetRepo];',
+    'if (args[0] === "api") return this.withApiTarget(args);',
+    'if (args[0] === "repo") return true;',
     'if (args[0] === "issue") return true;',
     'if (args[0] === "pr") return true;',
     'if (args[0] === "label") return true;',
-    'if (args[0] !== "api") return false;',
-    'if (this.targetRepo) {',
+    'return false;',
     'const [owner, name] = this.targetRepo.split("/");',
 ]:
     assert needle in github, f"GitHub provider routing guard missing: {needle}"
@@ -35,7 +36,8 @@ assert provider_test.exists(), "provider-targeting regression suite is missing"
 text = provider_test.read_text()
 for needle in [
     'passes --repo for issue creation when target repo is configured',
-    'passes --repo for issue read, edit, label, and comment paths when target repo is configured',
+    'passes --repo for issue read, edit, and label paths when target repo is configured',
+    'rewrites only the gh api route placeholder to the configured repo without adding --repo',
     'uses configured target repo for repo info without gh repo view',
 ]:
     assert needle in text, f"provider-targeting test no longer covers: {needle}"
