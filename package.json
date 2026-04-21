@@ -37,6 +37,7 @@
     "defaults/",
     "roles/",
     "docs/",
+    "dev/",
     "openclaw.plugin.json"
   ],
   "publishConfig": {
