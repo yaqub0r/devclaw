@@ -51,7 +51,7 @@ describe("GitHubProvider.getPrStatus — closed PR handling", () => {
   it("returns url:closedPrUrl when a closed-without-merge PR exists", async () => {
     const provider = new GitHubProvider({ repoPath: "/fake", runCommand: mockRunCommand });
 
-    const closedPrUrl = "https://github.com/example-owner/example-repo/pull/7";
+    const closedPrUrl = "https://github.com/owner/repo/pull/7";
 
     (provider as any).findPrsForIssue = async (_id: number, state: string) => {
       if (state === "open" || state === "merged") return [];
@@ -85,7 +85,7 @@ describe("GitHubProvider.getPrStatus — closed PR handling", () => {
   it("prefers open PR over closed PR", async () => {
     const provider = new GitHubProvider({ repoPath: "/fake", runCommand: mockRunCommand });
 
-    const openPrUrl = "https://github.com/example-owner/example-repo/pull/9";
+    const openPrUrl = "https://github.com/owner/repo/pull/9";
 
     (provider as any).findPrsForIssue = async (_id: number, state: string) => {
       if (state === "open") {
@@ -117,7 +117,7 @@ describe("GitHubProvider.getPrStatus — closed PR handling", () => {
   it("prefers merged PR over closed PR", async () => {
     const provider = new GitHubProvider({ repoPath: "/fake", runCommand: mockRunCommand });
 
-    const mergedPrUrl = "https://github.com/example-owner/example-repo/pull/5";
+    const mergedPrUrl = "https://github.com/owner/repo/pull/5";
 
     (provider as any).findPrsForIssue = async (_id: number, state: string) => {
       if (state === "open") return [];
@@ -149,7 +149,7 @@ describe("GitHubProvider.getPrStatus — closed PR handling", () => {
     // Timeline has only OPEN PRs — none should trigger closed-PR path
     (provider as any).findPrsViaTimeline = async (_id: number, state: string) => {
       if (state === "all") {
-        return [{ number: 10, title: "", body: "", headRefName: "", url: "https://github.com/example-owner/example-repo/pull/10", mergedAt: null, reviewDecision: null, state: "OPEN", mergeable: null }];
+        return [{ number: 10, title: "", body: "", headRefName: "", url: "https://github.com/owner/repo/pull/10", mergedAt: null, reviewDecision: null, state: "OPEN", mergeable: null }];
       }
       return [];
     };
@@ -165,7 +165,7 @@ describe("GitHubProvider.getPrStatus — closed PR handling", () => {
   it("detects merge conflicts via mergeable field", async () => {
     const provider = new GitHubProvider({ repoPath: "/fake", runCommand: mockRunCommand });
 
-    const conflictedPrUrl = "https://github.com/example-owner/example-repo/pull/11";
+    const conflictedPrUrl = "https://github.com/owner/repo/pull/11";
 
     (provider as any).findPrsForIssue = async (_id: number, state: string) => {
       if (state === "open") {
@@ -198,7 +198,7 @@ describe("GitHubProvider.getPrStatus — closed PR handling", () => {
   it("distinguishes mergeable states", async () => {
     const provider = new GitHubProvider({ repoPath: "/fake", runCommand: mockRunCommand });
 
-    const mergeablePrUrl = "https://github.com/example-owner/example-repo/pull/12";
+    const mergeablePrUrl = "https://github.com/owner/repo/pull/12";
 
     (provider as any).findPrsForIssue = async (_id: number, state: string) => {
       if (state === "open") {
@@ -230,7 +230,7 @@ describe("GitHubProvider.getPrStatus — closed PR handling", () => {
   it("handles unknown mergeable state", async () => {
     const provider = new GitHubProvider({ repoPath: "/fake", runCommand: mockRunCommand });
 
-    const unknownPrUrl = "https://github.com/example-owner/example-repo/pull/13";
+    const unknownPrUrl = "https://github.com/owner/repo/pull/13";
 
     (provider as any).findPrsForIssue = async (_id: number, state: string) => {
       if (state === "open") {
@@ -279,7 +279,7 @@ describe("GitLabProvider.getPrStatus — closed MR handling", () => {
   it("returns url:closedMrUrl when a closed-without-merge MR exists", async () => {
     const provider = new GitLabProvider({ repoPath: "/fake", runCommand: mockRunCommand });
 
-    const closedMrUrl = "https://gitlab.com/octo-org/octo-repo/-/merge_requests/3";
+    const closedMrUrl = "https://gitlab.com/owner/repo/-/merge_requests/3";
 
     (provider as any).getRelatedMRs = async () => [
       {
@@ -303,8 +303,8 @@ describe("GitLabProvider.getPrStatus — closed MR handling", () => {
   it("prefers open MR over closed MR", async () => {
     const provider = new GitLabProvider({ repoPath: "/fake", runCommand: mockRunCommand });
 
-    const openMrUrl = "https://gitlab.com/octo-org/octo-repo/-/merge_requests/4";
-    const closedMrUrl = "https://gitlab.com/octo-org/octo-repo/-/merge_requests/2";
+    const openMrUrl = "https://gitlab.com/owner/repo/-/merge_requests/4";
+    const closedMrUrl = "https://gitlab.com/owner/repo/-/merge_requests/2";
 
     (provider as any).getRelatedMRs = async () => [
       { iid: 4, title: "open MR", description: "", web_url: openMrUrl, state: "opened", source_branch: "feature/4", merged_at: null },
@@ -324,8 +324,8 @@ describe("GitLabProvider.getPrStatus — closed MR handling", () => {
   it("prefers merged MR over closed MR", async () => {
     const provider = new GitLabProvider({ repoPath: "/fake", runCommand: mockRunCommand });
 
-    const mergedMrUrl = "https://gitlab.com/octo-org/octo-repo/-/merge_requests/5";
-    const closedMrUrl = "https://gitlab.com/octo-org/octo-repo/-/merge_requests/1";
+    const mergedMrUrl = "https://gitlab.com/owner/repo/-/merge_requests/5";
+    const closedMrUrl = "https://gitlab.com/owner/repo/-/merge_requests/1";
 
     (provider as any).getRelatedMRs = async () => [
       { iid: 5, title: "merged", description: "", web_url: mergedMrUrl, state: "merged", source_branch: "feature/5", merged_at: "2026-01-01T00:00:00Z" },
@@ -341,8 +341,8 @@ describe("GitLabProvider.getPrStatus — closed MR handling", () => {
   it("handles multiple closed MRs — returns the first found", async () => {
     const provider = new GitLabProvider({ repoPath: "/fake", runCommand: mockRunCommand });
 
-    const closedMrUrl1 = "https://gitlab.com/octo-org/octo-repo/-/merge_requests/10";
-    const closedMrUrl2 = "https://gitlab.com/octo-org/octo-repo/-/merge_requests/11";
+    const closedMrUrl1 = "https://gitlab.com/owner/repo/-/merge_requests/10";
+    const closedMrUrl2 = "https://gitlab.com/owner/repo/-/merge_requests/11";
 
     (provider as any).getRelatedMRs = async () => [
       { iid: 10, title: "closed 1", description: "", web_url: closedMrUrl1, state: "closed", source_branch: "feature/10", merged_at: null },
