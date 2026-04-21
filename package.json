@@ -46,6 +46,7 @@
     "build": "node build.mjs",
     "check": "tsc --noEmit",
     "watch": "tsc --noEmit --watch",
+    "regression:release": "bash dev/regression/tests/run-all.sh",
     "prepublishOnly": "npm run build"
   },
   "peerDependencies": {
