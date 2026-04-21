@@ -29,6 +29,7 @@ Developer-only runbooks, issue-linked regression notes, and release-hardening ch
 ## Definition of Done for release-relevant fixes
 
 Do not consider an issue done until the regression story is addressed.
+Issues are not considered done until regression tests are added when appropriate, along with any supporting rationale or fixtures under `/dev`.
 
 When a bug fix is release-relevant or likely to regress, the issue is not done until the regression story is addressed:
 
