@@ -85,6 +85,26 @@ git -C <live-source-root> rev-parse HEAD
 
 Do not assume that the installed extension directory or your current shell checkout is the live commit.
 
+## Stronger proof for linked local installs
+
+If you are using a linked local install and want stronger proof that the live plugin really comes from the intended worktree, verify both the install path target and the branch name:
+
+```bash
+openclaw plugins inspect devclaw
+readlink -f ~/.openclaw/extensions/devclaw
+git -C <intended-worktree> rev-parse --abbrev-ref HEAD
+git -C <intended-worktree> rev-parse HEAD
+```
+
+This gives you four checks:
+
+- the live plugin id and loaded source
+- the real filesystem target behind the installed extension path
+- the branch name of the intended worktree
+- the exact commit of that worktree
+
+For example, if you intend to run from a `devclaw-local-stable` worktree, these checks should agree on both the path and the branch identity before you treat the switch as complete.
+
 ## Avoid duplicate plugin-source collisions
 
 A common failure mode is loading DevClaw from more than one place at once, for example:
@@ -112,6 +132,36 @@ In that case:
 2. inspect the live plugin path again
 3. remove or disable competing DevClaw plugin sources
 4. restart and verify again
+
+## Generic smoke test for a running environment
+
+Use this when you want to verify a local DevClaw install in an already-running environment without creating new projects or tasks.
+
+Read-only checks:
+
+```bash
+openclaw plugins inspect devclaw
+openclaw plugins list
+openclaw gateway status
+openclaw agent --agent <agent-id> --message 'Call project_status with channelId "<channel-id>" and reply with the result only.' --json
+openclaw agent --agent <agent-id> --message 'Call tasks_status and reply with the result only.' --json
+openclaw agent --agent <agent-id> --message 'Call channel_list and reply with the result only.' --json
+```
+
+What this verifies:
+
+- the plugin is loaded
+- the gateway is healthy
+- the live agent can read local project state
+- the live agent can read tracker-backed task state
+- channel bindings are visible
+
+Expected result note:
+
+- in an unbound DM or admin session, `project_status` and `tasks_status` may correctly return `No project found` for that channel
+- treat that as a passing result for this smoke test unless you were specifically testing a known project-bound chat
+
+Avoid using project-creating or task-creating commands for smoke tests in a shared live environment unless you also have an explicit cleanup plan.
 
 ## Keep generic guidance separate from local policy
 
