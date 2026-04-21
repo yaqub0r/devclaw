@@ -137,6 +137,32 @@ In that case:
 
 Use this when you want to verify a local DevClaw install in an already-running environment without creating new projects or tasks.
 
+## Tracker routing verification for fork-based installs
+
+If your local checkout has both a fork and an upstream remote, do not trust ambient GitHub CLI repo inference.
+
+Before relying on issue-creation flows, verify both the configured tracker target and the checkout's ambient `gh` target:
+
+```bash
+python3 - <<'PY'
+import json
+p=json.load(open('devclaw/projects.json'))['projects']['devclaw']
+print(p['repoRemote'])
+PY
+git -C <repo-or-worktree> remote -v
+gh repo view --json nameWithOwner --jq .nameWithOwner
+```
+
+Expected safety rule:
+
+- DevClaw issue/task tooling must route to the repository configured in `projects.json`
+- it must not drift to the repo that `gh` happens to infer from the checkout context
+
+When validating a fix for tracker-routing bugs, record both:
+
+- a pre-change proof showing config target versus ambient `gh` target
+- a post-change proof showing issue/task creation calls explicitly target the configured repo
+
 Read-only checks:
 
 ```bash
