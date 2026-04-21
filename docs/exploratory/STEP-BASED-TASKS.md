@@ -2,7 +2,7 @@
 
 Design for hierarchical issue → step layering with sequential execution and stacked PRs.
 
-**Related:** [#443 — Dependency gating](https://github.com/laurentenhoor/devclaw/issues/443)
+**Related:** #443 — Dependency gating
 
 ---
 
@@ -363,4 +363,4 @@ Full-blown PR stacking tools that rewrite commit history. Rejected because:
 
 - [GitHub Sub-Issues announcement](https://github.blog/engineering/architecture-optimization/introducing-sub-issues-enhancing-issue-management-on-github/)
 - [GitHub Sub-Issues API (GraphQL)](https://docs.github.com/en/graphql/reference/mutations#addsubissue) — requires `GraphQL-Features: sub_issues` header
-- [Issue #443 — Dependency gating](https://github.com/laurentenhoor/devclaw/issues/443)
+- Issue #443 — Dependency gating
