@@ -59,11 +59,11 @@ Models are configured in \`devclaw/workflow.yaml\`. Edit that file directly or c
 
 ## What can be changed
 1. **Model levels** — call \`setup\` with a \`models\` object containing only the levels to change
-2. **Workspace files** — \`setup\` seeds missing workspace files, and normal startup refreshes only DevClaw-managed tagged blocks inside AGENTS.md / HEARTBEAT.md / TOOLS.md
+2. **Workspace files** — \`setup\` re-writes AGENTS.md, HEARTBEAT.md (backs up existing files)
 3. **Register new projects** — use \`project_register\`
 
 Ask what they want to change, then call the appropriate tool.
-Use \`setup({ resetDefaults: true })\` only when they explicitly want package defaults force-written again.
+\`setup\` is safe to re-run — it backs up existing files before overwriting.
 `;
 }
 

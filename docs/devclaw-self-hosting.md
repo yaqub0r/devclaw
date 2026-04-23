@@ -55,6 +55,15 @@ test -f <target-source-root>/dist/index.js && echo built || echo missing-dist
 
 If `dist/index.js` is missing, build first and do not switch the live source yet.
 
+If the user has asked to push or hand off a branch, rebuild `dist/index.js` in that target checkout or worktree before you treat it as ready.
+
+```bash
+cd <target-source-root>
+npm run build
+```
+
+Do not rely on an older previously-built artifact when the branch is being pushed by user request.
+
 ## Verify the live source path
 
 The source of truth is the live plugin inspection output, not memory and not the checkout you happen to be editing.
