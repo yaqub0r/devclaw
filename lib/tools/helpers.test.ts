@@ -4,8 +4,8 @@ import { normalizeRepoTarget } from "./helpers.js";
 
 describe("normalizeRepoTarget", () => {
   it("normalizes github https and ssh remotes", () => {
-    assert.equal(normalizeRepoTarget("https://github.com/example-owner/example-repo.git"), "example-owner/example-repo");
-    assert.equal(normalizeRepoTarget("git@github.com:example-owner/example-repo.git"), "example-owner/example-repo");
+    assert.equal(normalizeRepoTarget("https://github.com/yaqub0r/devclaw.git"), "yaqub0r/devclaw");
+    assert.equal(normalizeRepoTarget("git@github.com:yaqub0r/devclaw.git"), "yaqub0r/devclaw");
   });
 
   it("normalizes gitlab remotes and trims whitespace", () => {
@@ -13,6 +13,6 @@ describe("normalizeRepoTarget", () => {
   });
 
   it("preserves already-normalized owner repo targets", () => {
-    assert.equal(normalizeRepoTarget("example-owner/example-repo"), "example-owner/example-repo");
+    assert.equal(normalizeRepoTarget("yaqub0r/devclaw"), "yaqub0r/devclaw");
   });
 });

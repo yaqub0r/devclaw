@@ -3,9 +3,8 @@
  *
  * On startup, ensureDefaultFiles() creates missing workspace files with curated
  * defaults. User-owned config files (workflow.yaml, prompts, IDENTITY.md) are
- * write-once: created if missing, never overwritten. Workspace-root guidance
- * files (AGENTS.md, HEARTBEAT.md, TOOLS.md) remain user-owned documents; on
- * startup DevClaw only manages its tagged section inside each file.
+ * write-once: created if missing, never overwritten. System instruction files
+ * (AGENTS.md, HEARTBEAT.md, TOOLS.md) are always refreshed.
  *
  * The runtime config loader (lib/config/loader.ts) uses a three-layer merge with
  * built-in fallbacks, so missing keys in workflow.yaml are handled automatically.
@@ -31,31 +30,13 @@ import { log as auditLog } from "../audit.js";
 /** Sentinel file indicating the workspace has been initialized. */
 const INITIALIZED_SENTINEL = ".initialized";
 
-const MANAGED_BLOCKS = {
-  "AGENTS.md": {
-    sectionId: "agents",
-    template: AGENTS_MD_TEMPLATE,
-    intro: "DevClaw manages only the tagged block below on startup. You may edit any content outside that block. If you edit inside it, DevClaw may replace those changes the next time it refreshes defaults.",
-  },
-  "HEARTBEAT.md": {
-    sectionId: "heartbeat",
-    template: HEARTBEAT_MD_TEMPLATE,
-    intro: "DevClaw manages only the tagged block below on startup. Keep any custom heartbeat notes outside the managed block.",
-  },
-  "TOOLS.md": {
-    sectionId: "tools",
-    template: TOOLS_MD_TEMPLATE,
-    intro: "DevClaw manages only the tagged block below on startup. Add workspace-specific tool notes outside the managed block.",
-  },
-} as const;
-
 /**
  * Ensure all workspace data files are up to date.
  *
  * Called on every heartbeat startup.
  *
  * File categories:
- *   - Root guidance (AGENTS.md, HEARTBEAT.md, TOOLS.md): update/create DevClaw tagged block only
+ *   - System instructions (AGENTS.md, HEARTBEAT.md, TOOLS.md): always overwrite
  *   - User-owned config (workflow.yaml, prompts, IDENTITY.md): create-only
  *   - Runtime state (projects.json): create-only
  */
@@ -68,10 +49,10 @@ export async function ensureDefaultFiles(workspacePath: string): Promise<void> {
   await fs.mkdir(path.join(dataDir, "prompts"), { recursive: true });
   await fs.mkdir(path.join(dataDir, "log"), { recursive: true });
 
-  // --- Workspace-root guidance files — manage tagged DevClaw blocks only ---
-  for (const [fileName, config] of Object.entries(MANAGED_BLOCKS)) {
-    await upsertManagedBlock(path.join(workspacePath, fileName), config.sectionId, config.template, config.intro);
-  }
+  // --- System instruction files — always overwrite with latest ---
+  await backupAndWrite(path.join(workspacePath, "AGENTS.md"), AGENTS_MD_TEMPLATE);
+  await backupAndWrite(path.join(workspacePath, "HEARTBEAT.md"), HEARTBEAT_MD_TEMPLATE);
+  await backupAndWrite(path.join(workspacePath, "TOOLS.md"), TOOLS_MD_TEMPLATE);
 
   // --- User-owned files — create-only, never overwrite ---
 
@@ -211,50 +192,6 @@ export async function backupAndWrite(filePath: string, content: string): Promise
     await fs.mkdir(path.dirname(filePath), { recursive: true });
   }
   await fs.writeFile(filePath, content, "utf-8");
-}
-
-function buildManagedBlock(sectionId: string, content: string): string {
-  const start = `<!-- DEVCLAW:START ${sectionId} -->`;
-  const end = `<!-- DEVCLAW:END ${sectionId} -->`;
-  return `${start}\n${content.trimEnd()}\n${end}`;
-}
-
-function buildManagedFile(sectionId: string, content: string, intro: string): string {
-  return `${intro}\n\n${buildManagedBlock(sectionId, content)}\n`;
-}
-
-function upsertManagedContent(originalContent: string, sectionId: string, content: string, intro: string): string {
-  const managedBlock = buildManagedBlock(sectionId, content);
-  const blockPattern = new RegExp(
-    `<!-- DEVCLAW:START ${escapeRegExp(sectionId)} -->[\\s\\S]*?<!-- DEVCLAW:END ${escapeRegExp(sectionId)} -->`,
-    "m",
-  );
-
-  if (!originalContent.trim()) {
-    return buildManagedFile(sectionId, content, intro);
-  }
-
-  if (blockPattern.test(originalContent)) {
-    const updated = originalContent.replace(blockPattern, managedBlock);
-    return updated.endsWith("\n") ? updated : `${updated}\n`;
-  }
-
-  const separator = originalContent.endsWith("\n") ? "\n" : "\n\n";
-  return `${originalContent}${separator}${managedBlock}\n`;
-}
-
-async function upsertManagedBlock(filePath: string, sectionId: string, content: string, intro: string): Promise<void> {
-  await fs.mkdir(path.dirname(filePath), { recursive: true });
-
-  const existingContent = await fs.readFile(filePath, "utf-8").catch(() => "");
-  const nextContent = upsertManagedContent(existingContent, sectionId, content, intro);
-
-  if (existingContent === nextContent) return;
-  await fs.writeFile(filePath, nextContent, "utf-8");
-}
-
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 /**

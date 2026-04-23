@@ -13,21 +13,17 @@ import path from "node:path";
 // ---------------------------------------------------------------------------
 
 function resolveDefaultsDir(): string {
-  const moduleDir = path.dirname(fileURLToPath(import.meta.url));
+  const here = path.dirname(fileURLToPath(import.meta.url));
   const candidates = [
-    // Source layout: lib/setup/templates.ts -> repo root is ../..
-    path.join(moduleDir, "..", "..", "defaults"),
-    // Bundled layout: dist/index.js -> repo root is ..
-    path.join(moduleDir, "..", "defaults"),
-    // Last resort for unusual invocation cwd
-    path.join(process.cwd(), "defaults"),
+    path.join(here, "..", "..", "defaults"),
+    path.join(here, "..", "defaults"),
   ];
 
   for (const candidate of candidates) {
     if (fs.existsSync(candidate)) return candidate;
   }
 
-  throw new Error(`Failed to locate defaults/ directory. Tried: ${candidates.join(", ")}`);
+  throw new Error(`Failed to locate defaults directory from ${here}`);
 }
 
 const DEFAULTS_DIR = resolveDefaultsDir();
