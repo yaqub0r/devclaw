@@ -17,6 +17,7 @@ import {
 import { detectStepRouting } from "../queue-scan.js";
 import type { RunCommand } from "../../context.js";
 import { log as auditLog } from "../../audit.js";
+import { recordLoopDiagnostic } from "../loop-diagnostics.js";
 
 /**
  * Scan review-type states and transition issues whose PR check condition is met.
@@ -98,6 +99,15 @@ export async function reviewPass(opts: {
           const targetState = workflow.states[targetKey];
           if (targetState) {
             await provider.transitionLabel(issue.iid, state.label, targetState.label);
+            await recordLoopDiagnostic(workspaceDir, "review_feedback_transition", {
+              project: projectName,
+              issueId: issue.iid,
+              from: state.label,
+              to: targetState.label,
+              reason: status.state === PrState.HAS_COMMENTS ? "pr_comments" : "changes_requested",
+              prUrl: status.url,
+              sourceBranch: status.sourceBranch,
+            }).catch(() => {});
             await auditLog(workspaceDir, "review_transition", {
               project: projectName, issueId: issue.iid,
               from: state.label, to: targetState.label,
@@ -121,6 +131,15 @@ export async function reviewPass(opts: {
           const targetState = workflow.states[targetKey];
           if (targetState) {
             await provider.transitionLabel(issue.iid, state.label, targetState.label);
+            await recordLoopDiagnostic(workspaceDir, "review_feedback_transition", {
+              project: projectName,
+              issueId: issue.iid,
+              from: state.label,
+              to: targetState.label,
+              reason: "merge_conflict",
+              prUrl: status.url,
+              sourceBranch: status.sourceBranch,
+            }).catch(() => {});
             await auditLog(workspaceDir, "review_transition", {
               project: projectName, issueId: issue.iid,
               from: state.label, to: targetState.label,
@@ -212,6 +231,15 @@ export async function reviewPass(opts: {
                   const failedState = workflow.states[failedKey];
                   if (failedState) {
                     await provider.transitionLabel(issue.iid, state.label, failedState.label);
+                    await recordLoopDiagnostic(workspaceDir, "review_feedback_transition", {
+                      project: projectName,
+                      issueId: issue.iid,
+                      from: state.label,
+                      to: failedState.label,
+                      reason: "merge_failed",
+                      prUrl: status.url,
+                      sourceBranch: status.sourceBranch,
+                    }).catch(() => {});
                     await auditLog(workspaceDir, "review_transition", {
                       project: projectName,
                       issueId: issue.iid,
