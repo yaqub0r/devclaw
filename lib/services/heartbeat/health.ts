@@ -51,6 +51,7 @@ import {
 import { isSessionAlive, type SessionLookup } from "../gateway-sessions.js";
 import { sendToAgent } from "../../dispatch/session.js";
 import type { RunCommand } from "../../context.js";
+import { recordLoopDiagnostic } from "../loop-diagnostics.js";
 
 // Re-export for consumers that import from health.ts
 export { fetchGatewaySessions, isSessionAlive, type GatewaySession, type SessionLookup } from "../gateway-sessions.js";
@@ -231,6 +232,16 @@ export async function checkWorkerHealth(opts: {
         if (!issueIdNum) return;
         try {
           await provider.transitionLabel(issueIdNum, from, to);
+          await recordLoopDiagnostic(workspaceDir, "health_requeue", {
+            project: project.name,
+            projectSlug,
+            issueId: issueIdNum,
+            role,
+            from,
+            to,
+            slotLevel: level,
+            slotIndex,
+          }).catch(() => {});
           fix.labelReverted = `${from} → ${to}`;
         } catch {
           fix.labelRevertFailed = true;
