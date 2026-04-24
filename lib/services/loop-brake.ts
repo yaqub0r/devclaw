@@ -1,0 +1,153 @@
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
+import { log as auditLog } from "../audit.js";
+import { DATA_DIR } from "../setup/migrate-layout.js";
+import { StateType, type WorkflowConfig } from "../workflow/index.js";
+
+const LOOP_BRAKE_WINDOW_MS = 6 * 60 * 60 * 1000;
+const LOOP_BRAKE_THRESHOLD = 3;
+
+type AuditEntry = Record<string, unknown> & {
+  ts?: string;
+  event?: string;
+  issueId?: number;
+  issue?: number;
+};
+
+export type LoopBrakeDecision = {
+  blocked: boolean;
+  threshold: number;
+  windowMs: number;
+  events: Array<{
+    ts: string;
+    source: string;
+    from?: string;
+    to?: string;
+    reason: string;
+  }>;
+};
+
+export function getLoopBrakeHoldLabel(workflow: WorkflowConfig): string | null {
+  const refining = Object.values(workflow.states).find((s) => s.type === StateType.HOLD && s.label === "Refining");
+  if (refining) return refining.label;
+
+  const nonInitialHold = Object.entries(workflow.states)
+    .find(([key, s]) => s.type === StateType.HOLD && key !== workflow.initial)?.[1];
+  if (nonInitialHold) return nonInitialHold.label;
+
+  return Object.values(workflow.states).find((s) => s.type === StateType.HOLD)?.label ?? null;
+}
+
+export async function evaluateLoopBrake(
+  workspaceDir: string,
+  issueId: number,
+): Promise<LoopBrakeDecision> {
+  const entries = await readRecentAuditEntries(workspaceDir);
+  const cutoff = Date.now() - LOOP_BRAKE_WINDOW_MS;
+  const events = entries
+    .filter((entry) => getIssueId(entry) === issueId)
+    .map((entry) => toLoopEvent(entry))
+    .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry))
+    .filter((entry) => Date.parse(entry.ts) >= cutoff)
+    .sort((a, b) => Date.parse(a.ts) - Date.parse(b.ts));
+
+  return {
+    blocked: events.length >= LOOP_BRAKE_THRESHOLD,
+    threshold: LOOP_BRAKE_THRESHOLD,
+    windowMs: LOOP_BRAKE_WINDOW_MS,
+    events,
+  };
+}
+
+export async function recordLoopBrakeHalt(opts: {
+  workspaceDir: string;
+  project: string;
+  issueId: number;
+  issueTitle: string;
+  from: string;
+  to: string;
+  reason: string;
+  threshold: number;
+  events: LoopBrakeDecision["events"];
+}): Promise<void> {
+  await auditLog(opts.workspaceDir, "loop_retry_ceiling", {
+    project: opts.project,
+    issueId: opts.issueId,
+    issueTitle: opts.issueTitle,
+    from: opts.from,
+    to: opts.to,
+    reason: opts.reason,
+    threshold: opts.threshold,
+    recentEvents: opts.events,
+  });
+}
+
+async function readRecentAuditEntries(workspaceDir: string): Promise<AuditEntry[]> {
+  const filePath = join(workspaceDir, DATA_DIR, "log", "audit.log");
+  try {
+    const raw = await readFile(filePath, "utf-8");
+    return raw
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => {
+        try {
+          return JSON.parse(line) as AuditEntry;
+        } catch {
+          return null;
+        }
+      })
+      .filter((entry): entry is AuditEntry => entry !== null);
+  } catch {
+    return [];
+  }
+}
+
+function getIssueId(entry: AuditEntry): number | null {
+  const raw = entry.issueId ?? entry.issue;
+  return typeof raw === "number" ? raw : null;
+}
+
+function toLoopEvent(entry: AuditEntry): LoopBrakeDecision["events"][number] | null {
+  const ts = typeof entry.ts === "string" ? entry.ts : new Date(0).toISOString();
+  const event = entry.event;
+
+  if (event === "loop_diagnostic" && entry.stage === "health_requeue") {
+    return {
+      ts,
+      source: "health_requeue",
+      from: asString(entry.from),
+      to: asString(entry.to),
+      reason: "orphan_requeue",
+    };
+  }
+
+  if (event === "loop_diagnostic" && entry.stage === "work_finish_transition" && asString(entry.to) === "Refining") {
+    return {
+      ts,
+      source: "work_finish_transition",
+      from: asString(entry.from),
+      to: asString(entry.to),
+      reason: asString(entry.result) ?? "blocked",
+    };
+  }
+
+  if (event === "review_transition") {
+    const reason = asString(entry.reason);
+    if (["pr_comments", "changes_requested", "merge_conflict", "merge_failed", "pr_closed"].includes(reason ?? "")) {
+      return {
+        ts,
+        source: "review_transition",
+        from: asString(entry.from),
+        to: asString(entry.to),
+        reason: reason!,
+      };
+    }
+  }
+
+  return null;
+}
+
+function asString(value: unknown): string | undefined {
+  return typeof value === "string" ? value : undefined;
+}

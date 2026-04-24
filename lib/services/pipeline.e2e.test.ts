@@ -10,6 +10,8 @@
  */
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert";
+import fs from "node:fs/promises";
+import path from "node:path";
 import { createTestHarness, type TestHarness } from "../testing/index.js";
 import { dispatchTask } from "../dispatch/index.js";
 import { executeCompletion } from "./pipeline.js";
@@ -1019,6 +1021,122 @@ describe("E2E pipeline", () => {
   // =========================================================================
   // Review policy gating — projectTick respects reviewPolicy
   // =========================================================================
+
+  describe("projectTick — loop brake", () => {
+    beforeEach(async () => {
+      h = await createTestHarness();
+    });
+
+    it("should halt repeated Doing → Refining redispatch loops by moving the issue to Refining", async () => {
+      h.provider.seedIssue({ iid: 901, title: "Bouncy issue", labels: ["To Do"] });
+
+      const auditPath = path.join(h.workspaceDir, "devclaw", "log", "audit.log");
+      const now = Date.now();
+      const lines = [0, 1, 2].map((i) => JSON.stringify({
+        ts: new Date(now - (i * 60_000)).toISOString(),
+        event: "loop_diagnostic",
+        stage: "work_finish_transition",
+        issueId: 901,
+        role: "developer",
+        from: "Doing",
+        to: "Refining",
+        result: "blocked",
+      }));
+      await fs.writeFile(auditPath, lines.join("\n") + "\n", "utf-8");
+
+      const result = await projectTick({
+        workspaceDir: h.workspaceDir,
+        projectSlug: h.project.slug,
+        provider: h.provider,
+        runCommand: h.runCommand,
+        workflow: DEFAULT_WORKFLOW,
+      });
+
+      assert.strictEqual(result.pickups.length, 0, "Should not redispatch a looped issue");
+      assert.ok(result.skipped.some((s) => s.reason.includes("Loop brake")), `Skipped: ${JSON.stringify(result.skipped)}`);
+
+      const issue = await h.provider.getIssue(901);
+      assert.ok(issue.labels.includes("Refining"), `Labels: ${issue.labels}`);
+      assert.ok(!issue.labels.includes("To Do"), "Should leave the queue");
+
+      const comments = h.provider.comments.get(901) ?? [];
+      assert.strictEqual(comments.length, 1, "Should leave an operator-facing comment");
+      assert.ok(comments[0]!.body.includes("Loop brake triggered"));
+
+      const transitions = h.provider.callsTo("transitionLabel");
+      assert.ok(transitions.some((c) => c.args.issueId === 901 && c.args.from === "To Do" && c.args.to === "Refining"));
+    });
+
+    it("should halt repeated review feedback loops after the threshold instead of redispatching", async () => {
+      h.provider.seedIssue({ iid: 902, title: "Review churn", labels: ["To Improve"] });
+
+      const auditPath = path.join(h.workspaceDir, "devclaw", "log", "audit.log");
+      const now = Date.now();
+      const lines = [
+        { reason: "changes_requested", from: "To Review", to: "To Improve" },
+        { reason: "merge_conflict", from: "To Review", to: "To Improve" },
+        { reason: "pr_comments", from: "To Review", to: "To Improve" },
+      ].map((entry, i) => JSON.stringify({
+        ts: new Date(now - (i * 60_000)).toISOString(),
+        event: "review_transition",
+        issueId: 902,
+        ...entry,
+      }));
+      await fs.writeFile(auditPath, lines.join("\n") + "\n", "utf-8");
+
+      const result = await projectTick({
+        workspaceDir: h.workspaceDir,
+        projectSlug: h.project.slug,
+        provider: h.provider,
+        runCommand: h.runCommand,
+        workflow: DEFAULT_WORKFLOW,
+      });
+
+      assert.strictEqual(result.pickups.length, 0, "Should not redispatch repeated feedback churn");
+
+      const issue = await h.provider.getIssue(902);
+      assert.ok(issue.labels.includes("Refining"), `Labels: ${issue.labels}`);
+
+      const comments = h.provider.comments.get(902) ?? [];
+      assert.strictEqual(comments.length, 1);
+      assert.ok(comments[0]!.body.includes("changes_requested"));
+      assert.ok(comments[0]!.body.includes("merge_conflict"));
+      assert.ok(comments[0]!.body.includes("pr_comments"));
+    });
+
+    it("should still dispatch normally when the retry ceiling has not been reached", async () => {
+      h.provider.seedIssue({ iid: 903, title: "Healthy retry", labels: ["To Do"] });
+
+      const auditPath = path.join(h.workspaceDir, "devclaw", "log", "audit.log");
+      const now = Date.now();
+      const lines = [0, 1].map((i) => JSON.stringify({
+        ts: new Date(now - (i * 60_000)).toISOString(),
+        event: "loop_diagnostic",
+        stage: "work_finish_transition",
+        issueId: 903,
+        role: "developer",
+        from: "Doing",
+        to: "Refining",
+        result: "blocked",
+      }));
+      await fs.writeFile(auditPath, lines.join("\n") + "\n", "utf-8");
+
+      const result = await projectTick({
+        workspaceDir: h.workspaceDir,
+        projectSlug: h.project.slug,
+        provider: h.provider,
+        runCommand: h.runCommand,
+        workflow: DEFAULT_WORKFLOW,
+      });
+
+      assert.strictEqual(result.pickups.length, 1, "Below ceiling should still dispatch");
+      assert.strictEqual(result.pickups[0]!.issueId, 903);
+
+      const issue = await h.provider.getIssue(903);
+      assert.ok(issue.labels.includes("Doing"), `Labels: ${issue.labels}`);
+      assert.strictEqual((h.provider.comments.get(903) ?? []).length, 0, "Should not comment below threshold");
+    });
+  });
 
   describe("projectTick — reviewPolicy gating", () => {
     function workflowWithPolicy(policy: ReviewPolicy): WorkflowConfig {

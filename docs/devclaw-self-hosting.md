@@ -32,18 +32,57 @@ These are roles, not mandatory branch names:
 
 Use names that fit your repo. The workflow matters more than the naming.
 
+## Worktree identity rule
+
+Use a distinguished worktree path that matches the branch or lane you intend to run.
+
+Do not reuse a differently named worktree path for another branch unless a human explicitly approves that exception.
+
 ## Safe live-switch procedure
 
 When changing the live DevClaw source during development:
 
 1. Choose the target checkout or worktree.
-2. Build that target source tree.
-3. Confirm the built artifact exists.
-4. Make sure only one DevClaw plugin source is active.
-5. Point OpenClaw at the intended source path.
-6. Restart the gateway.
-7. Verify the loaded plugin path.
-8. Verify the exact live git commit.
+2. Bootstrap dependencies in that target tree if needed.
+3. Build that target source tree.
+4. Confirm the built artifact exists.
+5. Make sure only one DevClaw plugin source is active.
+6. Point OpenClaw at the intended source path.
+7. Restart the gateway.
+8. Verify the loaded plugin path.
+9. Verify the exact live git commit.
+
+## Bootstrap dependencies before building
+
+A fresh worktree may not have its dependencies populated yet. If build tooling is missing, bootstrap the target tree first and only then continue with the build.
+
+For npm-based DevClaw worktrees with a `package-lock.json`, use:
+
+```bash
+cd <target-source-root> && npm ci
+```
+
+Treat dependency bootstrap as part of the documented live-switch flow, not as an ad hoc recovery step.
+
+## Rebuild dependencies when bootstrap is interrupted or missing
+
+If a prior bootstrap was interrupted, timed out, or left the worktree without `node_modules`, repair that state before building.
+
+Recommended checks:
+
+```bash
+cd <target-source-root>
+[ -d node_modules ] && echo node_modules-present || echo node_modules-missing
+npm ls esbuild --depth=0 || true
+```
+
+If dependencies are missing or incomplete, rerun:
+
+```bash
+cd <target-source-root> && npm ci
+```
+
+Do not treat the worktree as ready until the dependency tree is present and required build tools resolve.
 
 ## Build before switching
 
