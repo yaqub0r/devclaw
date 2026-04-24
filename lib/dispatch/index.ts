@@ -7,6 +7,7 @@
 import type { PluginRuntime } from "openclaw/plugin-sdk";
 import type { RunCommand } from "../context.js";
 import { log as auditLog } from "../audit.js";
+import { recordLoopDiagnostic } from "../services/loop-diagnostics.js";
 import {
   type Project,
   activateWorker,
@@ -184,6 +185,16 @@ export async function dispatchTask(
 
   // ── Commitment point — transition label (issue leaves queue) ────────
   await provider.transitionLabel(issueId, fromLabel, toLabel);
+  await recordLoopDiagnostic(workspaceDir, "dispatch_pickup", {
+    project: project.name,
+    issueId,
+    role,
+    level,
+    from: fromLabel,
+    to: toLabel,
+    sessionAction,
+    sessionKey,
+  }).catch(() => {});
 
   // Mark issue + PR as managed and all consumed comments as seen (fire-and-forget)
   provider.reactToIssue(issueId, EYES_EMOJI).catch(() => {});
