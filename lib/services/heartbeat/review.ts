@@ -68,6 +68,19 @@ export async function reviewPass(opts: {
 
       const status = await provider.getPrStatus(issue.iid);
 
+      await recordLoopDiagnostic(workspaceDir, "review_pr_status", {
+        project: projectName,
+        issueId: issue.iid,
+        reviewState: state.label,
+        reviewCheck: state.check,
+        prState: status.state,
+        prUrl: status.url,
+        sourceBranch: status.sourceBranch,
+        mergeable: status.mergeable ?? null,
+        routing,
+        repoPath,
+      }).catch(() => {});
+
       // Fallback: no PR found, but work may have been committed directly to base branch.
       // Check git history for commits mentioning this issue number.
       if (!status.url && status.state === PrState.CLOSED && baseBranch) {
@@ -98,6 +111,19 @@ export async function reviewPass(opts: {
           const targetKey = typeof changesTransition === "string" ? changesTransition : changesTransition.target;
           const targetState = workflow.states[targetKey];
           if (targetState) {
+            await recordLoopDiagnostic(workspaceDir, "review_feedback_transition_planned", {
+              project: projectName,
+              issueId: issue.iid,
+              from: state.label,
+              to: targetState.label,
+              reason: status.state === PrState.HAS_COMMENTS ? "pr_comments" : "changes_requested",
+              decisionPath: "review check detected feedback and selected CHANGES_REQUESTED transition",
+              prState: status.state,
+              prUrl: status.url,
+              sourceBranch: status.sourceBranch,
+              mergeable: status.mergeable ?? null,
+              repoPath,
+            }).catch(() => {});
             await provider.transitionLabel(issue.iid, state.label, targetState.label);
             await recordLoopDiagnostic(workspaceDir, "review_feedback_transition", {
               project: projectName,
@@ -105,8 +131,12 @@ export async function reviewPass(opts: {
               from: state.label,
               to: targetState.label,
               reason: status.state === PrState.HAS_COMMENTS ? "pr_comments" : "changes_requested",
+              decisionPath: "review check detected feedback and completed CHANGES_REQUESTED transition",
+              prState: status.state,
               prUrl: status.url,
               sourceBranch: status.sourceBranch,
+              mergeable: status.mergeable ?? null,
+              repoPath,
             }).catch(() => {});
             await auditLog(workspaceDir, "review_transition", {
               project: projectName, issueId: issue.iid,
@@ -130,6 +160,19 @@ export async function reviewPass(opts: {
           const targetKey = typeof conflictTransition === "string" ? conflictTransition : conflictTransition.target;
           const targetState = workflow.states[targetKey];
           if (targetState) {
+            await recordLoopDiagnostic(workspaceDir, "review_feedback_transition_planned", {
+              project: projectName,
+              issueId: issue.iid,
+              from: state.label,
+              to: targetState.label,
+              reason: "merge_conflict",
+              decisionPath: "review check detected mergeable=false and selected MERGE_CONFLICT transition",
+              prState: status.state,
+              prUrl: status.url,
+              sourceBranch: status.sourceBranch,
+              mergeable: status.mergeable ?? null,
+              repoPath,
+            }).catch(() => {});
             await provider.transitionLabel(issue.iid, state.label, targetState.label);
             await recordLoopDiagnostic(workspaceDir, "review_feedback_transition", {
               project: projectName,
@@ -137,8 +180,12 @@ export async function reviewPass(opts: {
               from: state.label,
               to: targetState.label,
               reason: "merge_conflict",
+              decisionPath: "review check detected mergeable=false and completed MERGE_CONFLICT transition",
+              prState: status.state,
               prUrl: status.url,
               sourceBranch: status.sourceBranch,
+              mergeable: status.mergeable ?? null,
+              repoPath,
             }).catch(() => {});
             await auditLog(workspaceDir, "review_transition", {
               project: projectName, issueId: issue.iid,
@@ -230,6 +277,19 @@ export async function reviewPass(opts: {
                   const failedKey = typeof failedTransition === "string" ? failedTransition : failedTransition.target;
                   const failedState = workflow.states[failedKey];
                   if (failedState) {
+                    await recordLoopDiagnostic(workspaceDir, "review_feedback_transition_planned", {
+                      project: projectName,
+                      issueId: issue.iid,
+                      from: state.label,
+                      to: failedState.label,
+                      reason: "merge_failed",
+                      decisionPath: "mergePr action failed and selected MERGE_FAILED transition",
+                      prState: status.state,
+                      prUrl: status.url,
+                      sourceBranch: status.sourceBranch,
+                      mergeable: status.mergeable ?? null,
+                      repoPath,
+                    }).catch(() => {});
                     await provider.transitionLabel(issue.iid, state.label, failedState.label);
                     await recordLoopDiagnostic(workspaceDir, "review_feedback_transition", {
                       project: projectName,
@@ -237,8 +297,12 @@ export async function reviewPass(opts: {
                       from: state.label,
                       to: failedState.label,
                       reason: "merge_failed",
+                      decisionPath: "mergePr action failed and completed MERGE_FAILED transition",
+                      prState: status.state,
                       prUrl: status.url,
                       sourceBranch: status.sourceBranch,
+                      mergeable: status.mergeable ?? null,
+                      repoPath,
                     }).catch(() => {});
                     await auditLog(workspaceDir, "review_transition", {
                       project: projectName,

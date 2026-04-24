@@ -359,6 +359,8 @@ export function createWorkFinishTool(ctx: PluginContext) {
       const repoPath = resolveRepoPath(project.repo);
       const pluginConfig = ctx.pluginConfig;
       const pluginSourceRoot = getPluginSourceRoot();
+      const repoSnapshot = await getGitSnapshot(repoPath, ctx.runCommand);
+      const pluginSnapshot = await getGitSnapshot(pluginSourceRoot, ctx.runCommand);
       const context = {
         channelId,
         role,
@@ -367,6 +369,9 @@ export function createWorkFinishTool(ctx: PluginContext) {
         slotIndex,
         configuredRepoPath: repoPath,
         pluginSourceRoot,
+        loopDiagnosticsFlag: process.env.DEVCLAW_LOOP_DIAGNOSTICS ?? null,
+        repoSnapshot,
+        pluginSnapshot,
       };
 
       await recordWorkFinishDiagnostic(workspaceDir, "work_finish_execute_start", {

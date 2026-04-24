@@ -4,6 +4,8 @@
  * Uses workflow config to determine transitions and side effects.
  */
 import type { PluginRuntime } from "openclaw/plugin-sdk";
+import { fileURLToPath } from "node:url";
+import { dirname } from "node:path";
 import type { StateLabel, IssueProvider } from "../providers/provider.js";
 import { deactivateWorker, loadProjectBySlug, getRoleWorker } from "../projects/index.js";
 import type { RunCommand } from "../context.js";
@@ -35,6 +37,30 @@ export type CompletionOutput = {
   issueClosed?: boolean;
   issueReopened?: boolean;
 };
+
+function getPluginSourceRoot(): string {
+  return dirname(dirname(dirname(fileURLToPath(import.meta.url))));
+}
+
+async function getGitSnapshot(repoPath: string, runCommand: RunCommand): Promise<Record<string, unknown>> {
+  const commands: Array<[string, string[]]> = [
+    ["branch", ["git", "branch", "--show-current"]],
+    ["head", ["git", "rev-parse", "HEAD"]],
+    ["gitDir", ["git", "rev-parse", "--absolute-git-dir"]],
+    ["workTree", ["git", "rev-parse", "--show-toplevel"]],
+  ];
+
+  const snapshot: Record<string, unknown> = { repoPath };
+  for (const [key, argv] of commands) {
+    try {
+      const result = await runCommand(argv, { timeoutMs: 5_000, cwd: repoPath });
+      snapshot[key] = result.stdout.trim() || null;
+    } catch (err) {
+      snapshot[`${key}Error`] = (err as Error).message ?? String(err);
+    }
+  }
+  return snapshot;
+}
 
 /**
  * Get completion rule for a role:result pair.
@@ -93,6 +119,11 @@ export async function executeCompletion(opts: {
   let mergedPr = false;
   let prTitle: string | undefined;
   let sourceBranch: string | undefined;
+  const pluginSourceRoot = getPluginSourceRoot();
+  const [repoSnapshot, pluginSnapshot] = await Promise.all([
+    getGitSnapshot(repoPath, rc),
+    getGitSnapshot(pluginSourceRoot, rc),
+  ]);
 
   // Execute pre-notification actions
   for (const action of rule.actions) {
@@ -119,7 +150,11 @@ export async function executeCompletion(opts: {
             prTitle: prTitle ?? null,
             sourceBranch: sourceBranch ?? null,
             mergeable: prStatus.mergeable ?? null,
+            prState: prStatus.state,
             repoPath,
+            repoSnapshot,
+            pluginSourceRoot,
+            pluginSnapshot,
           }).catch(() => {});
         } catch (err) {
           await recordLoopDiagnostic(workspaceDir, "pipeline_detect_pr_error", {
@@ -128,6 +163,9 @@ export async function executeCompletion(opts: {
             role,
             result,
             repoPath,
+            repoSnapshot,
+            pluginSourceRoot,
+            pluginSnapshot,
             error: (err as Error).message ?? String(err),
           }).catch(() => {});
           auditLog(workspaceDir, "pipeline_warning", { step: "detectPr", issue: issueId, role, error: (err as Error).message ?? String(err) }).catch(() => {});
@@ -238,6 +276,9 @@ export async function executeCompletion(opts: {
     prUrl: prUrl ?? null,
     sourceBranch: sourceBranch ?? null,
     repoPath,
+    repoSnapshot,
+    pluginSourceRoot,
+    pluginSnapshot,
     actions: rule.actions,
   }).catch(() => {});
 
@@ -254,6 +295,9 @@ export async function executeCompletion(opts: {
     prUrl: prUrl ?? null,
     sourceBranch: sourceBranch ?? null,
     repoPath,
+    repoSnapshot,
+    pluginSourceRoot,
+    pluginSnapshot,
     actions: rule.actions,
   }).catch(() => {});
 
