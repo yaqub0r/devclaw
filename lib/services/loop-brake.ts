@@ -23,6 +23,9 @@ function buildEventAuditExcerpt(entry: AuditEntry): Record<string, unknown> {
     from: asString(entry.from) ?? null,
     to: asString(entry.to) ?? null,
     reason: asString(entry.reason) ?? null,
+    sourceBranch: asString(entry.sourceBranch) ?? null,
+    repoPath: asString(entry.repoPath) ?? null,
+    pluginSourceRoot: asString(entry.pluginSourceRoot) ?? null,
     loopBrakeReason: asString(entry.loopBrakeReason) ?? null,
     healthRequeueLoopReason: asString(entry.healthRequeueLoopReason) ?? null,
     orphanReason: asString(entry.orphanReason) ?? null,
@@ -30,6 +33,9 @@ function buildEventAuditExcerpt(entry: AuditEntry): Record<string, unknown> {
     refiningDecisionPath: asString(entry.refiningDecisionPath) ?? null,
     healthDecisionCategory: asString(entry.healthDecisionCategory) ?? null,
     healthDecisionSummary: asString(entry.healthDecisionSummary) ?? null,
+    branchResolutionDecision: asString(entry.branchResolutionDecision) ?? null,
+    prValidationDecision: asString(entry.prValidationDecision) ?? null,
+    prValidationLookupOutcome: asString(entry.prValidationLookupOutcome) ?? null,
     branchResolutionPreferredSource: asString(entry.branchResolutionPreferredSource) ?? asString(entry.preferredBranchSource) ?? null,
     preferredBranchConfidence: asString(entry.preferredBranchConfidence) ?? null,
     branchSelectionWinnerSummary: asString(entry.branchSelectionWinnerSummary) ?? null,
@@ -42,6 +48,8 @@ function buildEventAuditExcerpt(entry: AuditEntry): Record<string, unknown> {
     duplicateSourceCompetingRealPaths: Array.isArray(entry.duplicateSourceCompetingRealPaths) ? entry.duplicateSourceCompetingRealPaths : null,
     laneMismatchCategory: asString(entry.laneMismatchCategory) ?? null,
     branchSourceCandidateDecisionTable: Array.isArray(entry.branchSourceCandidateDecisionTable) ? entry.branchSourceCandidateDecisionTable : null,
+    repoSnapshot: isRecord(entry.repoSnapshot) ? entry.repoSnapshot : null,
+    pluginSnapshot: isRecord(entry.pluginSnapshot) ? entry.pluginSnapshot : null,
     canRequeueIssue: typeof entry.canRequeueIssue === "boolean" ? entry.canRequeueIssue : null,
     duplicateSourceRisk: typeof entry.duplicateSourceRisk === "boolean" ? entry.duplicateSourceRisk : null,
     issueId: typeof entry.issueId === "number" ? entry.issueId : null,
@@ -101,6 +109,14 @@ export type LoopBrakeDecision = {
     rawDuplicateSourceRisk?: boolean | null;
     rawCanRequeueIssue?: boolean | null;
     rawAuditExcerpt?: Record<string, unknown>;
+    rawSourceBranch?: string;
+    rawRepoPath?: string;
+    rawPluginSourceRoot?: string;
+    rawBranchResolutionDecision?: string;
+    rawPrValidationDecision?: string;
+    rawPrValidationLookupOutcome?: string;
+    rawRepoSnapshot?: Record<string, unknown> | null;
+    rawPluginSnapshot?: Record<string, unknown> | null;
   }>;
   reasonHistogram: Record<string, number>;
   sourceHistogram: Record<string, number>;
@@ -267,6 +283,14 @@ function toLoopEvent(entry: AuditEntry): LoopBrakeDecision["events"][number] | n
       rawTransitionReasonCategory: asString(entry.transitionReasonCategory),
       rawRefiningDecisionPath: asString(entry.refiningDecisionPath),
       rawHealthDecisionCategory: asString(entry.healthDecisionCategory),
+      rawSourceBranch: asString(entry.sourceBranch),
+      rawRepoPath: asString(entry.repoPath),
+      rawPluginSourceRoot: asString(entry.pluginSourceRoot),
+      rawBranchResolutionDecision: asString(entry.branchResolutionDecision),
+      rawPrValidationDecision: asString(entry.prValidationDecision),
+      rawPrValidationLookupOutcome: asString(entry.prValidationLookupOutcome),
+      rawRepoSnapshot: isRecord(entry.repoSnapshot) ? entry.repoSnapshot : null,
+      rawPluginSnapshot: isRecord(entry.pluginSnapshot) ? entry.pluginSnapshot : null,
       eventShapeSummary: `event=${event} stage=${asString(entry.stage) ?? "?"} issueField=${typeof entry.issueId === "number" ? "issueId" : typeof entry.issue === "number" ? "issue" : "none"} labels=${asString(entry.from) ?? "?"}->${asString(entry.to) ?? "?"}`,
       compactDecisionSummary: `health_requeue ${asString(entry.from) ?? "?"}->${asString(entry.to) ?? "?"} counted as ${rawReason ?? "orphan_requeue"}${asString(entry.orphanReason) ? ` (${asString(entry.orphanReason)})` : ""}`,
       rawHealthDecisionSummary: asString(entry.healthDecisionSummary),
@@ -308,6 +332,14 @@ function toLoopEvent(entry: AuditEntry): LoopBrakeDecision["events"][number] | n
       rawTransitionReasonCategory: asString(entry.transitionReasonCategory),
       rawRefiningDecisionPath: asString(entry.refiningDecisionPath),
       rawHealthDecisionCategory: asString(entry.healthDecisionCategory),
+      rawSourceBranch: asString(entry.sourceBranch),
+      rawRepoPath: asString(entry.repoPath),
+      rawPluginSourceRoot: asString(entry.pluginSourceRoot),
+      rawBranchResolutionDecision: asString(entry.branchResolutionDecision),
+      rawPrValidationDecision: asString(entry.prValidationDecision),
+      rawPrValidationLookupOutcome: asString(entry.prValidationLookupOutcome),
+      rawRepoSnapshot: isRecord(entry.repoSnapshot) ? entry.repoSnapshot : null,
+      rawPluginSnapshot: isRecord(entry.pluginSnapshot) ? entry.pluginSnapshot : null,
       eventShapeSummary: `event=${event} stage=${asString(entry.stage) ?? "?"} result=${asString(entry.result) ?? "?"} issueField=${typeof entry.issueId === "number" ? "issueId" : typeof entry.issue === "number" ? "issue" : "none"} labels=${asString(entry.from) ?? "?"}->${asString(entry.to) ?? "?"}`,
       compactDecisionSummary: `work_finish ${asString(entry.result) ?? "?"} ${asString(entry.from) ?? "?"}->${asString(entry.to) ?? "?"} counted as ${rawReason ?? "blocked"}`,
       rawHealthDecisionSummary: asString(entry.healthDecisionSummary),
@@ -347,6 +379,14 @@ function toLoopEvent(entry: AuditEntry): LoopBrakeDecision["events"][number] | n
         rawTransitionReasonCategory: asString(entry.transitionReasonCategory),
         rawRefiningDecisionPath: asString(entry.refiningDecisionPath),
         rawHealthDecisionCategory: asString(entry.healthDecisionCategory),
+        rawSourceBranch: asString(entry.sourceBranch),
+        rawRepoPath: asString(entry.repoPath),
+        rawPluginSourceRoot: asString(entry.pluginSourceRoot),
+        rawBranchResolutionDecision: asString(entry.branchResolutionDecision),
+        rawPrValidationDecision: asString(entry.prValidationDecision),
+        rawPrValidationLookupOutcome: asString(entry.prValidationLookupOutcome),
+        rawRepoSnapshot: isRecord(entry.repoSnapshot) ? entry.repoSnapshot : null,
+        rawPluginSnapshot: isRecord(entry.pluginSnapshot) ? entry.pluginSnapshot : null,
         eventShapeSummary: `event=${event} reason=${reason} issueField=${typeof entry.issueId === "number" ? "issueId" : typeof entry.issue === "number" ? "issue" : "none"} labels=${asString(entry.from) ?? "?"}->${asString(entry.to) ?? "?"}`,
         compactDecisionSummary: `review_transition ${reason} ${asString(entry.from) ?? "?"}->${asString(entry.to) ?? "?"} counted by loop brake`,
         rawHealthDecisionSummary: asString(entry.healthDecisionSummary),
@@ -363,6 +403,10 @@ function toLoopEvent(entry: AuditEntry): LoopBrakeDecision["events"][number] | n
   }
 
   return null;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function asString(value: unknown): string | undefined {
