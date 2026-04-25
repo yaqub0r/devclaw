@@ -169,6 +169,16 @@ export type LoopBrakeDecision = {
     rawBranchResolutionDecision?: string;
     rawPrValidationDecision?: string;
     rawPrValidationLookupOutcome?: string;
+    rawPrValidationLookupTargetingDecision?: string;
+    rawPrValidationLookupProbeDecision?: string;
+    rawPrValidationLookupTargetingSummary?: Record<string, unknown> | null;
+    rawPrValidationLookupProbeSummary?: Record<string, unknown> | null;
+    rawPrValidationConfiguredProviderTargetRepo?: string;
+    rawPrValidationRepoAmbientGhTarget?: string;
+    rawPrValidationPluginAmbientGhTarget?: string;
+    rawPrValidationConfiguredTargetLinkedPrCount?: number | null;
+    rawPrValidationRepoAmbientLinkedPrCount?: number | null;
+    rawPrValidationPluginAmbientLinkedPrCount?: number | null;
     rawLiveSourceDecision?: string;
     rawLiveSourceSingularitySummary?: string;
     rawOpenclawConfigInstallSourcePath?: string;
@@ -184,6 +194,7 @@ export type LoopBrakeDecision = {
     rawDuplicateSourceWinningRealPathGuess?: string;
     rawDuplicateSourceCompetingRealPaths?: unknown[] | null;
     rawBranchSourceCandidateDecisionTable?: unknown[] | null;
+    rawBranchSourceCandidateDiagnostics?: unknown[] | null;
     rawPrValidationBranchResolutionPreferredSource?: string;
     rawPrValidationPreferredBranchConfidence?: string;
     rawPrValidationBranchResolutionPreferredEvidence?: string;
@@ -197,6 +208,7 @@ export type LoopBrakeDecision = {
     rawPrValidationDetectedBranchDecisionSummary?: string;
     rawPrValidationDetectedBranchMismatchReasons?: unknown[] | null;
     rawPrValidationBranchSourceCandidateDecisionTable?: unknown[] | null;
+    rawPrValidationBranchSourceCandidateDiagnostics?: unknown[] | null;
     rawRepoSnapshot?: Record<string, unknown> | null;
     rawPluginSnapshot?: Record<string, unknown> | null;
   }>;

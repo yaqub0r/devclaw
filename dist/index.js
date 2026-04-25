@@ -33121,6 +33121,9 @@ function isRecord(value) {
 function asString(value) {
   return typeof value === "string" ? value : void 0;
 }
+function asNumber(value) {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
 
 // lib/services/tick.ts
 async function projectTick(opts) {
@@ -33237,6 +33240,16 @@ async function projectTick(opts) {
         rawBranchResolutionDecision: event.rawBranchResolutionDecision ?? null,
         rawPrValidationDecision: event.rawPrValidationDecision ?? null,
         rawPrValidationLookupOutcome: event.rawPrValidationLookupOutcome ?? null,
+        rawPrValidationLookupTargetingDecision: event.rawPrValidationLookupTargetingDecision ?? null,
+        rawPrValidationLookupProbeDecision: event.rawPrValidationLookupProbeDecision ?? null,
+        rawPrValidationLookupTargetingSummary: event.rawPrValidationLookupTargetingSummary ?? null,
+        rawPrValidationLookupProbeSummary: event.rawPrValidationLookupProbeSummary ?? null,
+        rawPrValidationConfiguredProviderTargetRepo: event.rawPrValidationConfiguredProviderTargetRepo ?? null,
+        rawPrValidationRepoAmbientGhTarget: event.rawPrValidationRepoAmbientGhTarget ?? null,
+        rawPrValidationPluginAmbientGhTarget: event.rawPrValidationPluginAmbientGhTarget ?? null,
+        rawPrValidationConfiguredTargetLinkedPrCount: event.rawPrValidationConfiguredTargetLinkedPrCount ?? null,
+        rawPrValidationRepoAmbientLinkedPrCount: event.rawPrValidationRepoAmbientLinkedPrCount ?? null,
+        rawPrValidationPluginAmbientLinkedPrCount: event.rawPrValidationPluginAmbientLinkedPrCount ?? null,
         rawRepoSnapshot: event.rawRepoSnapshot ?? null,
         rawPluginSnapshot: event.rawPluginSnapshot ?? null,
         eventShapeSummary: event.eventShapeSummary ?? null,
@@ -33266,10 +33279,30 @@ async function projectTick(opts) {
         rawDuplicateSourceWinningRealPathGuess: event.rawDuplicateSourceWinningRealPathGuess ?? null,
         rawDuplicateSourceCompetingRealPaths: event.rawDuplicateSourceCompetingRealPaths ?? null,
         rawBranchSourceCandidateDecisionTable: event.rawBranchSourceCandidateDecisionTable ?? null,
+        rawBranchSourceCandidateDiagnostics: event.rawBranchSourceCandidateDiagnostics ?? null,
         rawPrValidationBranchSourceCandidateDecisionTable: event.rawPrValidationBranchSourceCandidateDecisionTable ?? null,
+        rawPrValidationBranchSourceCandidateDiagnostics: event.rawPrValidationBranchSourceCandidateDiagnostics ?? null,
         rawAuditExcerpt: event.rawAuditExcerpt ?? null,
         decisionPath: event.decisionPath ?? null
       })),
+      mostRecentCountedEventSummary: loopBrake.events.length > 0 ? {
+        ts: loopBrake.events[0]?.ts ?? null,
+        source: loopBrake.events[0]?.source ?? null,
+        reason: loopBrake.events[0]?.reason ?? null,
+        compactDecisionSummary: loopBrake.events[0]?.compactDecisionSummary ?? null,
+        matchedBecause: loopBrake.events[0]?.matchedBecause ?? null,
+        rawBranchWinnerSummary: loopBrake.events[0]?.rawBranchWinnerSummary ?? null,
+        rawPreferredBranchSource: loopBrake.events[0]?.rawPreferredBranchSource ?? null,
+        rawPreferredBranchConfidence: loopBrake.events[0]?.rawPreferredBranchConfidence ?? null,
+        rawLaneMismatchCategory: loopBrake.events[0]?.rawLaneMismatchCategory ?? null,
+        rawLaneMismatchSummary: loopBrake.events[0]?.rawLaneMismatchSummary ?? null,
+        rawDuplicateSourceDecision: loopBrake.events[0]?.rawDuplicateSourceDecision ?? null,
+        rawLiveSourceDecision: loopBrake.events[0]?.rawLiveSourceDecision ?? null,
+        rawLiveSourceSingularitySummary: loopBrake.events[0]?.rawLiveSourceSingularitySummary ?? null,
+        rawPrValidationLookupTargetingDecision: loopBrake.events[0]?.rawPrValidationLookupTargetingDecision ?? null,
+        rawPrValidationLookupProbeDecision: loopBrake.events[0]?.rawPrValidationLookupProbeDecision ?? null,
+        rawPrValidationDetectedBranchDecisionSummary: loopBrake.events[0]?.rawPrValidationDetectedBranchDecisionSummary ?? null
+      } : null,
       countedBecause: loopBrake.events.length > 0 ? `counted ${loopBrake.events.length} events inside the retry window because they matched loop-brake rules for health_requeue, work_finish -> Refining, or review_transition non-progress reasons` : `no prior loop events matched inside the retry window; ${loopBrake.auditScan.matchOutcomeSummary}`,
       auditScanDecisionSummary: `${loopBrake.auditScan.matchOutcomeCategory}: ${loopBrake.auditScan.matchOutcomeSummary}`,
       mostRecentMatchedLoopEvent: loopBrake.auditScan.newestMatchedEventTs ? {
@@ -33341,6 +33374,16 @@ async function projectTick(opts) {
           rawBranchResolutionDecision: event.rawBranchResolutionDecision ?? null,
           rawPrValidationDecision: event.rawPrValidationDecision ?? null,
           rawPrValidationLookupOutcome: event.rawPrValidationLookupOutcome ?? null,
+          rawPrValidationLookupTargetingDecision: event.rawPrValidationLookupTargetingDecision ?? null,
+          rawPrValidationLookupProbeDecision: event.rawPrValidationLookupProbeDecision ?? null,
+          rawPrValidationLookupTargetingSummary: event.rawPrValidationLookupTargetingSummary ?? null,
+          rawPrValidationLookupProbeSummary: event.rawPrValidationLookupProbeSummary ?? null,
+          rawPrValidationConfiguredProviderTargetRepo: event.rawPrValidationConfiguredProviderTargetRepo ?? null,
+          rawPrValidationRepoAmbientGhTarget: event.rawPrValidationRepoAmbientGhTarget ?? null,
+          rawPrValidationPluginAmbientGhTarget: event.rawPrValidationPluginAmbientGhTarget ?? null,
+          rawPrValidationConfiguredTargetLinkedPrCount: event.rawPrValidationConfiguredTargetLinkedPrCount ?? null,
+          rawPrValidationRepoAmbientLinkedPrCount: event.rawPrValidationRepoAmbientLinkedPrCount ?? null,
+          rawPrValidationPluginAmbientLinkedPrCount: event.rawPrValidationPluginAmbientLinkedPrCount ?? null,
           rawRepoSnapshot: event.rawRepoSnapshot ?? null,
           rawPluginSnapshot: event.rawPluginSnapshot ?? null,
           eventShapeSummary: event.eventShapeSummary ?? null,
@@ -33370,10 +33413,30 @@ async function projectTick(opts) {
           rawDuplicateSourceWinningRealPathGuess: event.rawDuplicateSourceWinningRealPathGuess ?? null,
           rawDuplicateSourceCompetingRealPaths: event.rawDuplicateSourceCompetingRealPaths ?? null,
           rawBranchSourceCandidateDecisionTable: event.rawBranchSourceCandidateDecisionTable ?? null,
+          rawBranchSourceCandidateDiagnostics: event.rawBranchSourceCandidateDiagnostics ?? null,
           rawPrValidationBranchSourceCandidateDecisionTable: event.rawPrValidationBranchSourceCandidateDecisionTable ?? null,
+          rawPrValidationBranchSourceCandidateDiagnostics: event.rawPrValidationBranchSourceCandidateDiagnostics ?? null,
           rawAuditExcerpt: event.rawAuditExcerpt ?? null,
           decisionPath: event.decisionPath ?? null
         })),
+        mostRecentCountedEventSummary: loopBrake.events.length > 0 ? {
+          ts: loopBrake.events[0]?.ts ?? null,
+          source: loopBrake.events[0]?.source ?? null,
+          reason: loopBrake.events[0]?.reason ?? null,
+          compactDecisionSummary: loopBrake.events[0]?.compactDecisionSummary ?? null,
+          matchedBecause: loopBrake.events[0]?.matchedBecause ?? null,
+          rawBranchWinnerSummary: loopBrake.events[0]?.rawBranchWinnerSummary ?? null,
+          rawPreferredBranchSource: loopBrake.events[0]?.rawPreferredBranchSource ?? null,
+          rawPreferredBranchConfidence: loopBrake.events[0]?.rawPreferredBranchConfidence ?? null,
+          rawLaneMismatchCategory: loopBrake.events[0]?.rawLaneMismatchCategory ?? null,
+          rawLaneMismatchSummary: loopBrake.events[0]?.rawLaneMismatchSummary ?? null,
+          rawDuplicateSourceDecision: loopBrake.events[0]?.rawDuplicateSourceDecision ?? null,
+          rawLiveSourceDecision: loopBrake.events[0]?.rawLiveSourceDecision ?? null,
+          rawLiveSourceSingularitySummary: loopBrake.events[0]?.rawLiveSourceSingularitySummary ?? null,
+          rawPrValidationLookupTargetingDecision: loopBrake.events[0]?.rawPrValidationLookupTargetingDecision ?? null,
+          rawPrValidationLookupProbeDecision: loopBrake.events[0]?.rawPrValidationLookupProbeDecision ?? null,
+          rawPrValidationDetectedBranchDecisionSummary: loopBrake.events[0]?.rawPrValidationDetectedBranchDecisionSummary ?? null
+        } : null,
         countedBecause: `loop brake threshold ${loopBrake.threshold} was met by ${loopBrake.events.length} events that matched non-progress counting rules inside the retry window`,
         auditScanDecisionSummary: `${loopBrake.auditScan.matchOutcomeCategory}: ${loopBrake.auditScan.matchOutcomeSummary}`,
         mostRecentMatchedLoopEvent: loopBrake.auditScan.newestMatchedEventTs ? {
