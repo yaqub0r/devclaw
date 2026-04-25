@@ -27428,7 +27428,8 @@ async function getGitSnapshot(repoPath, runCommand) {
     ["workTree", ["git", "rev-parse", "--show-toplevel"]],
     ["originHead", ["git", "rev-parse", "--abbrev-ref", "origin/HEAD"]],
     ["statusShort", ["git", "status", "--short"]],
-    ["worktreeList", ["git", "worktree", "list", "--porcelain"]]
+    ["worktreeList", ["git", "worktree", "list", "--porcelain"]],
+    ["ghRepoView", ["gh", "repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner"]]
   ];
   let realRepoPath = null;
   try {
@@ -28043,7 +28044,8 @@ async function getGitSnapshot2(repoPath, runCommand) {
     ["originHead", ["git", "rev-parse", "--abbrev-ref", "origin/HEAD"]],
     ["statusShort", ["git", "status", "--short"]],
     ["remotes", ["git", "remote", "-v"]],
-    ["worktreeList", ["git", "worktree", "list", "--porcelain"]]
+    ["worktreeList", ["git", "worktree", "list", "--porcelain"]],
+    ["ghRepoView", ["gh", "repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner"]]
   ];
   let realRepoPath = null;
   try {
@@ -28332,7 +28334,7 @@ async function isConflictResolutionCycle(workspaceDir, issueId) {
   }
   return false;
 }
-async function validatePrExistsForDeveloper(issueId, repoPath, provider, runCommand, workspaceDir, projectSlug, context = {}) {
+async function validatePrExistsForDeveloper(issueId, repoPath, provider, runCommand, workspaceDir, projectSlug, configuredProviderTargetRepo, context = {}) {
   try {
     const repoSnapshot = await getGitSnapshot2(repoPath, runCommand);
     const pluginSourceRoot = getPluginSourceRoot2();
@@ -28345,12 +28347,26 @@ async function validatePrExistsForDeveloper(issueId, repoPath, provider, runComm
       pluginSnapshot,
       prSourceBranch: prStatus.sourceBranch ?? null
     });
+    const repoAmbientGhTarget = typeof repoSnapshot.ghRepoView === "string" ? repoSnapshot.ghRepoView : null;
+    const pluginAmbientGhTarget = typeof pluginSnapshot.ghRepoView === "string" ? pluginSnapshot.ghRepoView : null;
+    const prLookupTargetingDecision = configuredProviderTargetRepo ? repoAmbientGhTarget && repoAmbientGhTarget !== configuredProviderTargetRepo ? `provider PR lookup is pinned to configured target ${configuredProviderTargetRepo} even though ambient gh target at repoPath is ${repoAmbientGhTarget}` : pluginAmbientGhTarget && pluginAmbientGhTarget !== configuredProviderTargetRepo ? `provider PR lookup is pinned to configured target ${configuredProviderTargetRepo} even though ambient gh target at live plugin path is ${pluginAmbientGhTarget}` : `provider PR lookup is pinned to configured target ${configuredProviderTargetRepo}` : repoAmbientGhTarget || pluginAmbientGhTarget ? `provider PR lookup has no configured target override, so ambient gh target will be used (${repoAmbientGhTarget ?? pluginAmbientGhTarget})` : "provider PR lookup target could not be confirmed from configured target or ambient gh repo view";
+    const prLookupTargeting = {
+      configuredProviderTargetRepo,
+      repoAmbientGhTarget,
+      pluginAmbientGhTarget,
+      repoAmbientMatchesConfiguredTarget: configuredProviderTargetRepo ? repoAmbientGhTarget === configuredProviderTargetRepo : null,
+      pluginAmbientMatchesConfiguredTarget: configuredProviderTargetRepo ? pluginAmbientGhTarget === configuredProviderTargetRepo : null,
+      repoAndPluginAmbientGhAgree: repoAmbientGhTarget && pluginAmbientGhTarget ? repoAmbientGhTarget === pluginAmbientGhTarget : null,
+      decision: prLookupTargetingDecision
+    };
     const validationSummary = {
       lookupOutcome: "pr_found",
       prUrl: prStatus.url ?? null,
       prState: prStatus.state ?? null,
       prSourceBranch: prStatus.sourceBranch ?? null,
       prMergeable: typeof prStatus.mergeable === "boolean" ? prStatus.mergeable : null,
+      prLookupTargeting,
+      prLookupTargetingDecision,
       isConflictCycle: null,
       branchResolution,
       branchResolutionDecision: branchResolution.repoBranchMatchesPrSourceBranch === true ? "repo branch matches PR source branch" : branchResolution.repoHeadPointsAtPrSourceBranch === true ? "repo HEAD points at PR source branch even though branch --show-current did not match" : branchResolution.pluginBranchMatchesPrSourceBranch === true ? "plugin branch matches PR source branch but configured repo branch does not" : branchResolution.pluginHeadPointsAtPrSourceBranch === true ? "plugin HEAD points at PR source branch even though branch --show-current did not match" : "neither configured repo branch nor plugin branch matches PR source branch",
@@ -28377,6 +28393,8 @@ async function validatePrExistsForDeveloper(issueId, repoPath, provider, runComm
       prState: prStatus.state,
       prSourceBranch: prStatus.sourceBranch ?? null,
       prMergeable: prStatus.mergeable ?? null,
+      prLookupTargeting,
+      prLookupTargetingDecision,
       branchResolution,
       branchResolutionDecision: branchResolution.repoBranchMatchesPrSourceBranch === true ? "repo branch matches PR source branch" : branchResolution.repoHeadPointsAtPrSourceBranch === true ? "repo HEAD points at PR source branch even though branch --show-current did not match" : branchResolution.pluginBranchMatchesPrSourceBranch === true ? "plugin branch matches PR source branch but configured repo branch does not" : branchResolution.pluginHeadPointsAtPrSourceBranch === true ? "plugin HEAD points at PR source branch even though branch --show-current did not match" : "neither configured repo branch nor plugin branch matches PR source branch",
       branchResolutionNotes: [
@@ -28406,7 +28424,9 @@ async function validatePrExistsForDeveloper(issueId, repoPath, provider, runComm
           repoSnapshot,
           pluginSnapshot,
           prSourceBranch: null
-        })
+        }),
+        prLookupTargeting,
+        prLookupTargetingDecision
       }).catch(() => {
       });
       validationSummary.lookupOutcome = "pr_missing";
@@ -28438,6 +28458,8 @@ Then call work_finish again.`
       prUrl: prStatus.url ?? null,
       prSourceBranch: prStatus.sourceBranch ?? null,
       prMergeable: prStatus.mergeable ?? null,
+      prLookupTargeting,
+      prLookupTargetingDecision,
       repoSnapshot,
       pluginSourceRoot,
       pluginSnapshot,
@@ -28462,6 +28484,8 @@ Then call work_finish again.`
         prSourceBranch: prStatus.sourceBranch ?? null,
         detectedBranch: branchName,
         prMergeable: prStatus.mergeable ?? null,
+        prLookupTargeting,
+        prLookupTargetingDecision,
         repoSnapshot,
         pluginSourceRoot,
         pluginSnapshot,
@@ -28500,6 +28524,8 @@ Once the PR shows as mergeable on GitHub, call work_finish again.`
         prUrl: prStatus.url ?? null,
         prSourceBranch: prStatus.sourceBranch ?? null,
         prMergeable: prStatus.mergeable ?? null,
+        prLookupTargeting,
+        prLookupTargetingDecision,
         repoSnapshot,
         pluginSourceRoot,
         pluginSnapshot,
@@ -28631,6 +28657,7 @@ function createWorkFinishTool(ctx) {
         pluginLoadPathRealPaths: openclawConfigPluginLoadPathRealPaths,
         pluginRealPath: typeof pluginSnapshot.realRepoPath === "string" ? pluginSnapshot.realRepoPath : null
       });
+      const configuredProviderTargetRepo = project.repoRemote ? normalizeRepoTarget(project.repoRemote) ?? null : null;
       const context = {
         channelId,
         role,
@@ -28638,6 +28665,7 @@ function createWorkFinishTool(ctx) {
         slotLevel,
         slotIndex,
         configuredRepoPath: repoPath,
+        configuredProviderTargetRepo,
         pluginSourceRoot,
         loopDiagnosticsFlag: process.env.DEVCLAW_LOOP_DIAGNOSTICS ?? null,
         openclawConfigPluginLoadPaths,
@@ -28712,7 +28740,7 @@ function createWorkFinishTool(ctx) {
       let prValidationSummary = null;
       try {
         if (role === "developer" && result === "done") {
-          prValidationSummary = await validatePrExistsForDeveloper(issueId, repoPath, provider, ctx.runCommand, workspaceDir, project.slug, context);
+          prValidationSummary = await validatePrExistsForDeveloper(issueId, repoPath, provider, ctx.runCommand, workspaceDir, project.slug, configuredProviderTargetRepo, context);
         }
         const completion = await executeCompletion({
           workspaceDir,

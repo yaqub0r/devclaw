@@ -112,6 +112,7 @@ async function getGitSnapshot(repoPath: string, runCommand: RunCommand): Promise
     ["originHead", ["git", "rev-parse", "--abbrev-ref", "origin/HEAD"]],
     ["statusShort", ["git", "status", "--short"]],
     ["worktreeList", ["git", "worktree", "list", "--porcelain"]],
+    ["ghRepoView", ["gh", "repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner"]],
   ];
 
   let realRepoPath: string | null = null;
