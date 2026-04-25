@@ -4,12 +4,11 @@
  * Fetches all non-terminal issues grouped by state type (hold, active, queue).
  * Use `project_status` for instant local info, this tool for live issue data.
  */
-import { jsonResult } from "openclaw/plugin-sdk";
 import type { ToolContext } from "../../types.js";
 import type { PluginContext } from "../../context.js";
 import { log as auditLog } from "../../audit.js";
 import { getStateLabelsByType } from "../../services/queue.js";
-import { requireWorkspaceDir, resolveChannelId, resolveProject, resolveProvider } from "../helpers.js";
+import { jsonResult, requireWorkspaceDir, resolveChannelId, resolveProject, resolveProvider } from "../helpers.js";
 import { loadConfig } from "../../config/index.js";
 
 type IssueSummary = { id: number; title: string; url: string };

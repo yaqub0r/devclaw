@@ -8,6 +8,7 @@ import type { PluginRuntime } from "openclaw/plugin-sdk";
 import type { RunCommand } from "../context.js";
 import type { Issue, IssueProvider } from "../providers/provider.js";
 import { createProvider } from "../providers/index.js";
+import { normalizeRepoTarget } from "../tools/helpers.js";
 import { selectLevel } from "../roles/model-selector.js";
 import { getRoleWorker, getProject, readProjects, findFreeSlot, countActiveSlots, reconcileSlots } from "../projects/index.js";
 import { dispatchTask } from "../dispatch/index.js";
@@ -22,6 +23,8 @@ import {
   type Role,
 } from "../workflow/index.js";
 import { detectRoleLevelFromLabels, detectStepRouting, findNextIssueForRole } from "./queue-scan.js";
+import { evaluateLoopBrake, getLoopBrakeHoldLabel, recordLoopBrakeHalt } from "./loop-brake.js";
+import { recordLoopDiagnostic } from "./loop-diagnostics.js";
 
 // ---------------------------------------------------------------------------
 // projectTick
@@ -82,7 +85,12 @@ export async function projectTick(opts: {
   const resolvedConfig = await loadConfig(workspaceDir, project.name);
   const workflow = opts.workflow ?? resolvedConfig.workflow;
 
-  const provider = opts.provider ?? (await createProvider({ repo: project.repo, provider: project.provider, runCommand: runCommand! })).provider;
+  const provider = opts.provider ?? (await createProvider({
+    repo: project.repo,
+    provider: project.provider,
+    target: project.repoRemote ? { repo: normalizeRepoTarget(project.repoRemote) } : undefined,
+    runCommand: runCommand!,
+  })).provider;
   const roleExecution = workflow.roleExecution ?? ExecutionMode.PARALLEL;
   const enabledRoles = Object.entries(resolvedConfig.roles)
     .filter(([, r]) => r.enabled)
@@ -140,6 +148,227 @@ export async function projectTick(opts: {
     if (!next) continue;
 
     const { issue, label: currentLabel } = next;
+    const holdLabel = getLoopBrakeHoldLabel(workflow);
+    const loopBrake = await evaluateLoopBrake(workspaceDir, issue.iid);
+    await recordLoopDiagnostic(workspaceDir, "loop_brake_evaluation", {
+      project: project.name,
+      projectSlug: project.slug,
+      issueId: issue.iid,
+      role,
+      currentLabel,
+      holdLabel,
+      blocked: loopBrake.blocked,
+      threshold: loopBrake.threshold,
+      windowMs: loopBrake.windowMs,
+      auditScan: loopBrake.auditScan,
+      eventCount: loopBrake.events.length,
+      events: loopBrake.events,
+      reasonHistogram: loopBrake.reasonHistogram,
+      sourceHistogram: loopBrake.sourceHistogram,
+      issueLabels: issue.labels,
+      countedEventSummaries: loopBrake.events.map((event, index) => ({
+        index,
+        ts: event.ts,
+        source: event.source,
+        stage: event.stage ?? null,
+        event: event.event ?? null,
+        from: event.from ?? null,
+        to: event.to ?? null,
+        reason: event.reason,
+        rawReason: event.rawReason ?? null,
+        orphanReason: event.orphanReason ?? null,
+        countedByRule: event.countedByRule ?? null,
+        rawEvent: event.rawEvent ?? null,
+        rawStage: event.rawStage ?? null,
+        rawResult: event.rawResult ?? null,
+        issueFieldUsed: event.issueFieldUsed ?? null,
+        rawIssueId: event.rawIssueId ?? null,
+        rawIssue: event.rawIssue ?? null,
+        rawLabelPair: event.rawLabelPair ?? null,
+        matchedBecause: event.matchedBecause ?? null,
+        rawLoopBrakeReason: event.rawLoopBrakeReason ?? null,
+        rawTransitionReasonCategory: event.rawTransitionReasonCategory ?? null,
+        rawRefiningDecisionPath: event.rawRefiningDecisionPath ?? null,
+        rawHealthDecisionCategory: event.rawHealthDecisionCategory ?? null,
+        rawSourceBranch: event.rawSourceBranch ?? null,
+        rawRepoPath: event.rawRepoPath ?? null,
+        rawPluginSourceRoot: event.rawPluginSourceRoot ?? null,
+        rawBranchResolutionDecision: event.rawBranchResolutionDecision ?? null,
+        rawPrValidationDecision: event.rawPrValidationDecision ?? null,
+        rawPrValidationLookupOutcome: event.rawPrValidationLookupOutcome ?? null,
+        rawRepoSnapshot: event.rawRepoSnapshot ?? null,
+        rawPluginSnapshot: event.rawPluginSnapshot ?? null,
+        eventShapeSummary: event.eventShapeSummary ?? null,
+        compactDecisionSummary: event.compactDecisionSummary ?? null,
+        rawHealthDecisionSummary: event.rawHealthDecisionSummary ?? null,
+        rawBranchWinnerSummary: event.rawBranchWinnerSummary ?? null,
+        rawDuplicateSourceDecision: event.rawDuplicateSourceDecision ?? null,
+        rawPreferredBranchSource: event.rawPreferredBranchSource ?? null,
+        rawBranchResolutionPreferredEvidence: event.rawBranchResolutionPreferredEvidence ?? null,
+        rawPreferredBranchConfidence: event.rawPreferredBranchConfidence ?? null,
+        rawLaneMismatchSummary: event.rawLaneMismatchSummary ?? null,
+        rawLaneMismatchCategory: event.rawLaneMismatchCategory ?? null,
+        rawDuplicateSourceRisk: event.rawDuplicateSourceRisk ?? null,
+        rawCanRequeueIssue: event.rawCanRequeueIssue ?? null,
+        rawLiveSourceDecision: event.rawLiveSourceDecision ?? null,
+        rawLiveSourceSingularitySummary: event.rawLiveSourceSingularitySummary ?? null,
+        rawOpenclawConfigInstallSourcePath: event.rawOpenclawConfigInstallSourcePath ?? null,
+        rawOpenclawConfigInstallSourceRealPath: event.rawOpenclawConfigInstallSourceRealPath ?? null,
+        rawOpenclawConfigInstallPath: event.rawOpenclawConfigInstallPath ?? null,
+        rawOpenclawConfigInstallPathRealPath: event.rawOpenclawConfigInstallPathRealPath ?? null,
+        rawOpenclawConfigPluginLoadPaths: event.rawOpenclawConfigPluginLoadPaths ?? null,
+        rawOpenclawConfigPluginLoadPathRealPaths: event.rawOpenclawConfigPluginLoadPathRealPaths ?? null,
+        rawBranchResolutionMismatchFlags: event.rawBranchResolutionMismatchFlags ?? null,
+        rawLiveSourceAgreementMatrix: event.rawLiveSourceAgreementMatrix ?? null,
+        rawLaneIdentitySummary: event.rawLaneIdentitySummary ?? null,
+        rawBranchSelectionDecisionTrace: event.rawBranchSelectionDecisionTrace ?? null,
+        rawDuplicateSourceWinningRealPathGuess: event.rawDuplicateSourceWinningRealPathGuess ?? null,
+        rawDuplicateSourceCompetingRealPaths: event.rawDuplicateSourceCompetingRealPaths ?? null,
+        rawBranchSourceCandidateDecisionTable: event.rawBranchSourceCandidateDecisionTable ?? null,
+        rawPrValidationBranchSourceCandidateDecisionTable: event.rawPrValidationBranchSourceCandidateDecisionTable ?? null,
+        rawAuditExcerpt: event.rawAuditExcerpt ?? null,
+        decisionPath: event.decisionPath ?? null,
+      })),
+      countedBecause: loopBrake.events.length > 0
+        ? `counted ${loopBrake.events.length} events inside the retry window because they matched loop-brake rules for health_requeue, work_finish -> Refining, or review_transition non-progress reasons`
+        : `no prior loop events matched inside the retry window; ${loopBrake.auditScan.matchOutcomeSummary}`,
+      auditScanDecisionSummary: `${loopBrake.auditScan.matchOutcomeCategory}: ${loopBrake.auditScan.matchOutcomeSummary}`,
+      mostRecentMatchedLoopEvent: loopBrake.auditScan.newestMatchedEventTs
+        ? {
+            ts: loopBrake.auditScan.newestMatchedEventTs,
+            reason: loopBrake.auditScan.newestMatchedEventReason,
+            insideRetryWindow: loopBrake.auditScan.newestMatchedEventInsideWindowTs === loopBrake.auditScan.newestMatchedEventTs,
+          }
+        : null,
+      decisionPath: holdLabel
+        ? loopBrake.blocked
+          ? `loop brake will move ${currentLabel} -> ${holdLabel} because ${loopBrake.events.length} recent non-progress loop events met threshold ${loopBrake.threshold}`
+          : `loop brake allowed dispatch because ${loopBrake.events.length} recent non-progress loop events is below threshold ${loopBrake.threshold}`
+        : "loop brake skipped because no hold label could be resolved from workflow",
+    }).catch(() => {});
+    if (holdLabel && loopBrake.blocked) {
+      const reason = `retry ceiling reached after ${loopBrake.events.length} recent non-progress loop events`;
+      await provider.transitionLabel(issue.iid, currentLabel, holdLabel);
+      await provider.addComment(
+        issue.iid,
+        [
+          "## Loop brake triggered",
+          "",
+          `Automatic redispatch has been halted for this issue after ${loopBrake.events.length} recent non-progress loop events within the retry window.`,
+          "",
+          `- from queue: \`${currentLabel}\``,
+          `- moved to hold: \`${holdLabel}\``,
+          `- threshold: ${loopBrake.threshold}`,
+          `- recent reasons: ${loopBrake.events.map((event) => event.reason).join(", ")}`,
+          "",
+          "Operator action is required to re-queue this issue.",
+        ].join("\n"),
+      );
+      await recordLoopDiagnostic(workspaceDir, "loop_brake_halt", {
+        project: project.name,
+        projectSlug: project.slug,
+        issueId: issue.iid,
+        role,
+        from: currentLabel,
+        to: holdLabel,
+        threshold: loopBrake.threshold,
+        windowMs: loopBrake.windowMs,
+        auditScan: loopBrake.auditScan,
+        events: loopBrake.events,
+        reasonHistogram: loopBrake.reasonHistogram,
+        sourceHistogram: loopBrake.sourceHistogram,
+        countedEventSummaries: loopBrake.events.map((event, index) => ({
+          index,
+          ts: event.ts,
+          source: event.source,
+          stage: event.stage ?? null,
+          event: event.event ?? null,
+          from: event.from ?? null,
+          to: event.to ?? null,
+          reason: event.reason,
+          rawReason: event.rawReason ?? null,
+          orphanReason: event.orphanReason ?? null,
+          countedByRule: event.countedByRule ?? null,
+          rawEvent: event.rawEvent ?? null,
+          rawStage: event.rawStage ?? null,
+          rawResult: event.rawResult ?? null,
+          issueFieldUsed: event.issueFieldUsed ?? null,
+          rawIssueId: event.rawIssueId ?? null,
+          rawIssue: event.rawIssue ?? null,
+          rawLabelPair: event.rawLabelPair ?? null,
+          matchedBecause: event.matchedBecause ?? null,
+          rawLoopBrakeReason: event.rawLoopBrakeReason ?? null,
+          rawTransitionReasonCategory: event.rawTransitionReasonCategory ?? null,
+          rawRefiningDecisionPath: event.rawRefiningDecisionPath ?? null,
+          rawHealthDecisionCategory: event.rawHealthDecisionCategory ?? null,
+          rawSourceBranch: event.rawSourceBranch ?? null,
+          rawRepoPath: event.rawRepoPath ?? null,
+          rawPluginSourceRoot: event.rawPluginSourceRoot ?? null,
+          rawBranchResolutionDecision: event.rawBranchResolutionDecision ?? null,
+          rawPrValidationDecision: event.rawPrValidationDecision ?? null,
+          rawPrValidationLookupOutcome: event.rawPrValidationLookupOutcome ?? null,
+          rawRepoSnapshot: event.rawRepoSnapshot ?? null,
+          rawPluginSnapshot: event.rawPluginSnapshot ?? null,
+          eventShapeSummary: event.eventShapeSummary ?? null,
+          compactDecisionSummary: event.compactDecisionSummary ?? null,
+          rawHealthDecisionSummary: event.rawHealthDecisionSummary ?? null,
+          rawBranchWinnerSummary: event.rawBranchWinnerSummary ?? null,
+          rawDuplicateSourceDecision: event.rawDuplicateSourceDecision ?? null,
+          rawPreferredBranchSource: event.rawPreferredBranchSource ?? null,
+          rawBranchResolutionPreferredEvidence: event.rawBranchResolutionPreferredEvidence ?? null,
+          rawPreferredBranchConfidence: event.rawPreferredBranchConfidence ?? null,
+          rawLaneMismatchSummary: event.rawLaneMismatchSummary ?? null,
+          rawLaneMismatchCategory: event.rawLaneMismatchCategory ?? null,
+          rawDuplicateSourceRisk: event.rawDuplicateSourceRisk ?? null,
+          rawCanRequeueIssue: event.rawCanRequeueIssue ?? null,
+          rawLiveSourceDecision: event.rawLiveSourceDecision ?? null,
+          rawLiveSourceSingularitySummary: event.rawLiveSourceSingularitySummary ?? null,
+          rawOpenclawConfigInstallSourcePath: event.rawOpenclawConfigInstallSourcePath ?? null,
+          rawOpenclawConfigInstallSourceRealPath: event.rawOpenclawConfigInstallSourceRealPath ?? null,
+          rawOpenclawConfigInstallPath: event.rawOpenclawConfigInstallPath ?? null,
+          rawOpenclawConfigInstallPathRealPath: event.rawOpenclawConfigInstallPathRealPath ?? null,
+          rawOpenclawConfigPluginLoadPaths: event.rawOpenclawConfigPluginLoadPaths ?? null,
+          rawOpenclawConfigPluginLoadPathRealPaths: event.rawOpenclawConfigPluginLoadPathRealPaths ?? null,
+          rawBranchResolutionMismatchFlags: event.rawBranchResolutionMismatchFlags ?? null,
+          rawLiveSourceAgreementMatrix: event.rawLiveSourceAgreementMatrix ?? null,
+          rawLaneIdentitySummary: event.rawLaneIdentitySummary ?? null,
+          rawBranchSelectionDecisionTrace: event.rawBranchSelectionDecisionTrace ?? null,
+          rawDuplicateSourceWinningRealPathGuess: event.rawDuplicateSourceWinningRealPathGuess ?? null,
+          rawDuplicateSourceCompetingRealPaths: event.rawDuplicateSourceCompetingRealPaths ?? null,
+          rawBranchSourceCandidateDecisionTable: event.rawBranchSourceCandidateDecisionTable ?? null,
+          rawPrValidationBranchSourceCandidateDecisionTable: event.rawPrValidationBranchSourceCandidateDecisionTable ?? null,
+          rawAuditExcerpt: event.rawAuditExcerpt ?? null,
+          decisionPath: event.decisionPath ?? null,
+        })),
+        countedBecause: `loop brake threshold ${loopBrake.threshold} was met by ${loopBrake.events.length} events that matched non-progress counting rules inside the retry window`,
+        auditScanDecisionSummary: `${loopBrake.auditScan.matchOutcomeCategory}: ${loopBrake.auditScan.matchOutcomeSummary}`,
+        mostRecentMatchedLoopEvent: loopBrake.auditScan.newestMatchedEventTs
+          ? {
+              ts: loopBrake.auditScan.newestMatchedEventTs,
+              reason: loopBrake.auditScan.newestMatchedEventReason,
+              insideRetryWindow: loopBrake.auditScan.newestMatchedEventInsideWindowTs === loopBrake.auditScan.newestMatchedEventTs,
+            }
+          : null,
+        haltClassification: "issue was moved to the hold label because redispatch would likely repeat without new information",
+        issueLabels: issue.labels,
+        loopBrakeReason: "retry_ceiling_reached",
+        decisionPath: `loop brake moved ${currentLabel} -> ${holdLabel} after ${loopBrake.events.length} recent non-progress loop events`,
+      }).catch(() => {});
+      await recordLoopBrakeHalt({
+        workspaceDir,
+        project: project.name,
+        issueId: issue.iid,
+        issueTitle: issue.title,
+        from: currentLabel,
+        to: holdLabel,
+        reason,
+        threshold: loopBrake.threshold,
+        events: loopBrake.events,
+      });
+      skipped.push({ role, reason: `Loop brake: #${issue.iid} moved to ${holdLabel}` });
+      continue;
+    }
+
     const targetLabel = getActiveLabel(workflow, role);
 
     // Step routing: check for review:human / review:skip / test:skip labels

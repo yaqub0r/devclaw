@@ -51,6 +51,7 @@ import {
 import { isSessionAlive, type SessionLookup } from "../gateway-sessions.js";
 import { sendToAgent } from "../../dispatch/session.js";
 import type { RunCommand } from "../../context.js";
+import { recordLoopDiagnostic } from "../loop-diagnostics.js";
 
 // Re-export for consumers that import from health.ts
 export { fetchGatewaySessions, isSessionAlive, type GatewaySession, type SessionLookup } from "../gateway-sessions.js";
@@ -226,13 +227,148 @@ export async function checkWorkerHealth(opts: {
         currentLabel = issue ? getCurrentStateLabel(issue.labels, workflow) : null;
       }
 
+      async function recordOrphanDiagnostic(reason: string, details: Record<string, unknown> = {}) {
+        const sessionKeys = sessions ? Array.from(sessions.keys()) : [];
+        const sessionSnapshot = sessionKey && sessions?.has(sessionKey)
+          ? sessions.get(sessionKey)
+          : null;
+        const canRequeueIssue = issue != null && currentLabel === expectedLabel;
+        const sessionAliveAtCheck = sessionKey && sessions ? isSessionAlive(sessionKey, sessions) : false;
+        await recordLoopDiagnostic(workspaceDir, "health_orphan_detected", {
+          project: project.name,
+          projectSlug,
+          issueId: issueIdNum,
+          role,
+          slotLevel: level,
+          slotIndex,
+          sessionKey,
+          slotActive: slot.active,
+          slotIssueId: slot.issueId ?? null,
+          slotPreviousLabel: slot.previousLabel ?? null,
+          slotStartTime: slot.startTime ?? null,
+          queueLabel,
+          slotQueueLabel,
+          expectedLabel,
+          currentIssueStateLabel: currentLabel,
+          withinGracePeriod,
+          gracePeriodMs: GRACE_PERIOD_MS,
+          issueClosed: issue ? isIssueClosed(issue) : null,
+          autoFix,
+          sessionMapAvailable: Boolean(sessions),
+          gatewaySessionCount: sessions?.size ?? null,
+          gatewaySessionHasSlotSessionKey: sessionKey ? sessions?.has(sessionKey) ?? false : null,
+          gatewaySessionKeySample: sessionKeys.slice(0, 10),
+          sessionAliveAtCheck: sessionKey ? sessionAliveAtCheck : null,
+          sessionPresenceClassification: !sessionKey
+            ? "session_key_missing"
+            : !sessions
+              ? "session_map_unavailable"
+              : sessionAliveAtCheck
+                ? "session_present"
+                : "session_missing_from_gateway",
+          issueLabelDecisionCategory: issue == null
+            ? "issue_unavailable"
+            : currentLabel === expectedLabel
+              ? "expected_label_still_active"
+              : "label_already_drifted",
+          issueLabelDecisionSummary: issue == null
+            ? "health could not compare labels because the issue could not be loaded"
+            : currentLabel === expectedLabel
+              ? `issue still carried expected active label ${expectedLabel}`
+              : `issue label had already drifted from expected ${expectedLabel} to ${currentLabel ?? "unknown"}`,
+          gatewaySessionSnapshot: sessionSnapshot
+            ? {
+                updatedAt: sessionSnapshot.updatedAt ?? null,
+                startedAt: sessionSnapshot.startedAt ?? null,
+                abortedLastRun: sessionSnapshot.abortedLastRun ?? null,
+                contextTokens: sessionSnapshot.contextTokens ?? null,
+                model: sessionSnapshot.model ?? null,
+              }
+            : null,
+          canRequeueIssue,
+          willOnlyDeactivateSlot: !canRequeueIssue,
+          healthDecisionCategory: canRequeueIssue ? "orphan_can_requeue" : "orphan_deactivate_only",
+          healthDecisionSummary: canRequeueIssue
+            ? `health classified ${reason} as recoverable because the issue still had expected label ${expectedLabel}`
+            : `health classified ${reason} as deactivate-only because issue label ${currentLabel ?? "unknown"} no longer matched expected ${expectedLabel}`,
+          orphanClassificationSummary: `orphan reason ${reason}; slot=${slot.active ? "active" : "inactive"}; expected=${expectedLabel}; current=${currentLabel ?? "unknown"}; canRequeue=${canRequeueIssue}`,
+          healthRequeueLoopReason: "orphan_requeue",
+          loopBrakeReason: "orphan_requeue",
+          orphanReason: reason,
+          ...details,
+        }).catch(() => {});
+      }
+
       // Helper to revert label for this issue
-      async function revertLabel(fix: HealthFix, from: StateLabel, to: StateLabel) {
+      async function revertLabel(
+        fix: HealthFix,
+        from: StateLabel,
+        to: StateLabel,
+        opts: { orphanReason?: string; decisionPath?: string } = {},
+      ) {
         if (!issueIdNum) return;
         try {
           await provider.transitionLabel(issueIdNum, from, to);
+          await recordLoopDiagnostic(workspaceDir, "health_requeue", {
+            project: project.name,
+            projectSlug,
+            issueId: issueIdNum,
+            role,
+            from,
+            to,
+            slotLevel: level,
+            slotIndex,
+            sessionKey,
+            slotActive: slot.active,
+            slotIssueId: slot.issueId ?? null,
+            slotPreviousLabel: slot.previousLabel ?? null,
+            slotStartTime: slot.startTime ?? null,
+            queueLabel,
+            slotQueueLabel,
+            withinGracePeriod,
+            gracePeriodMs: GRACE_PERIOD_MS,
+            currentIssueStateLabel: currentLabel,
+            issueClosed: issue ? isIssueClosed(issue) : null,
+            healthRequeueReason: "orphaned active slot recovered by reverting issue to queue label",
+            healthDecisionCategory: "orphan_requeued",
+            healthDecisionSummary: `health reverted ${from} -> ${to} after orphan classification ${opts.orphanReason ?? "unknown"}`,
+            healthRequeueLoopReason: "orphan_requeue",
+            loopBrakeReason: "orphan_requeue",
+            orphanReason: opts.orphanReason ?? null,
+            decisionPath: issueIdNum == null
+              ? "health pass considered requeue but issueId was missing"
+              : opts.decisionPath ?? `health pass transitioned ${from} -> ${to} because slot looked orphaned relative to issue/session state`,
+          }).catch(() => {});
           fix.labelReverted = `${from} → ${to}`;
-        } catch {
+        } catch (err) {
+          await recordLoopDiagnostic(workspaceDir, "health_requeue_failed", {
+            project: project.name,
+            projectSlug,
+            issueId: issueIdNum,
+            role,
+            from,
+            to,
+            slotLevel: level,
+            slotIndex,
+            sessionKey,
+            slotActive: slot.active,
+            slotIssueId: slot.issueId ?? null,
+            slotPreviousLabel: slot.previousLabel ?? null,
+            slotStartTime: slot.startTime ?? null,
+            queueLabel,
+            slotQueueLabel,
+            withinGracePeriod,
+            gracePeriodMs: GRACE_PERIOD_MS,
+            currentIssueStateLabel: currentLabel,
+            issueClosed: issue ? isIssueClosed(issue) : null,
+            error: (err as Error).message ?? String(err),
+            healthDecisionCategory: "orphan_requeue_failed",
+            healthDecisionSummary: `health could not revert ${from} -> ${to} after orphan classification ${opts.orphanReason ?? "unknown"}`,
+            healthRequeueLoopReason: "orphan_requeue",
+            loopBrakeReason: "orphan_requeue",
+            orphanReason: opts.orphanReason ?? null,
+            decisionPath: opts.decisionPath ?? `health pass attempted ${from} -> ${to} for orphan recovery, but provider.transitionLabel failed`,
+          }).catch(() => {});
           fix.labelRevertFailed = true;
         }
       }
@@ -316,6 +452,27 @@ export async function checkWorkerHealth(opts: {
           },
           fixed: false,
         };
+        await recordLoopDiagnostic(workspaceDir, "health_orphan_detected", {
+          project: project.name,
+          projectSlug,
+          issueId: issueIdNum,
+          role,
+          slotLevel: level,
+          slotIndex,
+          sessionKey,
+          slotActive: slot.active,
+          slotIssueId: slot.issueId ?? null,
+          expectedLabel,
+          currentIssueStateLabel: currentLabel,
+          slotQueueLabel,
+          autoFix,
+          canRequeueIssue: false,
+          willOnlyDeactivateSlot: true,
+          healthDecisionCategory: "label_drift_deactivate_only",
+          healthDecisionSummary: `health will only deactivate because issue already drifted from ${expectedLabel} to ${currentLabel ?? "unknown"}`,
+          orphanReason: "label_mismatch",
+          decisionPath: `active slot was expected in ${expectedLabel}, but issue had already drifted to ${currentLabel}, so health will only deactivate the slot and must not assign orphan_requeue`,
+        }).catch(() => {});
         if (autoFix) {
           await deactivateSlot();
           fix.fixed = true;
@@ -341,8 +498,16 @@ export async function checkWorkerHealth(opts: {
           },
           fixed: false,
         };
+        await recordOrphanDiagnostic("session_dead", {
+          from: expectedLabel,
+          to: slotQueueLabel,
+          decisionPath: "active slot had expected in-progress label, but gateway no longer reported the session",
+        });
         if (autoFix) {
-          await revertLabel(fix, expectedLabel, slotQueueLabel);
+          await revertLabel(fix, expectedLabel, slotQueueLabel, {
+            orphanReason: "session_dead",
+            decisionPath: "health pass requeued because gateway no longer reported the active session while the issue still showed the expected active label",
+          });
           await deactivateSlot();
           fix.fixed = true;
         }
@@ -366,9 +531,19 @@ export async function checkWorkerHealth(opts: {
           },
           fixed: false,
         };
+        await recordOrphanDiagnostic("session_key_missing", {
+          from: expectedLabel,
+          to: slotQueueLabel,
+          decisionPath: issue && currentLabel === expectedLabel
+            ? "active slot had no session key and issue still showed active label, so health can requeue it"
+            : "active slot had no session key, but issue label was already not the expected active label, so health only deactivates the slot",
+        });
         if (autoFix) {
           if (issue && currentLabel === expectedLabel) {
-            await revertLabel(fix, expectedLabel, slotQueueLabel);
+            await revertLabel(fix, expectedLabel, slotQueueLabel, {
+              orphanReason: "session_key_missing",
+              decisionPath: "health pass requeued because the active slot had no session key and the issue still showed the expected active label",
+            });
           }
           await deactivateSlot();
           fix.fixed = true;
@@ -398,9 +573,19 @@ export async function checkWorkerHealth(opts: {
             },
             fixed: false,
           };
+          await recordOrphanDiagnostic("context_overflow", {
+            from: expectedLabel,
+            to: slotQueueLabel,
+            decisionPath: issue && currentLabel === expectedLabel
+              ? "session abortedLastRun=true while issue still looked active, so health requeues as orphan recovery"
+              : "session abortedLastRun=true, but issue label no longer matched the expected active state, so health only deactivates the slot",
+          });
           if (autoFix) {
             if (issue && currentLabel === expectedLabel) {
-              await revertLabel(fix, expectedLabel, slotQueueLabel);
+              await revertLabel(fix, expectedLabel, slotQueueLabel, {
+                orphanReason: "context_overflow",
+                decisionPath: "health pass requeued because the active session reported abortedLastRun=true while the issue still showed the expected active label",
+              });
             }
             await deactivateSlot();
             fix.fixed = true;
@@ -447,11 +632,27 @@ export async function checkWorkerHealth(opts: {
             fixed: false,
           };
 
+          if (taskNeverArrived) {
+            await recordOrphanDiagnostic("session_stalled_task_never_arrived", {
+              from: expectedLabel,
+              to: slotQueueLabel,
+              idleMinutes,
+              sessionIdleMs,
+              taskNeverArrived,
+              decisionPath: issue && currentLabel === expectedLabel
+                ? "session stayed nearly empty past stall timeout while issue still looked active, so health treats it as orphaned dispatch and requeues"
+                : "session stayed nearly empty past stall timeout, but issue label no longer matched the expected active state, so health only deactivates the slot",
+            });
+          }
+
           if (autoFix) {
             if (taskNeverArrived) {
               // Task never arrived → revert label, deactivate, let next tick re-dispatch
               if (issue && currentLabel === expectedLabel) {
-                await revertLabel(fix, expectedLabel, slotQueueLabel);
+                await revertLabel(fix, expectedLabel, slotQueueLabel, {
+                  orphanReason: "session_stalled_task_never_arrived",
+                  decisionPath: "health pass requeued because the session stayed nearly empty past the stall timeout while the issue still showed the expected active label",
+                });
               }
               await deactivateSlot();
             } else {
@@ -508,7 +709,10 @@ export async function checkWorkerHealth(opts: {
             fixed: false,
           };
           if (autoFix) {
-            await revertLabel(fix, expectedLabel, slotQueueLabel);
+            await revertLabel(fix, expectedLabel, slotQueueLabel, {
+              orphanReason: "stale_worker",
+              decisionPath: "health pass requeued because the active worker exceeded the stale-worker threshold and the issue still showed the expected active label",
+            });
             await deactivateSlot();
             fix.fixed = true;
           }
@@ -534,7 +738,10 @@ export async function checkWorkerHealth(opts: {
           fixed: false,
         };
         if (autoFix) {
-          await revertLabel(fix, expectedLabel, slotQueueLabel);
+          await revertLabel(fix, expectedLabel, slotQueueLabel, {
+            orphanReason: "stuck_label",
+            decisionPath: "health pass requeued because the issue still had the active label even though the worker slot was already inactive",
+          });
           // Clear the slot's issueId
           if (slot.issueId) {
             await updateSlot(workspaceDir, projectSlug, role, level, slotIndex, { issueId: null });

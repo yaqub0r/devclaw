@@ -8,13 +8,12 @@
  * DevClaw adds an explicit audit entry with who, when, and what changed.
  * Optionally posts an auto-comment on the issue for traceability.
  */
-import { jsonResult } from "openclaw/plugin-sdk";
 import type { PluginContext } from "../../context.js";
 import type { ToolContext } from "../../types.js";
 import { log as auditLog } from "../../audit.js";
 import { loadConfig } from "../../config/index.js";
 import { getInitialStateLabel, getCurrentStateLabel } from "../../workflow/index.js";
-import { requireWorkspaceDir, resolveChannelId, resolveProject, resolveProvider, autoAssignOwnerLabel, applyNotifyLabel } from "../helpers.js";
+import { jsonResult, requireWorkspaceDir, resolveChannelId, resolveProject, resolveProvider, autoAssignOwnerLabel, applyNotifyLabel } from "../helpers.js";
 
 export function createTaskEditBodyTool(ctx: PluginContext) {
   return (toolCtx: ToolContext) => ({
