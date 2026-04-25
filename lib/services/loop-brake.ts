@@ -33,6 +33,11 @@ export type LoopBrakeDecision = {
     rawEvent?: string;
     rawStage?: string;
     rawResult?: string;
+    issueFieldUsed?: string;
+    rawIssueId?: number | null;
+    rawIssue?: number | null;
+    rawLabelPair?: string;
+    matchedBecause?: string;
   }>;
   reasonHistogram: Record<string, number>;
   sourceHistogram: Record<string, number>;
@@ -155,6 +160,13 @@ function toLoopEvent(entry: AuditEntry): LoopBrakeDecision["events"][number] | n
       rawEvent: event,
       rawStage: asString(entry.stage),
       rawResult: asString(entry.result),
+      issueFieldUsed: typeof entry.issueId === "number" ? "issueId" : typeof entry.issue === "number" ? "issue" : "none",
+      rawIssueId: typeof entry.issueId === "number" ? entry.issueId : null,
+      rawIssue: typeof entry.issue === "number" ? entry.issue : null,
+      rawLabelPair: `${asString(entry.from) ?? "?"} -> ${asString(entry.to) ?? "?"}`,
+      matchedBecause: rawReason != null
+        ? `health_requeue matched loop brake because loopBrakeReason/healthRequeueLoopReason was ${rawReason}`
+        : "health_requeue matched loop brake because stage alone is counted as orphan recovery even without an explicit reason field",
     };
   }
 
@@ -174,6 +186,13 @@ function toLoopEvent(entry: AuditEntry): LoopBrakeDecision["events"][number] | n
       rawEvent: event,
       rawStage: asString(entry.stage),
       rawResult: asString(entry.result),
+      issueFieldUsed: typeof entry.issueId === "number" ? "issueId" : typeof entry.issue === "number" ? "issue" : "none",
+      rawIssueId: typeof entry.issueId === "number" ? entry.issueId : null,
+      rawIssue: typeof entry.issue === "number" ? entry.issue : null,
+      rawLabelPair: `${asString(entry.from) ?? "?"} -> ${asString(entry.to) ?? "?"}`,
+      matchedBecause: rawReason != null
+        ? `work_finish_transition matched loop brake because it reached Refining with reason/result ${rawReason}`
+        : "work_finish_transition matched loop brake because any direct transition into Refining counts as non-progress even without an explicit reason field",
     };
   }
 
@@ -193,6 +212,11 @@ function toLoopEvent(entry: AuditEntry): LoopBrakeDecision["events"][number] | n
         rawEvent: event,
         rawStage: asString(entry.stage),
         rawResult: asString(entry.result),
+        issueFieldUsed: typeof entry.issueId === "number" ? "issueId" : typeof entry.issue === "number" ? "issue" : "none",
+        rawIssueId: typeof entry.issueId === "number" ? entry.issueId : null,
+        rawIssue: typeof entry.issue === "number" ? entry.issue : null,
+        rawLabelPair: `${asString(entry.from) ?? "?"} -> ${asString(entry.to) ?? "?"}`,
+        matchedBecause: `review_transition matched loop brake because reason=${reason} is listed as a non-progress review event`,
       };
     }
   }

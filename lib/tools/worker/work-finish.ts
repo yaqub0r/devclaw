@@ -152,6 +152,8 @@ function buildBranchResolutionDiagnostic(opts: {
     : [];
   const repoRealPath = typeof opts.repoSnapshot.realRepoPath === "string" ? opts.repoSnapshot.realRepoPath : null;
   const pluginRealPath = typeof opts.pluginSnapshot.realRepoPath === "string" ? opts.pluginSnapshot.realRepoPath : null;
+  const repoHead = typeof opts.repoSnapshot.head === "string" ? opts.repoSnapshot.head : null;
+  const pluginHead = typeof opts.pluginSnapshot.head === "string" ? opts.pluginSnapshot.head : null;
   const repoDetachedHead = repoBranch === null || repoBranch.length === 0;
   const pluginDetachedHead = pluginBranch === null || pluginBranch.length === 0;
   const preferredBranchSource =
@@ -173,10 +175,12 @@ function buildBranchResolutionDiagnostic(opts: {
     repoBranch,
     repoWorkTree,
     repoRealPath,
+    repoHead,
     repoHeadBranches,
     pluginBranch,
     pluginWorkTree,
     pluginRealPath,
+    pluginHead,
     pluginHeadBranches,
     prSourceBranch,
     repoPathMatchesResolvedWorkTree: repoWorkTree === opts.repoPath,
@@ -226,6 +230,80 @@ function buildBranchResolutionDiagnostic(opts: {
       { source: "configured_repo_head_branches", value: repoHeadBranches, matchesPrSourceBranch: prSourceBranch !== null && repoHeadBranches.includes(prSourceBranch) },
       { source: "live_plugin_branch", value: pluginBranch, matchesPrSourceBranch: pluginBranch !== null && prSourceBranch !== null && pluginBranch === prSourceBranch },
       { source: "live_plugin_head_branches", value: pluginHeadBranches, matchesPrSourceBranch: prSourceBranch !== null && pluginHeadBranches.includes(prSourceBranch) },
+    ],
+    branchSourceCandidateDiagnostics: [
+      {
+        source: "configured_repo_branch",
+        value: repoBranch,
+        head: repoHead,
+        realPath: repoRealPath,
+        matchesPrSourceBranch: repoBranch !== null && prSourceBranch !== null && repoBranch === prSourceBranch,
+        selected: preferredBranchSource === "configured_repo_branch",
+        disqualifiedBecause:
+          preferredBranchSource === "configured_repo_branch"
+            ? null
+            : repoBranch === null
+              ? "configured repo branch was unavailable or detached"
+              : prSourceBranch === null
+                ? "PR source branch was unavailable, so direct PR-aware matching could not select configured repo branch"
+                : repoBranch !== prSourceBranch
+                  ? `configured repo branch ${repoBranch} did not match PR source branch ${prSourceBranch}`
+                  : "configured repo branch was outranked by a higher-confidence candidate",
+      },
+      {
+        source: "configured_repo_head_branches",
+        value: repoHeadBranches,
+        head: repoHead,
+        realPath: repoRealPath,
+        matchesPrSourceBranch: prSourceBranch !== null && repoHeadBranches.includes(prSourceBranch),
+        selected: preferredBranchSource === "configured_repo_head_branches",
+        disqualifiedBecause:
+          preferredBranchSource === "configured_repo_head_branches"
+            ? null
+            : repoHeadBranches.length === 0
+              ? "configured repo HEAD had no named branches pointing at it"
+              : prSourceBranch === null
+                ? "PR source branch was unavailable, so detached-HEAD branch candidates could not be matched"
+                : !repoHeadBranches.includes(prSourceBranch)
+                  ? `configured repo HEAD branches ${JSON.stringify(repoHeadBranches)} did not include PR source branch ${prSourceBranch}`
+                  : "configured repo HEAD candidate was outranked by a higher-confidence candidate",
+      },
+      {
+        source: "live_plugin_branch",
+        value: pluginBranch,
+        head: pluginHead,
+        realPath: pluginRealPath,
+        matchesPrSourceBranch: pluginBranch !== null && prSourceBranch !== null && pluginBranch === prSourceBranch,
+        selected: preferredBranchSource === "live_plugin_branch",
+        disqualifiedBecause:
+          preferredBranchSource === "live_plugin_branch"
+            ? null
+            : pluginBranch === null
+              ? "live plugin branch was unavailable or detached"
+              : prSourceBranch === null
+                ? "PR source branch was unavailable, so live plugin direct matching could not be selected"
+                : pluginBranch !== prSourceBranch
+                  ? `live plugin branch ${pluginBranch} did not match PR source branch ${prSourceBranch}`
+                  : "live plugin branch lost to a higher-priority configured repo candidate",
+      },
+      {
+        source: "live_plugin_head_branches",
+        value: pluginHeadBranches,
+        head: pluginHead,
+        realPath: pluginRealPath,
+        matchesPrSourceBranch: prSourceBranch !== null && pluginHeadBranches.includes(prSourceBranch),
+        selected: preferredBranchSource === "live_plugin_head_branches",
+        disqualifiedBecause:
+          preferredBranchSource === "live_plugin_head_branches"
+            ? null
+            : pluginHeadBranches.length === 0
+              ? "live plugin HEAD had no named branches pointing at it"
+              : prSourceBranch === null
+                ? "PR source branch was unavailable, so live plugin detached-HEAD candidates could not be matched"
+                : !pluginHeadBranches.includes(prSourceBranch)
+                  ? `live plugin HEAD branches ${JSON.stringify(pluginHeadBranches)} did not include PR source branch ${prSourceBranch}`
+                  : "live plugin HEAD candidate lost to a higher-priority configured repo candidate",
+      },
     ],
   };
 }
