@@ -495,6 +495,11 @@ export async function executeCompletion(opts: {
       repoBranchMatchesSourceBranch: branchDecisionContext.repoBranch !== null && sourceBranch != null && branchDecisionContext.repoBranch === sourceBranch,
       pluginBranchMatchesSourceBranch: branchDecisionContext.pluginBranch !== null && sourceBranch != null && branchDecisionContext.pluginBranch === sourceBranch,
     },
+    branchSelectionWinnerSummary: branchDecisionContext.branchSelectionWinnerSummary ?? null,
+    branchWinnerDecisionSummary: branchDecisionContext.branchWinnerDecisionSummary ?? null,
+    duplicateSourceDecision: branchDecisionContext.duplicateSourceRisk
+      ? "transition is running with duplicate-source risk flagged in branch decision context"
+      : "transition is running without duplicate-source risk in branch decision context",
     transitionReasonCategory: transitionedTo === "Refining"
       ? `work_finish_${result}`
       : transitionedTo === "To Review"
@@ -536,6 +541,11 @@ export async function executeCompletion(opts: {
         repoBranchMatchesSourceBranch: branchDecisionContext.repoBranch !== null && sourceBranch != null && branchDecisionContext.repoBranch === sourceBranch,
         pluginBranchMatchesSourceBranch: branchDecisionContext.pluginBranch !== null && sourceBranch != null && branchDecisionContext.pluginBranch === sourceBranch,
       },
+      branchSelectionWinnerSummary: branchDecisionContext.branchSelectionWinnerSummary ?? null,
+      branchWinnerDecisionSummary: branchDecisionContext.branchWinnerDecisionSummary ?? null,
+      duplicateSourceDecision: branchDecisionContext.duplicateSourceRisk
+        ? "transition failed while duplicate-source risk was flagged in branch decision context"
+        : "transition failed without duplicate-source risk in branch decision context",
       error: (err as Error).message ?? String(err),
       errorName: err instanceof Error ? err.name : null,
       transitionReasonCategory: transitionedTo === "Refining"
@@ -578,6 +588,11 @@ export async function executeCompletion(opts: {
       repoBranchMatchesSourceBranch: branchDecisionContext.repoBranch !== null && sourceBranch != null && branchDecisionContext.repoBranch === sourceBranch,
       pluginBranchMatchesSourceBranch: branchDecisionContext.pluginBranch !== null && sourceBranch != null && branchDecisionContext.pluginBranch === sourceBranch,
     },
+    branchSelectionWinnerSummary: branchDecisionContext.branchSelectionWinnerSummary ?? null,
+    branchWinnerDecisionSummary: branchDecisionContext.branchWinnerDecisionSummary ?? null,
+    duplicateSourceDecision: branchDecisionContext.duplicateSourceRisk
+      ? "transition completed while duplicate-source risk was flagged in branch decision context"
+      : "transition completed without duplicate-source risk in branch decision context",
     transitionReasonCategory: transitionedTo === "Refining"
       ? `work_finish_${result}`
       : transitionedTo === "To Review"

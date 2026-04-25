@@ -232,6 +232,7 @@ export async function checkWorkerHealth(opts: {
         const sessionSnapshot = sessionKey && sessions?.has(sessionKey)
           ? sessions.get(sessionKey)
           : null;
+        const canRequeueIssue = issue != null && currentLabel === expectedLabel;
         await recordLoopDiagnostic(workspaceDir, "health_orphan_detected", {
           project: project.name,
           projectSlug,
@@ -265,8 +266,13 @@ export async function checkWorkerHealth(opts: {
                 model: sessionSnapshot.model ?? null,
               }
             : null,
-          canRequeueIssue: issue != null && currentLabel === expectedLabel,
-          willOnlyDeactivateSlot: !(issue != null && currentLabel === expectedLabel),
+          canRequeueIssue,
+          willOnlyDeactivateSlot: !canRequeueIssue,
+          healthDecisionCategory: canRequeueIssue ? "orphan_can_requeue" : "orphan_deactivate_only",
+          healthDecisionSummary: canRequeueIssue
+            ? `health classified ${reason} as recoverable because the issue still had expected label ${expectedLabel}`
+            : `health classified ${reason} as deactivate-only because issue label ${currentLabel ?? "unknown"} no longer matched expected ${expectedLabel}`,
+          orphanClassificationSummary: `orphan reason ${reason}; slot=${slot.active ? "active" : "inactive"}; expected=${expectedLabel}; current=${currentLabel ?? "unknown"}; canRequeue=${canRequeueIssue}`,
           healthRequeueLoopReason: "orphan_requeue",
           loopBrakeReason: "orphan_requeue",
           orphanReason: reason,
@@ -305,6 +311,8 @@ export async function checkWorkerHealth(opts: {
             currentIssueStateLabel: currentLabel,
             issueClosed: issue ? isIssueClosed(issue) : null,
             healthRequeueReason: "orphaned active slot recovered by reverting issue to queue label",
+            healthDecisionCategory: "orphan_requeued",
+            healthDecisionSummary: `health reverted ${from} -> ${to} after orphan classification ${opts.orphanReason ?? "unknown"}`,
             healthRequeueLoopReason: "orphan_requeue",
             loopBrakeReason: "orphan_requeue",
             orphanReason: opts.orphanReason ?? null,
@@ -335,6 +343,8 @@ export async function checkWorkerHealth(opts: {
             currentIssueStateLabel: currentLabel,
             issueClosed: issue ? isIssueClosed(issue) : null,
             error: (err as Error).message ?? String(err),
+            healthDecisionCategory: "orphan_requeue_failed",
+            healthDecisionSummary: `health could not revert ${from} -> ${to} after orphan classification ${opts.orphanReason ?? "unknown"}`,
             healthRequeueLoopReason: "orphan_requeue",
             loopBrakeReason: "orphan_requeue",
             orphanReason: opts.orphanReason ?? null,
@@ -439,6 +449,8 @@ export async function checkWorkerHealth(opts: {
           autoFix,
           canRequeueIssue: false,
           willOnlyDeactivateSlot: true,
+          healthDecisionCategory: "label_drift_deactivate_only",
+          healthDecisionSummary: `health will only deactivate because issue already drifted from ${expectedLabel} to ${currentLabel ?? "unknown"}`,
           orphanReason: "label_mismatch",
           decisionPath: `active slot was expected in ${expectedLabel}, but issue had already drifted to ${currentLabel}, so health will only deactivate the slot and must not assign orphan_requeue`,
         }).catch(() => {});

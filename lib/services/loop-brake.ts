@@ -44,6 +44,9 @@ export type LoopBrakeDecision = {
     rawHealthDecisionCategory?: string;
     eventShapeSummary?: string;
     compactDecisionSummary?: string;
+    rawHealthDecisionSummary?: string;
+    rawBranchWinnerSummary?: string;
+    rawDuplicateSourceDecision?: string;
   }>;
   reasonHistogram: Record<string, number>;
   sourceHistogram: Record<string, number>;
@@ -179,6 +182,9 @@ function toLoopEvent(entry: AuditEntry): LoopBrakeDecision["events"][number] | n
       rawHealthDecisionCategory: asString(entry.healthDecisionCategory),
       eventShapeSummary: `event=${event} stage=${asString(entry.stage) ?? "?"} issueField=${typeof entry.issueId === "number" ? "issueId" : typeof entry.issue === "number" ? "issue" : "none"} labels=${asString(entry.from) ?? "?"}->${asString(entry.to) ?? "?"}`,
       compactDecisionSummary: `health_requeue ${asString(entry.from) ?? "?"}->${asString(entry.to) ?? "?"} counted as ${rawReason ?? "orphan_requeue"}${asString(entry.orphanReason) ? ` (${asString(entry.orphanReason)})` : ""}`,
+      rawHealthDecisionSummary: asString(entry.healthDecisionSummary),
+      rawBranchWinnerSummary: asString(entry.branchSelectionWinnerSummary) ?? asString(entry.branchWinnerDecisionSummary),
+      rawDuplicateSourceDecision: asString(entry.duplicateSourceDecision),
     };
   }
 
@@ -211,6 +217,9 @@ function toLoopEvent(entry: AuditEntry): LoopBrakeDecision["events"][number] | n
       rawHealthDecisionCategory: asString(entry.healthDecisionCategory),
       eventShapeSummary: `event=${event} stage=${asString(entry.stage) ?? "?"} result=${asString(entry.result) ?? "?"} issueField=${typeof entry.issueId === "number" ? "issueId" : typeof entry.issue === "number" ? "issue" : "none"} labels=${asString(entry.from) ?? "?"}->${asString(entry.to) ?? "?"}`,
       compactDecisionSummary: `work_finish ${asString(entry.result) ?? "?"} ${asString(entry.from) ?? "?"}->${asString(entry.to) ?? "?"} counted as ${rawReason ?? "blocked"}`,
+      rawHealthDecisionSummary: asString(entry.healthDecisionSummary),
+      rawBranchWinnerSummary: asString(entry.branchSelectionWinnerSummary) ?? asString(entry.branchWinnerDecisionSummary),
+      rawDuplicateSourceDecision: asString(entry.duplicateSourceDecision),
     };
   }
 
@@ -241,6 +250,9 @@ function toLoopEvent(entry: AuditEntry): LoopBrakeDecision["events"][number] | n
         rawHealthDecisionCategory: asString(entry.healthDecisionCategory),
         eventShapeSummary: `event=${event} reason=${reason} issueField=${typeof entry.issueId === "number" ? "issueId" : typeof entry.issue === "number" ? "issue" : "none"} labels=${asString(entry.from) ?? "?"}->${asString(entry.to) ?? "?"}`,
         compactDecisionSummary: `review_transition ${reason} ${asString(entry.from) ?? "?"}->${asString(entry.to) ?? "?"} counted by loop brake`,
+        rawHealthDecisionSummary: asString(entry.healthDecisionSummary),
+        rawBranchWinnerSummary: asString(entry.branchSelectionWinnerSummary) ?? asString(entry.branchWinnerDecisionSummary),
+        rawDuplicateSourceDecision: asString(entry.duplicateSourceDecision),
       };
     }
   }

@@ -847,6 +847,7 @@ export function createWorkFinishTool(ctx: PluginContext) {
             ? "plugin config points at more than one distinct realpath, so install evidence is ambiguous until duplicate source is cleared"
             : "plugin config realpaths are singular or unresolved, so duplicate source risk is not evident from config alone",
         duplicateSourceCompetingRealPaths: pluginSourceConfigSummary.conflictingDevclawRealPaths,
+        duplicateSourceDistinctRealPathCount: pluginSourceConfigSummary.distinctDevclawRealPathCount,
         duplicateSourceWinningRealPathGuess: pluginSourceConfigSummary.likelyWinningLiveRealPath,
         liveSourceDecision:
           openclawConfigInstallSourceRealPath && typeof pluginSnapshot.realRepoPath === "string"
@@ -871,7 +872,10 @@ export function createWorkFinishTool(ctx: PluginContext) {
                 : initialBranchResolution.preferredBranchSource === "live_plugin_head_branches"
                   ? "live plugin detached-HEAD candidates currently look more trustworthy than configured repo branch for PR matching"
                   : "no PR-aware branch match exists yet, so fallback branch selection would be ambiguous",
+        branchSelectionWinnerSummary: initialBranchResolution.branchSelectionWinnerSummary,
+        branchWinnerDecisionSummary: initialBranchResolution.branchWinnerDecisionSummary,
         branchSelectionCandidateSnapshot: initialBranchResolution.branchSourceCandidatesInPriorityOrder,
+        branchSelectionCandidateDecisionTable: initialBranchResolution.branchSourceCandidateDiagnostics,
         laneIdentitySummary: {
           configuredRepoPathBasename: typeof repoPath === "string" ? repoPath.split("/").filter(Boolean).at(-1) ?? null : null,
           pluginSourceRootBasename: pluginSourceRoot.split("/").filter(Boolean).at(-1) ?? null,
@@ -892,6 +896,7 @@ export function createWorkFinishTool(ctx: PluginContext) {
               ? "same_realpath_same_branch"
               : "same_realpath_branch_mismatch"
             : "different_realpaths",
+        laneMismatchSummary: initialBranchResolution.branchMismatchSummary,
       }).catch(() => {});
 
       try {
