@@ -182,9 +182,17 @@ export async function executeCompletion(opts: {
     isConflictCycle: boolean | null;
     branchResolution: Record<string, unknown>;
     branchResolutionDecision: string;
+    branchResolutionPreferredSource: string | null;
+    preferredBranchSource: string | null;
+    preferredBranchConfidence: string | null;
+    branchResolutionPreferredEvidence: string | null;
     branchWinnerDecisionSummary: string | null;
     branchSelectionWinnerSummary: string | null;
     branchWinnerComparedToLaneSummary: string | null;
+    branchSourceCandidateDecisionTable: Array<Record<string, unknown>> | null;
+    branchSourceCandidatesInPriorityOrder: Array<Record<string, unknown>> | null;
+    branchMismatchSummary: string[] | null;
+    laneMismatchCategory: string | null;
   } | null;
   /** Level of the completing worker */
   level?: string;
@@ -572,9 +580,11 @@ export async function executeCompletion(opts: {
     prValidationBranchWinnerComparedToLaneSummary: prValidationSummary?.branchWinnerComparedToLaneSummary ?? null,
     prValidationBranchResolutionPreferredSource: prValidationSummary?.preferredBranchSource ?? null,
     prValidationPreferredBranchConfidence: prValidationSummary?.preferredBranchConfidence ?? null,
+    prValidationBranchResolutionPreferredEvidence: prValidationSummary?.branchResolutionPreferredEvidence ?? null,
     prValidationBranchSourceCandidateDecisionTable: prValidationSummary?.branchSourceCandidateDecisionTable ?? null,
     prValidationBranchSourceCandidatesInPriorityOrder: prValidationSummary?.branchSourceCandidatesInPriorityOrder ?? null,
     prValidationLaneMismatchSummary: prValidationSummary?.branchMismatchSummary ?? null,
+    prValidationLaneMismatchCategory: prValidationSummary?.laneMismatchCategory ?? null,
 
   }).catch(() => {});
 
@@ -651,6 +661,13 @@ export async function executeCompletion(opts: {
       prValidationBranchWinnerDecisionSummary: prValidationSummary?.branchWinnerDecisionSummary ?? null,
       prValidationBranchSelectionWinnerSummary: prValidationSummary?.branchSelectionWinnerSummary ?? null,
       prValidationBranchWinnerComparedToLaneSummary: prValidationSummary?.branchWinnerComparedToLaneSummary ?? null,
+      prValidationBranchResolutionPreferredSource: prValidationSummary?.preferredBranchSource ?? null,
+      prValidationPreferredBranchConfidence: prValidationSummary?.preferredBranchConfidence ?? null,
+      prValidationBranchResolutionPreferredEvidence: prValidationSummary?.branchResolutionPreferredEvidence ?? null,
+      prValidationBranchSourceCandidateDecisionTable: prValidationSummary?.branchSourceCandidateDecisionTable ?? null,
+      prValidationBranchSourceCandidatesInPriorityOrder: prValidationSummary?.branchSourceCandidatesInPriorityOrder ?? null,
+      prValidationLaneMismatchSummary: prValidationSummary?.branchMismatchSummary ?? null,
+      prValidationLaneMismatchCategory: prValidationSummary?.laneMismatchCategory ?? null,
 
     }).catch(() => {});
     throw err;
@@ -730,9 +747,11 @@ export async function executeCompletion(opts: {
     prValidationBranchWinnerComparedToLaneSummary: prValidationSummary?.branchWinnerComparedToLaneSummary ?? null,
     prValidationBranchResolutionPreferredSource: prValidationSummary?.preferredBranchSource ?? null,
     prValidationPreferredBranchConfidence: prValidationSummary?.preferredBranchConfidence ?? null,
+    prValidationBranchResolutionPreferredEvidence: prValidationSummary?.branchResolutionPreferredEvidence ?? null,
     prValidationBranchSourceCandidateDecisionTable: prValidationSummary?.branchSourceCandidateDecisionTable ?? null,
     prValidationBranchSourceCandidatesInPriorityOrder: prValidationSummary?.branchSourceCandidatesInPriorityOrder ?? null,
     prValidationLaneMismatchSummary: prValidationSummary?.branchMismatchSummary ?? null,
+    prValidationLaneMismatchCategory: prValidationSummary?.laneMismatchCategory ?? null,
 
   }).catch(() => {});
 

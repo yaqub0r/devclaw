@@ -42,6 +42,14 @@ function buildEventAuditExcerpt(entry: AuditEntry): Record<string, unknown> {
     branchSelectionWinnerSummary: asString(entry.branchSelectionWinnerSummary) ?? null,
     branchWinnerDecisionSummary: asString(entry.branchWinnerDecisionSummary) ?? null,
     branchWinnerComparedToLaneSummary: asString(entry.branchWinnerComparedToLaneSummary) ?? null,
+    prValidationBranchResolutionPreferredSource: asString(entry.prValidationBranchResolutionPreferredSource) ?? null,
+    prValidationPreferredBranchConfidence: asString(entry.prValidationPreferredBranchConfidence) ?? null,
+    prValidationBranchResolutionPreferredEvidence: asString(entry.prValidationBranchResolutionPreferredEvidence) ?? null,
+    prValidationBranchSelectionWinnerSummary: asString(entry.prValidationBranchSelectionWinnerSummary) ?? null,
+    prValidationBranchWinnerDecisionSummary: asString(entry.prValidationBranchWinnerDecisionSummary) ?? null,
+    prValidationBranchWinnerComparedToLaneSummary: asString(entry.prValidationBranchWinnerComparedToLaneSummary) ?? null,
+    prValidationLaneMismatchSummary: asString(entry.prValidationLaneMismatchSummary) ?? null,
+    prValidationLaneMismatchCategory: asString(entry.prValidationLaneMismatchCategory) ?? null,
     liveSourceDecision: asString(entry.liveSourceDecision) ?? null,
     liveSourceSingularitySummary: asString(entry.liveSourceSingularitySummary) ?? null,
     duplicateSourceDecision: asString(entry.duplicateSourceDecision) ?? null,
@@ -136,6 +144,14 @@ export type LoopBrakeDecision = {
     rawBranchResolutionDecision?: string;
     rawPrValidationDecision?: string;
     rawPrValidationLookupOutcome?: string;
+    rawPrValidationBranchResolutionPreferredSource?: string;
+    rawPrValidationPreferredBranchConfidence?: string;
+    rawPrValidationBranchResolutionPreferredEvidence?: string;
+    rawPrValidationBranchSelectionWinnerSummary?: string;
+    rawPrValidationBranchWinnerDecisionSummary?: string;
+    rawPrValidationBranchWinnerComparedToLaneSummary?: string;
+    rawPrValidationLaneMismatchSummary?: string;
+    rawPrValidationLaneMismatchCategory?: string;
     rawRepoSnapshot?: Record<string, unknown> | null;
     rawPluginSnapshot?: Record<string, unknown> | null;
   }>;
@@ -354,6 +370,14 @@ function toLoopEvent(entry: AuditEntry): LoopBrakeDecision["events"][number] | n
       rawBranchResolutionDecision: asString(entry.branchResolutionDecision),
       rawPrValidationDecision: asString(entry.prValidationDecision),
       rawPrValidationLookupOutcome: asString(entry.prValidationLookupOutcome),
+      rawPrValidationBranchResolutionPreferredSource: asString(entry.prValidationBranchResolutionPreferredSource),
+      rawPrValidationPreferredBranchConfidence: asString(entry.prValidationPreferredBranchConfidence),
+      rawPrValidationBranchResolutionPreferredEvidence: asString(entry.prValidationBranchResolutionPreferredEvidence),
+      rawPrValidationBranchSelectionWinnerSummary: asString(entry.prValidationBranchSelectionWinnerSummary),
+      rawPrValidationBranchWinnerDecisionSummary: asString(entry.prValidationBranchWinnerDecisionSummary),
+      rawPrValidationBranchWinnerComparedToLaneSummary: asString(entry.prValidationBranchWinnerComparedToLaneSummary),
+      rawPrValidationLaneMismatchSummary: asString(entry.prValidationLaneMismatchSummary),
+      rawPrValidationLaneMismatchCategory: asString(entry.prValidationLaneMismatchCategory),
       rawRepoSnapshot: isRecord(entry.repoSnapshot) ? entry.repoSnapshot : null,
       rawPluginSnapshot: isRecord(entry.pluginSnapshot) ? entry.pluginSnapshot : null,
       eventShapeSummary: `event=${event} stage=${asString(entry.stage) ?? "?"} issueField=${typeof entry.issueId === "number" ? "issueId" : typeof entry.issue === "number" ? "issue" : "none"} labels=${asString(entry.from) ?? "?"}->${asString(entry.to) ?? "?"}`,
@@ -405,6 +429,14 @@ function toLoopEvent(entry: AuditEntry): LoopBrakeDecision["events"][number] | n
       rawBranchResolutionDecision: asString(entry.branchResolutionDecision),
       rawPrValidationDecision: asString(entry.prValidationDecision),
       rawPrValidationLookupOutcome: asString(entry.prValidationLookupOutcome),
+      rawPrValidationBranchResolutionPreferredSource: asString(entry.prValidationBranchResolutionPreferredSource),
+      rawPrValidationPreferredBranchConfidence: asString(entry.prValidationPreferredBranchConfidence),
+      rawPrValidationBranchResolutionPreferredEvidence: asString(entry.prValidationBranchResolutionPreferredEvidence),
+      rawPrValidationBranchSelectionWinnerSummary: asString(entry.prValidationBranchSelectionWinnerSummary),
+      rawPrValidationBranchWinnerDecisionSummary: asString(entry.prValidationBranchWinnerDecisionSummary),
+      rawPrValidationBranchWinnerComparedToLaneSummary: asString(entry.prValidationBranchWinnerComparedToLaneSummary),
+      rawPrValidationLaneMismatchSummary: asString(entry.prValidationLaneMismatchSummary),
+      rawPrValidationLaneMismatchCategory: asString(entry.prValidationLaneMismatchCategory),
       rawRepoSnapshot: isRecord(entry.repoSnapshot) ? entry.repoSnapshot : null,
       rawPluginSnapshot: isRecord(entry.pluginSnapshot) ? entry.pluginSnapshot : null,
       eventShapeSummary: `event=${event} stage=${asString(entry.stage) ?? "?"} result=${asString(entry.result) ?? "?"} issueField=${typeof entry.issueId === "number" ? "issueId" : typeof entry.issue === "number" ? "issue" : "none"} labels=${asString(entry.from) ?? "?"}->${asString(entry.to) ?? "?"}`,
@@ -454,6 +486,14 @@ function toLoopEvent(entry: AuditEntry): LoopBrakeDecision["events"][number] | n
         rawBranchResolutionDecision: asString(entry.branchResolutionDecision),
         rawPrValidationDecision: asString(entry.prValidationDecision),
         rawPrValidationLookupOutcome: asString(entry.prValidationLookupOutcome),
+        rawPrValidationBranchResolutionPreferredSource: asString(entry.prValidationBranchResolutionPreferredSource),
+        rawPrValidationPreferredBranchConfidence: asString(entry.prValidationPreferredBranchConfidence),
+        rawPrValidationBranchResolutionPreferredEvidence: asString(entry.prValidationBranchResolutionPreferredEvidence),
+        rawPrValidationBranchSelectionWinnerSummary: asString(entry.prValidationBranchSelectionWinnerSummary),
+        rawPrValidationBranchWinnerDecisionSummary: asString(entry.prValidationBranchWinnerDecisionSummary),
+        rawPrValidationBranchWinnerComparedToLaneSummary: asString(entry.prValidationBranchWinnerComparedToLaneSummary),
+        rawPrValidationLaneMismatchSummary: asString(entry.prValidationLaneMismatchSummary),
+        rawPrValidationLaneMismatchCategory: asString(entry.prValidationLaneMismatchCategory),
         rawRepoSnapshot: isRecord(entry.repoSnapshot) ? entry.repoSnapshot : null,
         rawPluginSnapshot: isRecord(entry.pluginSnapshot) ? entry.pluginSnapshot : null,
         eventShapeSummary: `event=${event} reason=${reason} issueField=${typeof entry.issueId === "number" ? "issueId" : typeof entry.issue === "number" ? "issue" : "none"} labels=${asString(entry.from) ?? "?"}->${asString(entry.to) ?? "?"}`,
