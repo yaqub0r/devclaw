@@ -28206,6 +28206,7 @@ function buildBranchResolutionDiagnostic(opts) {
   const pluginRealPath = typeof opts.pluginSnapshot.realRepoPath === "string" ? opts.pluginSnapshot.realRepoPath : null;
   const repoHead = typeof opts.repoSnapshot.head === "string" ? opts.repoSnapshot.head : null;
   const pluginHead = typeof opts.pluginSnapshot.head === "string" ? opts.pluginSnapshot.head : null;
+  const repoAndPluginSameHead = repoHead !== null && pluginHead !== null && repoHead === pluginHead;
   const repoDetachedHead = repoBranch === null || repoBranch.length === 0;
   const pluginDetachedHead = pluginBranch === null || pluginBranch.length === 0;
   const repoWorkTreeBasename = repoWorkTree ? repoWorkTree.split("/").filter(Boolean).at(-1) ?? null : null;
@@ -28294,9 +28295,13 @@ function buildBranchResolutionDiagnostic(opts) {
       pluginWorkTree === opts.pluginSourceRoot ? "live plugin worktree matches resolved plugin source root" : "live plugin worktree differs from resolved plugin source root",
       repoRealPath !== null && pluginRealPath !== null && repoRealPath === pluginRealPath ? "configured repo and live plugin share a realpath" : "configured repo and live plugin resolve to different realpaths",
       repoBranch !== null && pluginBranch !== null && repoBranch === pluginBranch ? "configured repo and live plugin report the same branch" : "configured repo and live plugin report different branches or one side is detached",
+      repoAndPluginSameHead ? `configured repo and live plugin point at the same HEAD commit ${repoHead}` : repoHead !== null && pluginHead !== null ? `configured repo HEAD ${repoHead} differs from live plugin HEAD ${pluginHead}` : "configured repo or live plugin HEAD commit was unavailable",
       repoDetachedHead ? "configured repo appears detached or branch --show-current was empty" : "configured repo reports a named current branch",
       pluginDetachedHead ? "live plugin appears detached or branch --show-current was empty" : "live plugin reports a named current branch"
     ],
+    repoAndPluginSameHead,
+    headCommitComparisonCategory: repoHead !== null && pluginHead !== null ? repoHead === pluginHead ? repoBranch !== null && pluginBranch !== null && repoBranch === pluginBranch ? "same_head_same_branch" : "same_head_branch_identity_differs" : "different_head_commits" : "head_commit_unavailable",
+    headCommitDecisionSummary: repoHead !== null && pluginHead !== null ? repoHead === pluginHead ? repoBranch !== null && pluginBranch !== null && repoBranch === pluginBranch ? `configured repo and live plugin share HEAD ${repoHead} and branch identity ${repoBranch}` : `configured repo and live plugin share HEAD ${repoHead} but expose different branch identity (${repoBranch ?? "missing"} vs ${pluginBranch ?? "missing"})` : `configured repo HEAD ${repoHead} differs from live plugin HEAD ${pluginHead}` : "configured repo or live plugin HEAD commit was unavailable during branch-resolution diagnostics",
     branchSourceCandidatesInPriorityOrder: [
       { source: "configured_repo_branch", value: repoBranch, matchesPrSourceBranch: repoBranch !== null && prSourceBranch !== null && repoBranch === prSourceBranch, priority: 1 },
       { source: "configured_repo_head_branches", value: repoHeadBranches, matchesPrSourceBranch: prSourceBranch !== null && repoHeadBranches.includes(prSourceBranch), priority: 2 },
@@ -28563,6 +28568,8 @@ async function validatePrExistsForDeveloper(issueId, repoPath, provider, runComm
       branchWinnerDecisionSummary: typeof branchResolution.branchWinnerDecisionSummary === "string" ? branchResolution.branchWinnerDecisionSummary : null,
       branchSelectionWinnerSummary: typeof branchResolution.branchSelectionWinnerSummary === "string" ? branchResolution.branchSelectionWinnerSummary : null,
       branchWinnerComparedToLaneSummary: typeof branchResolution.branchWinnerComparedToLaneSummary === "string" ? branchResolution.branchWinnerComparedToLaneSummary : null,
+      headCommitComparisonCategory: typeof branchResolution.headCommitComparisonCategory === "string" ? branchResolution.headCommitComparisonCategory : null,
+      headCommitDecisionSummary: typeof branchResolution.headCommitDecisionSummary === "string" ? branchResolution.headCommitDecisionSummary : null,
       branchSourceCandidateDecisionTable: Array.isArray(branchResolution.branchSourceCandidateDecisionTable) ? branchResolution.branchSourceCandidateDecisionTable : null,
       branchSourceCandidatesInPriorityOrder: Array.isArray(branchResolution.branchSourceCandidatesInPriorityOrder) ? branchResolution.branchSourceCandidatesInPriorityOrder : null,
       branchMismatchSummary: Array.isArray(branchResolution.branchMismatchSummary) ? branchResolution.branchMismatchSummary.filter((value) => typeof value === "string") : null,
@@ -28590,6 +28597,8 @@ async function validatePrExistsForDeveloper(issueId, repoPath, provider, runComm
       branchWinnerDecisionSummary: typeof branchResolution.branchWinnerDecisionSummary === "string" ? branchResolution.branchWinnerDecisionSummary : null,
       branchSelectionWinnerSummary: typeof branchResolution.branchSelectionWinnerSummary === "string" ? branchResolution.branchSelectionWinnerSummary : null,
       branchWinnerComparedToLaneSummary: typeof branchResolution.branchWinnerComparedToLaneSummary === "string" ? branchResolution.branchWinnerComparedToLaneSummary : null,
+      headCommitComparisonCategory: typeof branchResolution.headCommitComparisonCategory === "string" ? branchResolution.headCommitComparisonCategory : null,
+      headCommitDecisionSummary: typeof branchResolution.headCommitDecisionSummary === "string" ? branchResolution.headCommitDecisionSummary : null,
       branchSourceCandidateDecisionTable: Array.isArray(branchResolution.branchSourceCandidateDecisionTable) ? branchResolution.branchSourceCandidateDecisionTable : null,
       branchSourceCandidateDiagnostics: Array.isArray(branchResolution.branchSourceCandidateDiagnostics) ? branchResolution.branchSourceCandidateDiagnostics : null,
       branchSourceCandidatesInPriorityOrder: Array.isArray(branchResolution.branchSourceCandidatesInPriorityOrder) ? branchResolution.branchSourceCandidatesInPriorityOrder : null,
@@ -28640,6 +28649,8 @@ async function validatePrExistsForDeveloper(issueId, repoPath, provider, runComm
         branchWinnerDecisionSummary: typeof missingPrBranchResolution.branchWinnerDecisionSummary === "string" ? missingPrBranchResolution.branchWinnerDecisionSummary : null,
         branchSelectionWinnerSummary: typeof missingPrBranchResolution.branchSelectionWinnerSummary === "string" ? missingPrBranchResolution.branchSelectionWinnerSummary : null,
         branchWinnerComparedToLaneSummary: typeof missingPrBranchResolution.branchWinnerComparedToLaneSummary === "string" ? missingPrBranchResolution.branchWinnerComparedToLaneSummary : null,
+        headCommitComparisonCategory: typeof missingPrBranchResolution.headCommitComparisonCategory === "string" ? missingPrBranchResolution.headCommitComparisonCategory : null,
+        headCommitDecisionSummary: typeof missingPrBranchResolution.headCommitDecisionSummary === "string" ? missingPrBranchResolution.headCommitDecisionSummary : null,
         branchSourceCandidateDecisionTable: Array.isArray(missingPrBranchResolution.branchSourceCandidateDecisionTable) ? missingPrBranchResolution.branchSourceCandidateDecisionTable : null,
         branchSourceCandidateDiagnostics: Array.isArray(missingPrBranchResolution.branchSourceCandidateDiagnostics) ? missingPrBranchResolution.branchSourceCandidateDiagnostics : null,
         branchSourceCandidatesInPriorityOrder: Array.isArray(missingPrBranchResolution.branchSourceCandidatesInPriorityOrder) ? missingPrBranchResolution.branchSourceCandidatesInPriorityOrder : null,
@@ -28961,6 +28972,8 @@ function createWorkFinishTool(ctx) {
         },
         branchSelectionWinnerSummary: initialBranchResolution.branchSelectionWinnerSummary,
         branchWinnerDecisionSummary: initialBranchResolution.branchWinnerDecisionSummary,
+        headCommitComparisonCategory: initialBranchResolution.headCommitComparisonCategory,
+        headCommitDecisionSummary: initialBranchResolution.headCommitDecisionSummary,
         branchSelectionCandidateSnapshot: initialBranchResolution.branchSourceCandidatesInPriorityOrder,
         branchSelectionCandidateDecisionTable: initialBranchResolution.branchSourceCandidateDiagnostics,
         laneIdentitySummary: {
@@ -32731,6 +32744,8 @@ function buildEventAuditExcerpt(entry) {
     branchSelectionWinnerSummary: asString(entry.branchSelectionWinnerSummary) ?? null,
     branchWinnerDecisionSummary: asString(entry.branchWinnerDecisionSummary) ?? null,
     branchWinnerComparedToLaneSummary: asString(entry.branchWinnerComparedToLaneSummary) ?? null,
+    headCommitComparisonCategory: asString(entry.headCommitComparisonCategory) ?? null,
+    headCommitDecisionSummary: asString(entry.headCommitDecisionSummary) ?? null,
     prValidationBranchResolutionPreferredSource: asString(entry.prValidationBranchResolutionPreferredSource) ?? null,
     prValidationPreferredBranchConfidence: asString(entry.prValidationPreferredBranchConfidence) ?? null,
     prValidationBranchResolutionPreferredEvidence: asString(entry.prValidationBranchResolutionPreferredEvidence) ?? null,
@@ -32960,6 +32975,8 @@ function toLoopEvent(entry) {
       rawHealthDecisionSummary: asString(entry.healthDecisionSummary),
       rawBranchSelectionDecision: asString(entry.branchSelectionDecision),
       rawBranchWinnerSummary: asString(entry.branchSelectionWinnerSummary) ?? asString(entry.branchWinnerDecisionSummary),
+      rawHeadCommitComparisonCategory: asString(entry.headCommitComparisonCategory),
+      rawHeadCommitDecisionSummary: asString(entry.headCommitDecisionSummary),
       rawDuplicateSourceDecision: asString(entry.duplicateSourceDecision),
       rawPreferredBranchSource: asString(entry.branchResolutionPreferredSource) ?? asString(entry.preferredBranchSource),
       rawBranchResolutionPreferredEvidence: asString(entry.branchResolutionPreferredEvidence),
@@ -33051,9 +33068,11 @@ function toLoopEvent(entry) {
       rawRepoSnapshot: isRecord(entry.repoSnapshot) ? entry.repoSnapshot : null,
       rawPluginSnapshot: isRecord(entry.pluginSnapshot) ? entry.pluginSnapshot : null,
       eventShapeSummary: `event=${event} stage=${asString(entry.stage) ?? "?"} result=${asString(entry.result) ?? "?"} issueField=${typeof entry.issueId === "number" ? "issueId" : typeof entry.issue === "number" ? "issue" : "none"} labels=${asString(entry.from) ?? "?"}->${asString(entry.to) ?? "?"}`,
-      compactDecisionSummary: `work_finish ${asString(entry.result) ?? "?"} ${asString(entry.from) ?? "?"}->${asString(entry.to) ?? "?"} counted as ${rawReason ?? "blocked"}${asString(entry.prValidationLookupTargetingDecision) ? `; PR targeting: ${asString(entry.prValidationLookupTargetingDecision)}` : ""}${asString(entry.prValidationDetectedBranchDecisionSummary) ? `; detected branch: ${asString(entry.prValidationDetectedBranchDecisionSummary)}` : ""}`,
+      compactDecisionSummary: `work_finish ${asString(entry.result) ?? "?"} ${asString(entry.from) ?? "?"}->${asString(entry.to) ?? "?"} counted as ${rawReason ?? "blocked"}${asString(entry.prValidationLookupTargetingDecision) ? `; PR targeting: ${asString(entry.prValidationLookupTargetingDecision)}` : ""}${asString(entry.prValidationDetectedBranchDecisionSummary) ? `; detected branch: ${asString(entry.prValidationDetectedBranchDecisionSummary)}` : ""}${asString(entry.headCommitDecisionSummary) ? `; HEADs: ${asString(entry.headCommitDecisionSummary)}` : ""}`,
       rawHealthDecisionSummary: asString(entry.healthDecisionSummary),
       rawBranchWinnerSummary: asString(entry.branchSelectionWinnerSummary) ?? asString(entry.branchWinnerDecisionSummary),
+      rawHeadCommitComparisonCategory: asString(entry.headCommitComparisonCategory),
+      rawHeadCommitDecisionSummary: asString(entry.headCommitDecisionSummary),
       rawDuplicateSourceDecision: asString(entry.duplicateSourceDecision),
       rawPreferredBranchSource: asString(entry.branchResolutionPreferredSource) ?? asString(entry.preferredBranchSource),
       rawBranchResolutionPreferredEvidence: asString(entry.branchResolutionPreferredEvidence),
@@ -33129,9 +33148,11 @@ function toLoopEvent(entry) {
         rawRepoSnapshot: isRecord(entry.repoSnapshot) ? entry.repoSnapshot : null,
         rawPluginSnapshot: isRecord(entry.pluginSnapshot) ? entry.pluginSnapshot : null,
         eventShapeSummary: `event=${event} reason=${reason} issueField=${typeof entry.issueId === "number" ? "issueId" : typeof entry.issue === "number" ? "issue" : "none"} labels=${asString(entry.from) ?? "?"}->${asString(entry.to) ?? "?"}`,
-        compactDecisionSummary: `review_transition ${reason} ${asString(entry.from) ?? "?"}->${asString(entry.to) ?? "?"} counted by loop brake${asString(entry.prValidationLookupTargetingDecision) ? `; PR targeting: ${asString(entry.prValidationLookupTargetingDecision)}` : ""}${asString(entry.prValidationDetectedBranchDecisionSummary) ? `; detected branch: ${asString(entry.prValidationDetectedBranchDecisionSummary)}` : ""}`,
+        compactDecisionSummary: `review_transition ${reason} ${asString(entry.from) ?? "?"}->${asString(entry.to) ?? "?"} counted by loop brake${asString(entry.prValidationLookupTargetingDecision) ? `; PR targeting: ${asString(entry.prValidationLookupTargetingDecision)}` : ""}${asString(entry.prValidationDetectedBranchDecisionSummary) ? `; detected branch: ${asString(entry.prValidationDetectedBranchDecisionSummary)}` : ""}${asString(entry.headCommitDecisionSummary) ? `; HEADs: ${asString(entry.headCommitDecisionSummary)}` : ""}`,
         rawHealthDecisionSummary: asString(entry.healthDecisionSummary),
         rawBranchWinnerSummary: asString(entry.branchSelectionWinnerSummary) ?? asString(entry.branchWinnerDecisionSummary),
+        rawHeadCommitComparisonCategory: asString(entry.headCommitComparisonCategory),
+        rawHeadCommitDecisionSummary: asString(entry.headCommitDecisionSummary),
         rawDuplicateSourceDecision: asString(entry.duplicateSourceDecision),
         rawPreferredBranchSource: asString(entry.branchResolutionPreferredSource) ?? asString(entry.preferredBranchSource),
         rawPreferredBranchConfidence: asString(entry.preferredBranchConfidence),

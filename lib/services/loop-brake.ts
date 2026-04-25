@@ -44,6 +44,8 @@ function buildEventAuditExcerpt(entry: AuditEntry): Record<string, unknown> {
     branchSelectionWinnerSummary: asString(entry.branchSelectionWinnerSummary) ?? null,
     branchWinnerDecisionSummary: asString(entry.branchWinnerDecisionSummary) ?? null,
     branchWinnerComparedToLaneSummary: asString(entry.branchWinnerComparedToLaneSummary) ?? null,
+    headCommitComparisonCategory: asString(entry.headCommitComparisonCategory) ?? null,
+    headCommitDecisionSummary: asString(entry.headCommitDecisionSummary) ?? null,
     prValidationBranchResolutionPreferredSource: asString(entry.prValidationBranchResolutionPreferredSource) ?? null,
     prValidationPreferredBranchConfidence: asString(entry.prValidationPreferredBranchConfidence) ?? null,
     prValidationBranchResolutionPreferredEvidence: asString(entry.prValidationBranchResolutionPreferredEvidence) ?? null,
@@ -160,6 +162,8 @@ export type LoopBrakeDecision = {
     rawHealthDecisionSummary?: string;
     rawBranchSelectionDecision?: string;
     rawBranchWinnerSummary?: string;
+    rawHeadCommitComparisonCategory?: string;
+    rawHeadCommitDecisionSummary?: string;
     rawDuplicateSourceDecision?: string;
     rawPreferredBranchSource?: string;
     rawBranchResolutionPreferredEvidence?: string;
@@ -464,6 +468,8 @@ function toLoopEvent(entry: AuditEntry): LoopBrakeDecision["events"][number] | n
       rawHealthDecisionSummary: asString(entry.healthDecisionSummary),
       rawBranchSelectionDecision: asString(entry.branchSelectionDecision),
       rawBranchWinnerSummary: asString(entry.branchSelectionWinnerSummary) ?? asString(entry.branchWinnerDecisionSummary),
+      rawHeadCommitComparisonCategory: asString(entry.headCommitComparisonCategory),
+      rawHeadCommitDecisionSummary: asString(entry.headCommitDecisionSummary),
       rawDuplicateSourceDecision: asString(entry.duplicateSourceDecision),
       rawPreferredBranchSource: asString(entry.branchResolutionPreferredSource) ?? asString(entry.preferredBranchSource),
       rawBranchResolutionPreferredEvidence: asString(entry.branchResolutionPreferredEvidence),
@@ -558,9 +564,11 @@ function toLoopEvent(entry: AuditEntry): LoopBrakeDecision["events"][number] | n
       rawRepoSnapshot: isRecord(entry.repoSnapshot) ? entry.repoSnapshot : null,
       rawPluginSnapshot: isRecord(entry.pluginSnapshot) ? entry.pluginSnapshot : null,
       eventShapeSummary: `event=${event} stage=${asString(entry.stage) ?? "?"} result=${asString(entry.result) ?? "?"} issueField=${typeof entry.issueId === "number" ? "issueId" : typeof entry.issue === "number" ? "issue" : "none"} labels=${asString(entry.from) ?? "?"}->${asString(entry.to) ?? "?"}`,
-      compactDecisionSummary: `work_finish ${asString(entry.result) ?? "?"} ${asString(entry.from) ?? "?"}->${asString(entry.to) ?? "?"} counted as ${rawReason ?? "blocked"}${asString(entry.prValidationLookupTargetingDecision) ? `; PR targeting: ${asString(entry.prValidationLookupTargetingDecision)}` : ""}${asString(entry.prValidationDetectedBranchDecisionSummary) ? `; detected branch: ${asString(entry.prValidationDetectedBranchDecisionSummary)}` : ""}`,
+      compactDecisionSummary: `work_finish ${asString(entry.result) ?? "?"} ${asString(entry.from) ?? "?"}->${asString(entry.to) ?? "?"} counted as ${rawReason ?? "blocked"}${asString(entry.prValidationLookupTargetingDecision) ? `; PR targeting: ${asString(entry.prValidationLookupTargetingDecision)}` : ""}${asString(entry.prValidationDetectedBranchDecisionSummary) ? `; detected branch: ${asString(entry.prValidationDetectedBranchDecisionSummary)}` : ""}${asString(entry.headCommitDecisionSummary) ? `; HEADs: ${asString(entry.headCommitDecisionSummary)}` : ""}`,
       rawHealthDecisionSummary: asString(entry.healthDecisionSummary),
       rawBranchWinnerSummary: asString(entry.branchSelectionWinnerSummary) ?? asString(entry.branchWinnerDecisionSummary),
+      rawHeadCommitComparisonCategory: asString(entry.headCommitComparisonCategory),
+      rawHeadCommitDecisionSummary: asString(entry.headCommitDecisionSummary),
       rawDuplicateSourceDecision: asString(entry.duplicateSourceDecision),
       rawPreferredBranchSource: asString(entry.branchResolutionPreferredSource) ?? asString(entry.preferredBranchSource),
       rawBranchResolutionPreferredEvidence: asString(entry.branchResolutionPreferredEvidence),
@@ -637,9 +645,11 @@ function toLoopEvent(entry: AuditEntry): LoopBrakeDecision["events"][number] | n
         rawRepoSnapshot: isRecord(entry.repoSnapshot) ? entry.repoSnapshot : null,
         rawPluginSnapshot: isRecord(entry.pluginSnapshot) ? entry.pluginSnapshot : null,
         eventShapeSummary: `event=${event} reason=${reason} issueField=${typeof entry.issueId === "number" ? "issueId" : typeof entry.issue === "number" ? "issue" : "none"} labels=${asString(entry.from) ?? "?"}->${asString(entry.to) ?? "?"}`,
-        compactDecisionSummary: `review_transition ${reason} ${asString(entry.from) ?? "?"}->${asString(entry.to) ?? "?"} counted by loop brake${asString(entry.prValidationLookupTargetingDecision) ? `; PR targeting: ${asString(entry.prValidationLookupTargetingDecision)}` : ""}${asString(entry.prValidationDetectedBranchDecisionSummary) ? `; detected branch: ${asString(entry.prValidationDetectedBranchDecisionSummary)}` : ""}`,
+        compactDecisionSummary: `review_transition ${reason} ${asString(entry.from) ?? "?"}->${asString(entry.to) ?? "?"} counted by loop brake${asString(entry.prValidationLookupTargetingDecision) ? `; PR targeting: ${asString(entry.prValidationLookupTargetingDecision)}` : ""}${asString(entry.prValidationDetectedBranchDecisionSummary) ? `; detected branch: ${asString(entry.prValidationDetectedBranchDecisionSummary)}` : ""}${asString(entry.headCommitDecisionSummary) ? `; HEADs: ${asString(entry.headCommitDecisionSummary)}` : ""}`,
         rawHealthDecisionSummary: asString(entry.healthDecisionSummary),
         rawBranchWinnerSummary: asString(entry.branchSelectionWinnerSummary) ?? asString(entry.branchWinnerDecisionSummary),
+        rawHeadCommitComparisonCategory: asString(entry.headCommitComparisonCategory),
+        rawHeadCommitDecisionSummary: asString(entry.headCommitDecisionSummary),
         rawDuplicateSourceDecision: asString(entry.duplicateSourceDecision),
         rawPreferredBranchSource: asString(entry.branchResolutionPreferredSource) ?? asString(entry.preferredBranchSource),
         rawPreferredBranchConfidence: asString(entry.preferredBranchConfidence),

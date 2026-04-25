@@ -178,6 +178,7 @@ function buildBranchResolutionDiagnostic(opts: {
   const pluginRealPath = typeof opts.pluginSnapshot.realRepoPath === "string" ? opts.pluginSnapshot.realRepoPath : null;
   const repoHead = typeof opts.repoSnapshot.head === "string" ? opts.repoSnapshot.head : null;
   const pluginHead = typeof opts.pluginSnapshot.head === "string" ? opts.pluginSnapshot.head : null;
+  const repoAndPluginSameHead = repoHead !== null && pluginHead !== null && repoHead === pluginHead;
   const repoDetachedHead = repoBranch === null || repoBranch.length === 0;
   const pluginDetachedHead = pluginBranch === null || pluginBranch.length === 0;
   const repoWorkTreeBasename = repoWorkTree ? repoWorkTree.split("/").filter(Boolean).at(-1) ?? null : null;
@@ -337,9 +338,27 @@ function buildBranchResolutionDiagnostic(opts: {
       pluginWorkTree === opts.pluginSourceRoot ? "live plugin worktree matches resolved plugin source root" : "live plugin worktree differs from resolved plugin source root",
       repoRealPath !== null && pluginRealPath !== null && repoRealPath === pluginRealPath ? "configured repo and live plugin share a realpath" : "configured repo and live plugin resolve to different realpaths",
       repoBranch !== null && pluginBranch !== null && repoBranch === pluginBranch ? "configured repo and live plugin report the same branch" : "configured repo and live plugin report different branches or one side is detached",
+      repoAndPluginSameHead ? `configured repo and live plugin point at the same HEAD commit ${repoHead}` : repoHead !== null && pluginHead !== null ? `configured repo HEAD ${repoHead} differs from live plugin HEAD ${pluginHead}` : "configured repo or live plugin HEAD commit was unavailable",
       repoDetachedHead ? "configured repo appears detached or branch --show-current was empty" : "configured repo reports a named current branch",
       pluginDetachedHead ? "live plugin appears detached or branch --show-current was empty" : "live plugin reports a named current branch",
     ],
+    repoAndPluginSameHead,
+    headCommitComparisonCategory:
+      repoHead !== null && pluginHead !== null
+        ? repoHead === pluginHead
+          ? repoBranch !== null && pluginBranch !== null && repoBranch === pluginBranch
+            ? "same_head_same_branch"
+            : "same_head_branch_identity_differs"
+          : "different_head_commits"
+        : "head_commit_unavailable",
+    headCommitDecisionSummary:
+      repoHead !== null && pluginHead !== null
+        ? repoHead === pluginHead
+          ? repoBranch !== null && pluginBranch !== null && repoBranch === pluginBranch
+            ? `configured repo and live plugin share HEAD ${repoHead} and branch identity ${repoBranch}`
+            : `configured repo and live plugin share HEAD ${repoHead} but expose different branch identity (${repoBranch ?? "missing"} vs ${pluginBranch ?? "missing"})`
+          : `configured repo HEAD ${repoHead} differs from live plugin HEAD ${pluginHead}`
+        : "configured repo or live plugin HEAD commit was unavailable during branch-resolution diagnostics",
     branchSourceCandidatesInPriorityOrder: [
       { source: "configured_repo_branch", value: repoBranch, matchesPrSourceBranch: repoBranch !== null && prSourceBranch !== null && repoBranch === prSourceBranch, priority: 1 },
       { source: "configured_repo_head_branches", value: repoHeadBranches, matchesPrSourceBranch: prSourceBranch !== null && repoHeadBranches.includes(prSourceBranch), priority: 2 },
@@ -821,6 +840,8 @@ async function validatePrExistsForDeveloper(
       branchWinnerDecisionSummary: typeof branchResolution.branchWinnerDecisionSummary === "string" ? branchResolution.branchWinnerDecisionSummary : null,
       branchSelectionWinnerSummary: typeof branchResolution.branchSelectionWinnerSummary === "string" ? branchResolution.branchSelectionWinnerSummary : null,
       branchWinnerComparedToLaneSummary: typeof branchResolution.branchWinnerComparedToLaneSummary === "string" ? branchResolution.branchWinnerComparedToLaneSummary : null,
+      headCommitComparisonCategory: typeof branchResolution.headCommitComparisonCategory === "string" ? branchResolution.headCommitComparisonCategory : null,
+      headCommitDecisionSummary: typeof branchResolution.headCommitDecisionSummary === "string" ? branchResolution.headCommitDecisionSummary : null,
       branchSourceCandidateDecisionTable: Array.isArray(branchResolution.branchSourceCandidateDecisionTable) ? branchResolution.branchSourceCandidateDecisionTable as Array<Record<string, unknown>> : null,
       branchSourceCandidatesInPriorityOrder: Array.isArray(branchResolution.branchSourceCandidatesInPriorityOrder) ? branchResolution.branchSourceCandidatesInPriorityOrder as Array<Record<string, unknown>> : null,
       branchMismatchSummary: Array.isArray(branchResolution.branchMismatchSummary) ? branchResolution.branchMismatchSummary.filter((value): value is string => typeof value === "string") : null,
@@ -862,6 +883,8 @@ async function validatePrExistsForDeveloper(
       branchWinnerDecisionSummary: typeof branchResolution.branchWinnerDecisionSummary === "string" ? branchResolution.branchWinnerDecisionSummary : null,
       branchSelectionWinnerSummary: typeof branchResolution.branchSelectionWinnerSummary === "string" ? branchResolution.branchSelectionWinnerSummary : null,
       branchWinnerComparedToLaneSummary: typeof branchResolution.branchWinnerComparedToLaneSummary === "string" ? branchResolution.branchWinnerComparedToLaneSummary : null,
+      headCommitComparisonCategory: typeof branchResolution.headCommitComparisonCategory === "string" ? branchResolution.headCommitComparisonCategory : null,
+      headCommitDecisionSummary: typeof branchResolution.headCommitDecisionSummary === "string" ? branchResolution.headCommitDecisionSummary : null,
       branchSourceCandidateDecisionTable: Array.isArray(branchResolution.branchSourceCandidateDecisionTable) ? branchResolution.branchSourceCandidateDecisionTable as Array<Record<string, unknown>> : null,
       branchSourceCandidateDiagnostics: Array.isArray(branchResolution.branchSourceCandidateDiagnostics) ? branchResolution.branchSourceCandidateDiagnostics as Array<Record<string, unknown>> : null,
       branchSourceCandidatesInPriorityOrder: Array.isArray(branchResolution.branchSourceCandidatesInPriorityOrder) ? branchResolution.branchSourceCandidatesInPriorityOrder as Array<Record<string, unknown>> : null,
@@ -924,6 +947,8 @@ async function validatePrExistsForDeveloper(
         branchWinnerDecisionSummary: typeof missingPrBranchResolution.branchWinnerDecisionSummary === "string" ? missingPrBranchResolution.branchWinnerDecisionSummary : null,
         branchSelectionWinnerSummary: typeof missingPrBranchResolution.branchSelectionWinnerSummary === "string" ? missingPrBranchResolution.branchSelectionWinnerSummary : null,
         branchWinnerComparedToLaneSummary: typeof missingPrBranchResolution.branchWinnerComparedToLaneSummary === "string" ? missingPrBranchResolution.branchWinnerComparedToLaneSummary : null,
+        headCommitComparisonCategory: typeof missingPrBranchResolution.headCommitComparisonCategory === "string" ? missingPrBranchResolution.headCommitComparisonCategory : null,
+        headCommitDecisionSummary: typeof missingPrBranchResolution.headCommitDecisionSummary === "string" ? missingPrBranchResolution.headCommitDecisionSummary : null,
         branchSourceCandidateDecisionTable: Array.isArray(missingPrBranchResolution.branchSourceCandidateDecisionTable) ? missingPrBranchResolution.branchSourceCandidateDecisionTable as Array<Record<string, unknown>> : null,
         branchSourceCandidateDiagnostics: Array.isArray(missingPrBranchResolution.branchSourceCandidateDiagnostics) ? missingPrBranchResolution.branchSourceCandidateDiagnostics as Array<Record<string, unknown>> : null,
         branchSourceCandidatesInPriorityOrder: Array.isArray(missingPrBranchResolution.branchSourceCandidatesInPriorityOrder) ? missingPrBranchResolution.branchSourceCandidatesInPriorityOrder as Array<Record<string, unknown>> : null,
@@ -1310,6 +1335,8 @@ export function createWorkFinishTool(ctx: PluginContext) {
         },
         branchSelectionWinnerSummary: initialBranchResolution.branchSelectionWinnerSummary,
         branchWinnerDecisionSummary: initialBranchResolution.branchWinnerDecisionSummary,
+        headCommitComparisonCategory: initialBranchResolution.headCommitComparisonCategory,
+        headCommitDecisionSummary: initialBranchResolution.headCommitDecisionSummary,
         branchSelectionCandidateSnapshot: initialBranchResolution.branchSourceCandidatesInPriorityOrder,
         branchSelectionCandidateDecisionTable: initialBranchResolution.branchSourceCandidateDiagnostics,
         laneIdentitySummary: {
