@@ -40,6 +40,7 @@ function buildEventAuditExcerpt(entry: AuditEntry): Record<string, unknown> {
     branchResolutionPreferredSource: asString(entry.branchResolutionPreferredSource) ?? asString(entry.preferredBranchSource) ?? null,
     branchResolutionPreferredEvidence: asString(entry.branchResolutionPreferredEvidence) ?? null,
     preferredBranchConfidence: asString(entry.preferredBranchConfidence) ?? null,
+    branchSelectionDecision: asString(entry.branchSelectionDecision) ?? null,
     branchSelectionWinnerSummary: asString(entry.branchSelectionWinnerSummary) ?? null,
     branchWinnerDecisionSummary: asString(entry.branchWinnerDecisionSummary) ?? null,
     branchWinnerComparedToLaneSummary: asString(entry.branchWinnerComparedToLaneSummary) ?? null,
@@ -80,10 +81,13 @@ function buildEventAuditExcerpt(entry: AuditEntry): Record<string, unknown> {
     duplicateSourceDecision: asString(entry.duplicateSourceDecision) ?? null,
     duplicateSourceWinningRealPathGuess: asString(entry.duplicateSourceWinningRealPathGuess) ?? null,
     duplicateSourceCompetingRealPaths: Array.isArray(entry.duplicateSourceCompetingRealPaths) ? entry.duplicateSourceCompetingRealPaths : null,
+    laneMismatchDecision: asString(entry.laneMismatchDecision) ?? null,
     laneMismatchSummary: asString(entry.laneMismatchSummary) ?? null,
     laneMismatchCategory: asString(entry.laneMismatchCategory) ?? null,
     branchSourceCandidateDecisionTable: Array.isArray(entry.branchSourceCandidateDecisionTable) ? entry.branchSourceCandidateDecisionTable : null,
     branchSourceCandidateDiagnostics: Array.isArray(entry.branchSourceCandidateDiagnostics) ? entry.branchSourceCandidateDiagnostics : null,
+    branchSelectionCandidateSnapshot: Array.isArray(entry.branchSelectionCandidateSnapshot) ? entry.branchSelectionCandidateSnapshot : null,
+    branchSelectionCandidateDecisionTable: Array.isArray(entry.branchSelectionCandidateDecisionTable) ? entry.branchSelectionCandidateDecisionTable : null,
     branchSourceCandidatesInPriorityOrder: Array.isArray(entry.branchSourceCandidatesInPriorityOrder) ? entry.branchSourceCandidatesInPriorityOrder : null,
     repoSnapshot: isRecord(entry.repoSnapshot) ? entry.repoSnapshot : null,
     pluginSnapshot: isRecord(entry.pluginSnapshot) ? entry.pluginSnapshot : null,
@@ -154,11 +158,13 @@ export type LoopBrakeDecision = {
     eventShapeSummary?: string;
     compactDecisionSummary?: string;
     rawHealthDecisionSummary?: string;
+    rawBranchSelectionDecision?: string;
     rawBranchWinnerSummary?: string;
     rawDuplicateSourceDecision?: string;
     rawPreferredBranchSource?: string;
     rawBranchResolutionPreferredEvidence?: string;
     rawPreferredBranchConfidence?: string;
+    rawLaneMismatchDecision?: string;
     rawLaneMismatchSummary?: string;
     rawLaneMismatchCategory?: string;
     rawDuplicateSourceRisk?: boolean | null;
@@ -196,6 +202,9 @@ export type LoopBrakeDecision = {
     rawDuplicateSourceCompetingRealPaths?: unknown[] | null;
     rawBranchSourceCandidateDecisionTable?: unknown[] | null;
     rawBranchSourceCandidateDiagnostics?: unknown[] | null;
+    rawBranchSelectionCandidateSnapshot?: unknown[] | null;
+    rawBranchSelectionCandidateDecisionTable?: unknown[] | null;
+    rawBranchSourceCandidatesInPriorityOrder?: unknown[] | null;
     rawPrValidationBranchResolutionPreferredSource?: string;
     rawPrValidationPreferredBranchConfidence?: string;
     rawPrValidationBranchResolutionPreferredEvidence?: string;
@@ -210,6 +219,7 @@ export type LoopBrakeDecision = {
     rawPrValidationDetectedBranchMismatchReasons?: unknown[] | null;
     rawPrValidationBranchSourceCandidateDecisionTable?: unknown[] | null;
     rawPrValidationBranchSourceCandidateDiagnostics?: unknown[] | null;
+    rawPrValidationBranchSourceCandidatesInPriorityOrder?: unknown[] | null;
     rawRepoSnapshot?: Record<string, unknown> | null;
     rawPluginSnapshot?: Record<string, unknown> | null;
   }>;
@@ -452,11 +462,13 @@ function toLoopEvent(entry: AuditEntry): LoopBrakeDecision["events"][number] | n
       eventShapeSummary: `event=${event} stage=${asString(entry.stage) ?? "?"} issueField=${typeof entry.issueId === "number" ? "issueId" : typeof entry.issue === "number" ? "issue" : "none"} labels=${asString(entry.from) ?? "?"}->${asString(entry.to) ?? "?"}`,
       compactDecisionSummary: `health_requeue ${asString(entry.from) ?? "?"}->${asString(entry.to) ?? "?"} counted as ${rawReason ?? "orphan_requeue"}${asString(entry.orphanReason) ? ` (${asString(entry.orphanReason)})` : ""}`,
       rawHealthDecisionSummary: asString(entry.healthDecisionSummary),
+      rawBranchSelectionDecision: asString(entry.branchSelectionDecision),
       rawBranchWinnerSummary: asString(entry.branchSelectionWinnerSummary) ?? asString(entry.branchWinnerDecisionSummary),
       rawDuplicateSourceDecision: asString(entry.duplicateSourceDecision),
       rawPreferredBranchSource: asString(entry.branchResolutionPreferredSource) ?? asString(entry.preferredBranchSource),
       rawBranchResolutionPreferredEvidence: asString(entry.branchResolutionPreferredEvidence),
       rawPreferredBranchConfidence: asString(entry.preferredBranchConfidence),
+      rawLaneMismatchDecision: asString(entry.laneMismatchDecision),
       rawLaneMismatchSummary: asString(entry.laneMismatchSummary),
       rawLaneMismatchCategory: asString(entry.laneMismatchCategory),
       rawDuplicateSourceRisk: typeof entry.duplicateSourceRisk === "boolean" ? entry.duplicateSourceRisk : null,
@@ -477,12 +489,16 @@ function toLoopEvent(entry: AuditEntry): LoopBrakeDecision["events"][number] | n
       rawDuplicateSourceCompetingRealPaths: Array.isArray(entry.duplicateSourceCompetingRealPaths) ? entry.duplicateSourceCompetingRealPaths : null,
       rawBranchSourceCandidateDecisionTable: Array.isArray(entry.branchSourceCandidateDecisionTable) ? entry.branchSourceCandidateDecisionTable : null,
       rawBranchSourceCandidateDiagnostics: Array.isArray(entry.branchSourceCandidateDiagnostics) ? entry.branchSourceCandidateDiagnostics : null,
+      rawBranchSelectionCandidateSnapshot: Array.isArray(entry.branchSelectionCandidateSnapshot) ? entry.branchSelectionCandidateSnapshot : null,
+      rawBranchSelectionCandidateDecisionTable: Array.isArray(entry.branchSelectionCandidateDecisionTable) ? entry.branchSelectionCandidateDecisionTable : null,
+      rawBranchSourceCandidatesInPriorityOrder: Array.isArray(entry.branchSourceCandidatesInPriorityOrder) ? entry.branchSourceCandidatesInPriorityOrder : null,
       rawPrValidationDetectedBranch: asString(entry.prValidationDetectedBranch),
       rawPrValidationDetectedBranchSource: asString(entry.prValidationDetectedBranchSource),
       rawPrValidationDetectedBranchDecisionSummary: asString(entry.prValidationDetectedBranchDecisionSummary),
       rawPrValidationDetectedBranchMismatchReasons: Array.isArray(entry.prValidationDetectedBranchMismatchReasons) ? entry.prValidationDetectedBranchMismatchReasons : null,
       rawPrValidationBranchSourceCandidateDecisionTable: Array.isArray(entry.prValidationBranchSourceCandidateDecisionTable) ? entry.prValidationBranchSourceCandidateDecisionTable : null,
       rawPrValidationBranchSourceCandidateDiagnostics: Array.isArray(entry.prValidationBranchSourceCandidateDiagnostics) ? entry.prValidationBranchSourceCandidateDiagnostics : null,
+      rawPrValidationBranchSourceCandidatesInPriorityOrder: Array.isArray(entry.prValidationBranchSourceCandidatesInPriorityOrder) ? entry.prValidationBranchSourceCandidatesInPriorityOrder : null,
       rawAuditExcerpt: buildEventAuditExcerpt(entry),
     };
   }
