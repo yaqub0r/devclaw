@@ -52,6 +52,16 @@ function buildEventAuditExcerpt(entry: AuditEntry): Record<string, unknown> {
     prValidationLaneMismatchCategory: asString(entry.prValidationLaneMismatchCategory) ?? null,
     liveSourceDecision: asString(entry.liveSourceDecision) ?? null,
     liveSourceSingularitySummary: asString(entry.liveSourceSingularitySummary) ?? null,
+    openclawConfigInstallSourcePath: asString(entry.openclawConfigInstallSourcePath) ?? null,
+    openclawConfigInstallSourceRealPath: asString(entry.openclawConfigInstallSourceRealPath) ?? null,
+    openclawConfigInstallPath: asString(entry.openclawConfigInstallPath) ?? null,
+    openclawConfigInstallPathRealPath: asString(entry.openclawConfigInstallPathRealPath) ?? null,
+    openclawConfigPluginLoadPaths: Array.isArray(entry.openclawConfigPluginLoadPaths) ? entry.openclawConfigPluginLoadPaths : null,
+    openclawConfigPluginLoadPathRealPaths: Array.isArray(entry.openclawConfigPluginLoadPathRealPaths) ? entry.openclawConfigPluginLoadPathRealPaths : null,
+    branchResolutionMismatchFlags: isRecord(entry.branchResolutionMismatchFlags) ? entry.branchResolutionMismatchFlags : null,
+    liveSourceAgreementMatrix: isRecord(entry.liveSourceAgreementMatrix) ? entry.liveSourceAgreementMatrix : null,
+    laneIdentitySummary: isRecord(entry.laneIdentitySummary) ? entry.laneIdentitySummary : null,
+    branchSelectionDecisionTrace: isRecord(entry.branchSelectionDecisionTrace) ? entry.branchSelectionDecisionTrace : null,
     duplicateSourceDecision: asString(entry.duplicateSourceDecision) ?? null,
     duplicateSourceWinningRealPathGuess: asString(entry.duplicateSourceWinningRealPathGuess) ?? null,
     duplicateSourceCompetingRealPaths: Array.isArray(entry.duplicateSourceCompetingRealPaths) ? entry.duplicateSourceCompetingRealPaths : null,
@@ -146,6 +156,16 @@ export type LoopBrakeDecision = {
     rawPrValidationLookupOutcome?: string;
     rawLiveSourceDecision?: string;
     rawLiveSourceSingularitySummary?: string;
+    rawOpenclawConfigInstallSourcePath?: string;
+    rawOpenclawConfigInstallSourceRealPath?: string;
+    rawOpenclawConfigInstallPath?: string;
+    rawOpenclawConfigInstallPathRealPath?: string;
+    rawOpenclawConfigPluginLoadPaths?: unknown[] | null;
+    rawOpenclawConfigPluginLoadPathRealPaths?: unknown[] | null;
+    rawBranchResolutionMismatchFlags?: Record<string, unknown> | null;
+    rawLiveSourceAgreementMatrix?: Record<string, unknown> | null;
+    rawLaneIdentitySummary?: Record<string, unknown> | null;
+    rawBranchSelectionDecisionTrace?: Record<string, unknown> | null;
     rawDuplicateSourceWinningRealPathGuess?: string;
     rawDuplicateSourceCompetingRealPaths?: unknown[] | null;
     rawBranchSourceCandidateDecisionTable?: unknown[] | null;
@@ -400,6 +420,16 @@ function toLoopEvent(entry: AuditEntry): LoopBrakeDecision["events"][number] | n
       rawCanRequeueIssue: typeof entry.canRequeueIssue === "boolean" ? entry.canRequeueIssue : null,
       rawLiveSourceDecision: asString(entry.liveSourceDecision),
       rawLiveSourceSingularitySummary: asString(entry.liveSourceSingularitySummary),
+      rawOpenclawConfigInstallSourcePath: asString(entry.openclawConfigInstallSourcePath),
+      rawOpenclawConfigInstallSourceRealPath: asString(entry.openclawConfigInstallSourceRealPath),
+      rawOpenclawConfigInstallPath: asString(entry.openclawConfigInstallPath),
+      rawOpenclawConfigInstallPathRealPath: asString(entry.openclawConfigInstallPathRealPath),
+      rawOpenclawConfigPluginLoadPaths: Array.isArray(entry.openclawConfigPluginLoadPaths) ? entry.openclawConfigPluginLoadPaths : null,
+      rawOpenclawConfigPluginLoadPathRealPaths: Array.isArray(entry.openclawConfigPluginLoadPathRealPaths) ? entry.openclawConfigPluginLoadPathRealPaths : null,
+      rawBranchResolutionMismatchFlags: isRecord(entry.branchResolutionMismatchFlags) ? entry.branchResolutionMismatchFlags : null,
+      rawLiveSourceAgreementMatrix: isRecord(entry.liveSourceAgreementMatrix) ? entry.liveSourceAgreementMatrix : null,
+      rawLaneIdentitySummary: isRecord(entry.laneIdentitySummary) ? entry.laneIdentitySummary : null,
+      rawBranchSelectionDecisionTrace: isRecord(entry.branchSelectionDecisionTrace) ? entry.branchSelectionDecisionTrace : null,
       rawDuplicateSourceWinningRealPathGuess: asString(entry.duplicateSourceWinningRealPathGuess),
       rawDuplicateSourceCompetingRealPaths: Array.isArray(entry.duplicateSourceCompetingRealPaths) ? entry.duplicateSourceCompetingRealPaths : null,
       rawBranchSourceCandidateDecisionTable: Array.isArray(entry.branchSourceCandidateDecisionTable) ? entry.branchSourceCandidateDecisionTable : null,
@@ -465,6 +495,16 @@ function toLoopEvent(entry: AuditEntry): LoopBrakeDecision["events"][number] | n
       rawCanRequeueIssue: typeof entry.canRequeueIssue === "boolean" ? entry.canRequeueIssue : null,
       rawLiveSourceDecision: asString(entry.liveSourceDecision),
       rawLiveSourceSingularitySummary: asString(entry.liveSourceSingularitySummary),
+      rawOpenclawConfigInstallSourcePath: asString(entry.openclawConfigInstallSourcePath),
+      rawOpenclawConfigInstallSourceRealPath: asString(entry.openclawConfigInstallSourceRealPath),
+      rawOpenclawConfigInstallPath: asString(entry.openclawConfigInstallPath),
+      rawOpenclawConfigInstallPathRealPath: asString(entry.openclawConfigInstallPathRealPath),
+      rawOpenclawConfigPluginLoadPaths: Array.isArray(entry.openclawConfigPluginLoadPaths) ? entry.openclawConfigPluginLoadPaths : null,
+      rawOpenclawConfigPluginLoadPathRealPaths: Array.isArray(entry.openclawConfigPluginLoadPathRealPaths) ? entry.openclawConfigPluginLoadPathRealPaths : null,
+      rawBranchResolutionMismatchFlags: isRecord(entry.branchResolutionMismatchFlags) ? entry.branchResolutionMismatchFlags : null,
+      rawLiveSourceAgreementMatrix: isRecord(entry.liveSourceAgreementMatrix) ? entry.liveSourceAgreementMatrix : null,
+      rawLaneIdentitySummary: isRecord(entry.laneIdentitySummary) ? entry.laneIdentitySummary : null,
+      rawBranchSelectionDecisionTrace: isRecord(entry.branchSelectionDecisionTrace) ? entry.branchSelectionDecisionTrace : null,
       rawDuplicateSourceWinningRealPathGuess: asString(entry.duplicateSourceWinningRealPathGuess),
       rawDuplicateSourceCompetingRealPaths: Array.isArray(entry.duplicateSourceCompetingRealPaths) ? entry.duplicateSourceCompetingRealPaths : null,
       rawBranchSourceCandidateDecisionTable: Array.isArray(entry.branchSourceCandidateDecisionTable) ? entry.branchSourceCandidateDecisionTable : null,
