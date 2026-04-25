@@ -7,7 +7,7 @@
  * All roles (including architect) use the standard pipeline via executeCompletion.
  * Architect workflow: Researching → Done (done, closes issue), Researching → Refining (blocked).
  */
-import { readFile } from "node:fs/promises";
+import { readFile, realpath } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import type { ToolContext } from "../../types.js";
@@ -35,11 +35,30 @@ async function getGitSnapshot(repoPath: string, runCommand: RunCommand): Promise
   const commands: Array<[string, string[]]> = [
     ["branch", ["git", "branch", "--show-current"]],
     ["head", ["git", "rev-parse", "HEAD"]],
+    ["headBranches", ["git", "branch", "--format=%(refname:short)", "--points-at", "HEAD"]],
+    ["symbolicHead", ["git", "symbolic-ref", "--short", "HEAD"]],
     ["gitDir", ["git", "rev-parse", "--absolute-git-dir"]],
+    ["gitCommonDir", ["git", "rev-parse", "--git-common-dir"]],
     ["workTree", ["git", "rev-parse", "--show-toplevel"]],
+    ["originHead", ["git", "rev-parse", "--abbrev-ref", "origin/HEAD"]],
+    ["statusShort", ["git", "status", "--short"]],
+    ["remotes", ["git", "remote", "-v"]],
+    ["worktreeList", ["git", "worktree", "list", "--porcelain"]],
   ];
 
-  const snapshot: Record<string, unknown> = { repoPath };
+  let realRepoPath: string | null = null;
+  try {
+    realRepoPath = await realpath(repoPath);
+  } catch {
+    realRepoPath = null;
+  }
+
+  const snapshot: Record<string, unknown> = {
+    repoPath,
+    realRepoPath,
+    cwd: repoPath,
+    processCwd: process.cwd(),
+  };
   for (const [key, argv] of commands) {
     try {
       const result = await runCommand(argv, { timeoutMs: 5_000, cwd: repoPath });
@@ -53,6 +72,70 @@ async function getGitSnapshot(repoPath: string, runCommand: RunCommand): Promise
 
 function getPluginSourceRoot(): string {
   return dirname(dirname(dirname(dirname(fileURLToPath(import.meta.url)))));
+}
+
+function buildBranchResolutionDiagnostic(opts: {
+  repoPath: string;
+  pluginSourceRoot: string;
+  repoSnapshot: Record<string, unknown>;
+  pluginSnapshot: Record<string, unknown>;
+  prSourceBranch?: string | null;
+}): Record<string, unknown> {
+  const repoBranch = typeof opts.repoSnapshot.branch === "string" ? opts.repoSnapshot.branch : null;
+  const repoWorkTree = typeof opts.repoSnapshot.workTree === "string" ? opts.repoSnapshot.workTree : null;
+  const pluginBranch = typeof opts.pluginSnapshot.branch === "string" ? opts.pluginSnapshot.branch : null;
+  const pluginWorkTree = typeof opts.pluginSnapshot.workTree === "string" ? opts.pluginSnapshot.workTree : null;
+  const prSourceBranch = opts.prSourceBranch ?? null;
+
+  const repoHeadBranches = typeof opts.repoSnapshot.headBranches === "string"
+    ? opts.repoSnapshot.headBranches.split("\n").map((s) => s.trim()).filter(Boolean)
+    : [];
+  const pluginHeadBranches = typeof opts.pluginSnapshot.headBranches === "string"
+    ? opts.pluginSnapshot.headBranches.split("\n").map((s) => s.trim()).filter(Boolean)
+    : [];
+  const repoRealPath = typeof opts.repoSnapshot.realRepoPath === "string" ? opts.repoSnapshot.realRepoPath : null;
+  const pluginRealPath = typeof opts.pluginSnapshot.realRepoPath === "string" ? opts.pluginSnapshot.realRepoPath : null;
+
+  return {
+    repoBranch,
+    repoWorkTree,
+    repoRealPath,
+    repoHeadBranches,
+    pluginBranch,
+    pluginWorkTree,
+    pluginRealPath,
+    pluginHeadBranches,
+    prSourceBranch,
+    repoPathMatchesResolvedWorkTree: repoWorkTree === opts.repoPath,
+    repoRealPathMatchesResolvedWorkTree: repoRealPath === opts.repoPath,
+    pluginSourceMatchesResolvedWorkTree: pluginWorkTree === opts.pluginSourceRoot,
+    pluginRealPathMatchesSourceRoot: pluginRealPath === opts.pluginSourceRoot,
+    repoAndPluginSameWorkTree: repoWorkTree !== null && pluginWorkTree !== null && repoWorkTree === pluginWorkTree,
+    repoAndPluginSameRealPath: repoRealPath !== null && pluginRealPath !== null && repoRealPath === pluginRealPath,
+    repoAndPluginSameBranch: repoBranch !== null && pluginBranch !== null && repoBranch === pluginBranch,
+    repoHeadMatchesCurrentBranch: repoBranch !== null && repoHeadBranches.includes(repoBranch),
+    pluginHeadMatchesCurrentBranch: pluginBranch !== null && pluginHeadBranches.includes(pluginBranch),
+    repoHeadMatchesPluginBranch: pluginBranch !== null && repoHeadBranches.includes(pluginBranch),
+    pluginHeadMatchesRepoBranch: repoBranch !== null && pluginHeadBranches.includes(repoBranch),
+    repoBranchMatchesPrSourceBranch: repoBranch !== null && prSourceBranch !== null && repoBranch === prSourceBranch,
+    pluginBranchMatchesPrSourceBranch: pluginBranch !== null && prSourceBranch !== null && pluginBranch === prSourceBranch,
+    repoHeadPointsAtPrSourceBranch: prSourceBranch !== null && repoHeadBranches.includes(prSourceBranch),
+    pluginHeadPointsAtPrSourceBranch: prSourceBranch !== null && pluginHeadBranches.includes(prSourceBranch),
+    preferredBranchSource:
+      repoBranch !== null && prSourceBranch !== null && repoBranch === prSourceBranch
+        ? "configured_repo_branch"
+        : repoHeadBranches.includes(prSourceBranch ?? "")
+          ? "configured_repo_head_branches"
+          : pluginBranch !== null && prSourceBranch !== null && pluginBranch === prSourceBranch
+            ? "live_plugin_branch"
+            : pluginHeadBranches.includes(prSourceBranch ?? "")
+              ? "live_plugin_head_branches"
+              : repoBranch !== null
+                ? "configured_repo_branch_fallback"
+                : pluginBranch !== null
+                  ? "live_plugin_branch_fallback"
+                  : "no_branch_match",
+  };
 }
 
 async function recordWorkFinishDiagnostic(
@@ -126,6 +209,14 @@ async function validatePrExistsForDeveloper(
     const pluginSnapshot = await getGitSnapshot(pluginSourceRoot, runCommand);
     const prStatus = await provider.getPrStatus(issueId);
 
+    const branchResolution = buildBranchResolutionDiagnostic({
+      repoPath,
+      pluginSourceRoot,
+      repoSnapshot,
+      pluginSnapshot,
+      prSourceBranch: prStatus.sourceBranch ?? null,
+    });
+
     await recordWorkFinishDiagnostic(workspaceDir, "work_finish_pr_validation", {
       project: projectSlug,
       issueId,
@@ -137,6 +228,22 @@ async function validatePrExistsForDeveloper(
       prState: prStatus.state,
       prSourceBranch: prStatus.sourceBranch ?? null,
       prMergeable: prStatus.mergeable ?? null,
+      branchResolution,
+      branchResolutionDecision:
+        branchResolution.repoBranchMatchesPrSourceBranch === true
+          ? "repo branch matches PR source branch"
+          : branchResolution.repoHeadPointsAtPrSourceBranch === true
+            ? "repo HEAD points at PR source branch even though branch --show-current did not match"
+            : branchResolution.pluginBranchMatchesPrSourceBranch === true
+              ? "plugin branch matches PR source branch but configured repo branch does not"
+              : branchResolution.pluginHeadPointsAtPrSourceBranch === true
+                ? "plugin HEAD points at PR source branch even though branch --show-current did not match"
+                : "neither configured repo branch nor plugin branch matches PR source branch",
+      branchResolutionNotes: [
+        branchResolution.repoAndPluginSameWorkTree === true ? "repo and plugin resolve to the same worktree" : "repo and plugin resolve to different worktrees",
+        branchResolution.repoAndPluginSameBranch === true ? "repo and plugin report the same current branch" : "repo and plugin report different current branches",
+        branchResolution.repoAndPluginSameRealPath === true ? "repo and plugin realpaths are the same" : "repo and plugin realpaths differ",
+      ],
     }).catch(() => {});
 
     // url is null when getPrStatus found no open or merged PR for this issue.
@@ -158,6 +265,13 @@ async function validatePrExistsForDeveloper(
         pluginSourceRoot,
         pluginSnapshot,
         detectedBranch: branchName,
+        branchResolution: buildBranchResolutionDiagnostic({
+          repoPath,
+          pluginSourceRoot,
+          repoSnapshot,
+          pluginSnapshot,
+          prSourceBranch: null,
+        }),
       }).catch(() => {});
 
       throw new Error(
@@ -202,6 +316,10 @@ async function validatePrExistsForDeveloper(
       repoSnapshot,
       pluginSourceRoot,
       pluginSnapshot,
+      branchResolution,
+      conflictCycleDecision: isConflictCycle
+        ? "issue was previously moved by review_transition merge_conflict, so mergeable must be true before accepting done"
+        : "no merge_conflict review_transition found in audit log, so mergeable gate is not enforced",
     }).catch(() => {});
 
     if (isConflictCycle && prStatus.mergeable === false) {
@@ -224,6 +342,7 @@ async function validatePrExistsForDeveloper(
         repoSnapshot,
         pluginSourceRoot,
         pluginSnapshot,
+        branchResolution,
       }).catch(() => {});
       throw new Error(
         `Cannot complete work_finish(done) while PR still shows merge conflicts.\n\n` +
@@ -254,6 +373,7 @@ async function validatePrExistsForDeveloper(
         repoSnapshot,
         pluginSourceRoot,
         pluginSnapshot,
+        branchResolution,
       }).catch(() => {});
       await auditLog(workspaceDir, "conflict_resolution_verified", {
         project: projectSlug,
@@ -361,6 +481,13 @@ export function createWorkFinishTool(ctx: PluginContext) {
       const pluginSourceRoot = getPluginSourceRoot();
       const repoSnapshot = await getGitSnapshot(repoPath, ctx.runCommand);
       const pluginSnapshot = await getGitSnapshot(pluginSourceRoot, ctx.runCommand);
+      const initialBranchResolution = buildBranchResolutionDiagnostic({
+        repoPath,
+        pluginSourceRoot,
+        repoSnapshot,
+        pluginSnapshot,
+        prSourceBranch: null,
+      });
       const context = {
         channelId,
         role,
@@ -372,12 +499,20 @@ export function createWorkFinishTool(ctx: PluginContext) {
         loopDiagnosticsFlag: process.env.DEVCLAW_LOOP_DIAGNOSTICS ?? null,
         repoSnapshot,
         pluginSnapshot,
+        branchResolution: initialBranchResolution,
       };
 
       await recordWorkFinishDiagnostic(workspaceDir, "work_finish_execute_start", {
         project: project.slug,
         issueId,
         ...context,
+        branchResolutionDecision:
+          initialBranchResolution.repoAndPluginSameWorkTree === true
+            ? initialBranchResolution.repoAndPluginSameBranch === true
+              ? "repo path and live plugin agree on both worktree and branch before PR lookup"
+              : "repo path and live plugin agree on worktree but disagree on current branch before PR lookup"
+            : "repo path and live plugin disagree on worktree before PR lookup",
+        branchResolutionPreferredSource: initialBranchResolution.preferredBranchSource,
       }).catch(() => {});
 
       // For developers marking work as done, validate that a PR exists

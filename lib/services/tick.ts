@@ -24,6 +24,7 @@ import {
 } from "../workflow/index.js";
 import { detectRoleLevelFromLabels, detectStepRouting, findNextIssueForRole } from "./queue-scan.js";
 import { evaluateLoopBrake, getLoopBrakeHoldLabel, recordLoopBrakeHalt } from "./loop-brake.js";
+import { recordLoopDiagnostic } from "./loop-diagnostics.js";
 
 // ---------------------------------------------------------------------------
 // projectTick
@@ -149,6 +150,25 @@ export async function projectTick(opts: {
     const { issue, label: currentLabel } = next;
     const holdLabel = getLoopBrakeHoldLabel(workflow);
     const loopBrake = await evaluateLoopBrake(workspaceDir, issue.iid);
+    await recordLoopDiagnostic(workspaceDir, "loop_brake_evaluation", {
+      project: project.name,
+      projectSlug: project.slug,
+      issueId: issue.iid,
+      role,
+      currentLabel,
+      holdLabel,
+      blocked: loopBrake.blocked,
+      threshold: loopBrake.threshold,
+      windowMs: loopBrake.windowMs,
+      eventCount: loopBrake.events.length,
+      events: loopBrake.events,
+      issueLabels: issue.labels,
+      decisionPath: holdLabel
+        ? loopBrake.blocked
+          ? `loop brake will move ${currentLabel} -> ${holdLabel} because ${loopBrake.events.length} recent non-progress loop events met threshold ${loopBrake.threshold}`
+          : `loop brake allowed dispatch because ${loopBrake.events.length} recent non-progress loop events is below threshold ${loopBrake.threshold}`
+        : "loop brake skipped because no hold label could be resolved from workflow",
+    }).catch(() => {});
     if (holdLabel && loopBrake.blocked) {
       const reason = `retry ceiling reached after ${loopBrake.events.length} recent non-progress loop events`;
       await provider.transitionLabel(issue.iid, currentLabel, holdLabel);
@@ -167,6 +187,20 @@ export async function projectTick(opts: {
           "Operator action is required to re-queue this issue.",
         ].join("\n"),
       );
+      await recordLoopDiagnostic(workspaceDir, "loop_brake_halt", {
+        project: project.name,
+        projectSlug: project.slug,
+        issueId: issue.iid,
+        role,
+        from: currentLabel,
+        to: holdLabel,
+        threshold: loopBrake.threshold,
+        windowMs: loopBrake.windowMs,
+        events: loopBrake.events,
+        issueLabels: issue.labels,
+        loopBrakeReason: "retry_ceiling_reached",
+        decisionPath: `loop brake moved ${currentLabel} -> ${holdLabel} after ${loopBrake.events.length} recent non-progress loop events`,
+      }).catch(() => {});
       await recordLoopBrakeHalt({
         workspaceDir,
         project: project.name,

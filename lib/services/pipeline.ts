@@ -4,6 +4,7 @@
  * Uses workflow config to determine transitions and side effects.
  */
 import type { PluginRuntime } from "openclaw/plugin-sdk";
+import { realpath } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";
 import type { StateLabel, IssueProvider } from "../providers/provider.js";
@@ -46,11 +47,29 @@ async function getGitSnapshot(repoPath: string, runCommand: RunCommand): Promise
   const commands: Array<[string, string[]]> = [
     ["branch", ["git", "branch", "--show-current"]],
     ["head", ["git", "rev-parse", "HEAD"]],
+    ["headBranches", ["git", "branch", "--format=%(refname:short)", "--points-at", "HEAD"]],
+    ["symbolicHead", ["git", "symbolic-ref", "--short", "HEAD"]],
     ["gitDir", ["git", "rev-parse", "--absolute-git-dir"]],
+    ["gitCommonDir", ["git", "rev-parse", "--git-common-dir"]],
     ["workTree", ["git", "rev-parse", "--show-toplevel"]],
+    ["originHead", ["git", "rev-parse", "--abbrev-ref", "origin/HEAD"]],
+    ["statusShort", ["git", "status", "--short"]],
+    ["worktreeList", ["git", "worktree", "list", "--porcelain"]],
   ];
 
-  const snapshot: Record<string, unknown> = { repoPath };
+  let realRepoPath: string | null = null;
+  try {
+    realRepoPath = await realpath(repoPath);
+  } catch {
+    realRepoPath = null;
+  }
+
+  const snapshot: Record<string, unknown> = {
+    repoPath,
+    realRepoPath,
+    cwd: repoPath,
+    processCwd: process.cwd(),
+  };
   for (const [key, argv] of commands) {
     try {
       const result = await runCommand(argv, { timeoutMs: 5_000, cwd: repoPath });
@@ -124,6 +143,16 @@ export async function executeCompletion(opts: {
     getGitSnapshot(repoPath, rc),
     getGitSnapshot(pluginSourceRoot, rc),
   ]);
+  const branchDecisionContext = {
+    repoBranch: typeof repoSnapshot.branch === "string" ? repoSnapshot.branch : null,
+    repoWorkTree: typeof repoSnapshot.workTree === "string" ? repoSnapshot.workTree : null,
+    repoRealPath: typeof repoSnapshot.realRepoPath === "string" ? repoSnapshot.realRepoPath : null,
+    repoHeadBranches: typeof repoSnapshot.headBranches === "string" ? repoSnapshot.headBranches.split("\n").map((s) => s.trim()).filter(Boolean) : [],
+    pluginBranch: typeof pluginSnapshot.branch === "string" ? pluginSnapshot.branch : null,
+    pluginWorkTree: typeof pluginSnapshot.workTree === "string" ? pluginSnapshot.workTree : null,
+    pluginRealPath: typeof pluginSnapshot.realRepoPath === "string" ? pluginSnapshot.realRepoPath : null,
+    pluginHeadBranches: typeof pluginSnapshot.headBranches === "string" ? pluginSnapshot.headBranches.split("\n").map((s) => s.trim()).filter(Boolean) : [],
+  };
 
   // Execute pre-notification actions
   for (const action of rule.actions) {
@@ -137,7 +166,8 @@ export async function executeCompletion(opts: {
         if (!prUrl) { try {
           // Try open PR first (developer just finished — MR is still open), fall back to merged
           const prStatus = await provider.getPrStatus(issueId);
-          prUrl = prStatus.url ?? await provider.getMergedMRUrl(issueId) ?? undefined;
+          const mergedFallbackUrl = prStatus.url ? null : await provider.getMergedMRUrl(issueId);
+          prUrl = prStatus.url ?? mergedFallbackUrl ?? undefined;
           prTitle = prStatus.title;
           sourceBranch = prStatus.sourceBranch;
           await recordLoopDiagnostic(workspaceDir, "pipeline_detect_pr", {
@@ -146,7 +176,9 @@ export async function executeCompletion(opts: {
             role,
             result,
             detectedPrUrl: prStatus.url ?? null,
+            mergedFallbackUrl,
             finalPrUrl: prUrl ?? null,
+            prDetectionSource: prStatus.url ? "open_pr_status" : mergedFallbackUrl ? "merged_pr_fallback" : "no_pr_found",
             prTitle: prTitle ?? null,
             sourceBranch: sourceBranch ?? null,
             mergeable: prStatus.mergeable ?? null,
@@ -155,6 +187,23 @@ export async function executeCompletion(opts: {
             repoSnapshot,
             pluginSourceRoot,
             pluginSnapshot,
+            branchDecisionContext: {
+              ...branchDecisionContext,
+              sourceBranch: sourceBranch ?? null,
+              repoBranchMatchesSourceBranch: branchDecisionContext.repoBranch !== null && sourceBranch != null && branchDecisionContext.repoBranch === sourceBranch,
+              pluginBranchMatchesSourceBranch: branchDecisionContext.pluginBranch !== null && sourceBranch != null && branchDecisionContext.pluginBranch === sourceBranch,
+            },
+            branchDecisionNotes: [
+              branchDecisionContext.repoWorkTree === branchDecisionContext.pluginWorkTree ? "repoPath and plugin source report the same worktree" : "repoPath and plugin source report different worktrees",
+              branchDecisionContext.repoBranch === branchDecisionContext.pluginBranch ? "repoPath and plugin source report the same current branch" : "repoPath and plugin source report different current branches",
+              sourceBranch && branchDecisionContext.repoHeadBranches.includes(sourceBranch) ? "repo HEAD points at detected source branch" : "repo HEAD does not point at detected source branch",
+              sourceBranch && branchDecisionContext.pluginHeadBranches.includes(sourceBranch) ? "plugin HEAD points at detected source branch" : "plugin HEAD does not point at detected source branch",
+            ],
+            decisionPath: prStatus.url
+              ? "provider returned PR status directly during DETECT_PR action"
+              : mergedFallbackUrl
+                ? "provider returned no open PR URL, then pipeline found a merged PR fallback"
+                : "provider returned no open PR URL and merged PR fallback also found nothing",
           }).catch(() => {});
         } catch (err) {
           await recordLoopDiagnostic(workspaceDir, "pipeline_detect_pr_error", {
@@ -280,6 +329,15 @@ export async function executeCompletion(opts: {
     pluginSourceRoot,
     pluginSnapshot,
     actions: rule.actions,
+    loopBrakeReason: transitionedTo === "Refining" ? `work_finish_${result}` : null,
+    refiningTransition: transitionedTo === "Refining",
+    branchDecisionContext: {
+      ...branchDecisionContext,
+      sourceBranch: sourceBranch ?? null,
+      repoBranchMatchesSourceBranch: branchDecisionContext.repoBranch !== null && sourceBranch != null && branchDecisionContext.repoBranch === sourceBranch,
+      pluginBranchMatchesSourceBranch: branchDecisionContext.pluginBranch !== null && sourceBranch != null && branchDecisionContext.pluginBranch === sourceBranch,
+    },
+    decisionPath: `completion rule ${key} selected workflow transition ${rule.from} -> ${transitionedTo}`,
   }).catch(() => {});
 
   await provider.transitionLabel(issueId, rule.from as StateLabel, transitionedTo);
@@ -299,6 +357,15 @@ export async function executeCompletion(opts: {
     pluginSourceRoot,
     pluginSnapshot,
     actions: rule.actions,
+    loopBrakeReason: transitionedTo === "Refining" ? `work_finish_${result}` : null,
+    refiningTransition: transitionedTo === "Refining",
+    branchDecisionContext: {
+      ...branchDecisionContext,
+      sourceBranch: sourceBranch ?? null,
+      repoBranchMatchesSourceBranch: branchDecisionContext.repoBranch !== null && sourceBranch != null && branchDecisionContext.repoBranch === sourceBranch,
+      pluginBranchMatchesSourceBranch: branchDecisionContext.pluginBranch !== null && sourceBranch != null && branchDecisionContext.pluginBranch === sourceBranch,
+    },
+    decisionPath: `completion rule ${key} completed workflow transition ${rule.from} -> ${transitionedTo}`,
   }).catch(() => {});
 
   // Execute post-transition actions

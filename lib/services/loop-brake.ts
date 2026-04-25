@@ -118,7 +118,7 @@ function toLoopEvent(entry: AuditEntry): LoopBrakeDecision["events"][number] | n
       source: "health_requeue",
       from: asString(entry.from),
       to: asString(entry.to),
-      reason: "orphan_requeue",
+      reason: asString(entry.loopBrakeReason) ?? asString(entry.healthRequeueLoopReason) ?? "orphan_requeue",
     };
   }
 
@@ -128,7 +128,7 @@ function toLoopEvent(entry: AuditEntry): LoopBrakeDecision["events"][number] | n
       source: "work_finish_transition",
       from: asString(entry.from),
       to: asString(entry.to),
-      reason: asString(entry.result) ?? "blocked",
+      reason: asString(entry.loopBrakeReason) ?? asString(entry.result) ?? "blocked",
     };
   }
 
