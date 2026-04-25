@@ -29,7 +29,14 @@ function buildEventAuditExcerpt(entry: AuditEntry): Record<string, unknown> {
     transitionReasonCategory: asString(entry.transitionReasonCategory) ?? null,
     refiningDecisionPath: asString(entry.refiningDecisionPath) ?? null,
     healthDecisionCategory: asString(entry.healthDecisionCategory) ?? null,
+    healthDecisionSummary: asString(entry.healthDecisionSummary) ?? null,
     branchResolutionPreferredSource: asString(entry.branchResolutionPreferredSource) ?? asString(entry.preferredBranchSource) ?? null,
+    preferredBranchConfidence: asString(entry.preferredBranchConfidence) ?? null,
+    branchSelectionWinnerSummary: asString(entry.branchSelectionWinnerSummary) ?? null,
+    branchWinnerDecisionSummary: asString(entry.branchWinnerDecisionSummary) ?? null,
+    duplicateSourceDecision: asString(entry.duplicateSourceDecision) ?? null,
+    laneMismatchCategory: asString(entry.laneMismatchCategory) ?? null,
+    canRequeueIssue: typeof entry.canRequeueIssue === "boolean" ? entry.canRequeueIssue : null,
     duplicateSourceRisk: typeof entry.duplicateSourceRisk === "boolean" ? entry.duplicateSourceRisk : null,
     issueId: typeof entry.issueId === "number" ? entry.issueId : null,
     issue: typeof entry.issue === "number" ? entry.issue : null,
@@ -82,6 +89,11 @@ export type LoopBrakeDecision = {
     rawHealthDecisionSummary?: string;
     rawBranchWinnerSummary?: string;
     rawDuplicateSourceDecision?: string;
+    rawPreferredBranchSource?: string;
+    rawPreferredBranchConfidence?: string;
+    rawLaneMismatchCategory?: string;
+    rawDuplicateSourceRisk?: boolean | null;
+    rawCanRequeueIssue?: boolean | null;
     rawAuditExcerpt?: Record<string, unknown>;
   }>;
   reasonHistogram: Record<string, number>;
