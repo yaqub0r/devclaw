@@ -29,6 +29,8 @@ export type LoopBrakeDecision = {
     rawReason?: string;
     decisionPath?: string;
   }>;
+  reasonHistogram: Record<string, number>;
+  sourceHistogram: Record<string, number>;
 };
 
 export function getLoopBrakeHoldLabel(workflow: WorkflowConfig): string | null {
@@ -55,11 +57,26 @@ export async function evaluateLoopBrake(
     .filter((entry) => Date.parse(entry.ts) >= cutoff)
     .sort((a, b) => Date.parse(a.ts) - Date.parse(b.ts));
 
+  const reasonHistogram = Object.fromEntries(
+    Array.from(events.reduce((map, event) => {
+      map.set(event.reason, (map.get(event.reason) ?? 0) + 1);
+      return map;
+    }, new Map<string, number>()).entries()),
+  );
+  const sourceHistogram = Object.fromEntries(
+    Array.from(events.reduce((map, event) => {
+      map.set(event.source, (map.get(event.source) ?? 0) + 1);
+      return map;
+    }, new Map<string, number>()).entries()),
+  );
+
   return {
     blocked: events.length >= LOOP_BRAKE_THRESHOLD,
     threshold: LOOP_BRAKE_THRESHOLD,
     windowMs: LOOP_BRAKE_WINDOW_MS,
     events,
+    reasonHistogram,
+    sourceHistogram,
   };
 }
 

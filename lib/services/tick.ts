@@ -162,6 +162,8 @@ export async function projectTick(opts: {
       windowMs: loopBrake.windowMs,
       eventCount: loopBrake.events.length,
       events: loopBrake.events,
+      reasonHistogram: loopBrake.reasonHistogram,
+      sourceHistogram: loopBrake.sourceHistogram,
       issueLabels: issue.labels,
       countedEventSummaries: loopBrake.events.map((event, index) => ({
         index,
@@ -209,6 +211,8 @@ export async function projectTick(opts: {
         threshold: loopBrake.threshold,
         windowMs: loopBrake.windowMs,
         events: loopBrake.events,
+        reasonHistogram: loopBrake.reasonHistogram,
+        sourceHistogram: loopBrake.sourceHistogram,
         countedEventSummaries: loopBrake.events.map((event, index) => ({
           index,
           ts: event.ts,

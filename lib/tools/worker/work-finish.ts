@@ -93,10 +93,14 @@ function summarizePluginSourceConfig(opts: {
     [opts.installSourceRealPath, opts.installPathRealPath, ...opts.pluginLoadPathRealPaths, opts.pluginRealPath]
       .filter((value): value is string => typeof value === "string" && value.length > 0),
   ));
+  const conflictingRealPaths = opts.installSourceRealPath === null
+    ? distinctRealPaths
+    : distinctRealPaths.filter((realPath) => realPath !== opts.installSourceRealPath);
 
   return {
     distinctDevclawRealPaths: distinctRealPaths,
     distinctDevclawRealPathCount: distinctRealPaths.length,
+    conflictingDevclawRealPaths: conflictingRealPaths,
     installSourceMatchesInstalledPath: opts.installSourceRealPath !== null && opts.installSourceRealPath === opts.installPathRealPath,
     installSourceMatchesLivePlugin: opts.installSourceRealPath !== null && opts.installSourceRealPath === opts.pluginRealPath,
     installedPathMatchesLivePlugin: opts.installPathRealPath !== null && opts.installPathRealPath === opts.pluginRealPath,
@@ -129,6 +133,8 @@ function buildBranchResolutionDiagnostic(opts: {
     : [];
   const repoRealPath = typeof opts.repoSnapshot.realRepoPath === "string" ? opts.repoSnapshot.realRepoPath : null;
   const pluginRealPath = typeof opts.pluginSnapshot.realRepoPath === "string" ? opts.pluginSnapshot.realRepoPath : null;
+  const repoDetachedHead = repoBranch === null || repoBranch.length === 0;
+  const pluginDetachedHead = pluginBranch === null || pluginBranch.length === 0;
   const preferredBranchSource =
     repoBranch !== null && prSourceBranch !== null && repoBranch === prSourceBranch
       ? "configured_repo_branch"
@@ -169,7 +175,33 @@ function buildBranchResolutionDiagnostic(opts: {
     pluginBranchMatchesPrSourceBranch: pluginBranch !== null && prSourceBranch !== null && pluginBranch === prSourceBranch,
     repoHeadPointsAtPrSourceBranch: prSourceBranch !== null && repoHeadBranches.includes(prSourceBranch),
     pluginHeadPointsAtPrSourceBranch: prSourceBranch !== null && pluginHeadBranches.includes(prSourceBranch),
+    repoDetachedHead,
+    pluginDetachedHead,
+    repoWorkTreeBasename: repoWorkTree ? repoWorkTree.split("/").filter(Boolean).at(-1) ?? null : null,
+    pluginWorkTreeBasename: pluginWorkTree ? pluginWorkTree.split("/").filter(Boolean).at(-1) ?? null : null,
     preferredBranchSource,
+    preferredBranchEvidence:
+      preferredBranchSource === "configured_repo_branch"
+        ? "configured repo branch directly matched PR source branch"
+        : preferredBranchSource === "configured_repo_head_branches"
+          ? "configured repo HEAD points at PR source branch even though branch --show-current did not"
+          : preferredBranchSource === "live_plugin_branch"
+            ? "live plugin branch directly matched PR source branch while configured repo branch did not"
+            : preferredBranchSource === "live_plugin_head_branches"
+              ? "live plugin HEAD points at PR source branch even though branch --show-current did not"
+              : preferredBranchSource === "configured_repo_branch_fallback"
+                ? "no PR-aware match existed, so configured repo branch became fallback"
+                : preferredBranchSource === "live_plugin_branch_fallback"
+                  ? "no PR-aware match existed and configured repo branch was unavailable, so live plugin branch became fallback"
+                  : "no branch source matched or could be trusted",
+    branchMismatchSummary: [
+      repoWorkTree === opts.repoPath ? "configured repo worktree matches resolved repo path" : "configured repo worktree differs from resolved repo path",
+      pluginWorkTree === opts.pluginSourceRoot ? "live plugin worktree matches resolved plugin source root" : "live plugin worktree differs from resolved plugin source root",
+      repoRealPath !== null && pluginRealPath !== null && repoRealPath === pluginRealPath ? "configured repo and live plugin share a realpath" : "configured repo and live plugin resolve to different realpaths",
+      repoBranch !== null && pluginBranch !== null && repoBranch === pluginBranch ? "configured repo and live plugin report the same branch" : "configured repo and live plugin report different branches or one side is detached",
+      repoDetachedHead ? "configured repo appears detached or branch --show-current was empty" : "configured repo reports a named current branch",
+      pluginDetachedHead ? "live plugin appears detached or branch --show-current was empty" : "live plugin reports a named current branch",
+    ],
     branchSourceCandidatesInPriorityOrder: [
       { source: "configured_repo_branch", value: repoBranch, matchesPrSourceBranch: repoBranch !== null && prSourceBranch !== null && repoBranch === prSourceBranch },
       { source: "configured_repo_head_branches", value: repoHeadBranches, matchesPrSourceBranch: prSourceBranch !== null && repoHeadBranches.includes(prSourceBranch) },

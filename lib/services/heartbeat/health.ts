@@ -228,6 +228,10 @@ export async function checkWorkerHealth(opts: {
       }
 
       async function recordOrphanDiagnostic(reason: string, details: Record<string, unknown> = {}) {
+        const sessionKeys = sessions ? Array.from(sessions.keys()) : [];
+        const sessionSnapshot = sessionKey && sessions?.has(sessionKey)
+          ? sessions.get(sessionKey)
+          : null;
         await recordLoopDiagnostic(workspaceDir, "health_orphan_detected", {
           project: project.name,
           projectSlug,
@@ -248,6 +252,19 @@ export async function checkWorkerHealth(opts: {
           gracePeriodMs: GRACE_PERIOD_MS,
           issueClosed: issue ? isIssueClosed(issue) : null,
           autoFix,
+          sessionMapAvailable: Boolean(sessions),
+          gatewaySessionCount: sessions?.size ?? null,
+          gatewaySessionHasSlotSessionKey: sessionKey ? sessions?.has(sessionKey) ?? false : null,
+          gatewaySessionKeySample: sessionKeys.slice(0, 10),
+          gatewaySessionSnapshot: sessionSnapshot
+            ? {
+                updatedAt: sessionSnapshot.updatedAt ?? null,
+                startedAt: sessionSnapshot.startedAt ?? null,
+                abortedLastRun: sessionSnapshot.abortedLastRun ?? null,
+                contextTokens: sessionSnapshot.contextTokens ?? null,
+                model: sessionSnapshot.model ?? null,
+              }
+            : null,
           canRequeueIssue: issue != null && currentLabel === expectedLabel,
           willOnlyDeactivateSlot: !(issue != null && currentLabel === expectedLabel),
           healthRequeueLoopReason: "orphan_requeue",

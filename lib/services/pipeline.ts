@@ -62,10 +62,14 @@ function summarizePluginSourceConfig(opts: {
     [opts.installSourceRealPath, opts.installPathRealPath, ...opts.pluginLoadPathRealPaths, opts.pluginRealPath]
       .filter((value): value is string => typeof value === "string" && value.length > 0),
   ));
+  const conflictingRealPaths = opts.installSourceRealPath === null
+    ? distinctRealPaths
+    : distinctRealPaths.filter((realPath) => realPath !== opts.installSourceRealPath);
 
   return {
     distinctDevclawRealPaths: distinctRealPaths,
     distinctDevclawRealPathCount: distinctRealPaths.length,
+    conflictingDevclawRealPaths: conflictingRealPaths,
     installSourceMatchesInstalledPath: opts.installSourceRealPath !== null && opts.installSourceRealPath === opts.installPathRealPath,
     installSourceMatchesLivePlugin: opts.installSourceRealPath !== null && opts.installSourceRealPath === opts.pluginRealPath,
     installedPathMatchesLivePlugin: opts.installPathRealPath !== null && opts.installPathRealPath === opts.pluginRealPath,
@@ -203,11 +207,15 @@ export async function executeCompletion(opts: {
   const branchDecisionContext = {
     repoBranch: typeof repoSnapshot.branch === "string" ? repoSnapshot.branch : null,
     repoWorkTree: typeof repoSnapshot.workTree === "string" ? repoSnapshot.workTree : null,
+    repoWorkTreeBasename: typeof repoSnapshot.workTree === "string" ? repoSnapshot.workTree.split("/").filter(Boolean).at(-1) ?? null : null,
     repoRealPath: typeof repoSnapshot.realRepoPath === "string" ? repoSnapshot.realRepoPath : null,
+    repoDetachedHead: typeof repoSnapshot.branch !== "string" || !repoSnapshot.branch,
     repoHeadBranches: typeof repoSnapshot.headBranches === "string" ? repoSnapshot.headBranches.split("\n").map((s) => s.trim()).filter(Boolean) : [],
     pluginBranch: typeof pluginSnapshot.branch === "string" ? pluginSnapshot.branch : null,
     pluginWorkTree: typeof pluginSnapshot.workTree === "string" ? pluginSnapshot.workTree : null,
+    pluginWorkTreeBasename: typeof pluginSnapshot.workTree === "string" ? pluginSnapshot.workTree.split("/").filter(Boolean).at(-1) ?? null : null,
     pluginRealPath: typeof pluginSnapshot.realRepoPath === "string" ? pluginSnapshot.realRepoPath : null,
+    pluginDetachedHead: typeof pluginSnapshot.branch !== "string" || !pluginSnapshot.branch,
     pluginHeadBranches: typeof pluginSnapshot.headBranches === "string" ? pluginSnapshot.headBranches.split("\n").map((s) => s.trim()).filter(Boolean) : [],
     openclawConfigPluginLoadPaths,
     openclawConfigPluginLoadPathRealPaths,
@@ -261,13 +269,15 @@ export async function executeCompletion(opts: {
             branchDecisionNotes: [
               branchDecisionContext.repoWorkTree === branchDecisionContext.pluginWorkTree ? "repoPath and plugin source report the same worktree" : "repoPath and plugin source report different worktrees",
               branchDecisionContext.repoBranch === branchDecisionContext.pluginBranch ? "repoPath and plugin source report the same current branch" : "repoPath and plugin source report different current branches",
+              branchDecisionContext.repoDetachedHead ? "repoPath snapshot looks detached or branch --show-current was empty" : "repoPath snapshot reports a named current branch",
+              branchDecisionContext.pluginDetachedHead ? "plugin snapshot looks detached or branch --show-current was empty" : "plugin snapshot reports a named current branch",
               sourceBranch && branchDecisionContext.repoHeadBranches.includes(sourceBranch) ? "repo HEAD points at detected source branch" : "repo HEAD does not point at detected source branch",
               sourceBranch && branchDecisionContext.pluginHeadBranches.includes(sourceBranch) ? "plugin HEAD points at detected source branch" : "plugin HEAD does not point at detected source branch",
               branchDecisionContext.openclawConfigInstallSourcePath === branchDecisionContext.pluginWorkTree ? "OpenClaw install source path matches plugin worktree" : "OpenClaw install source path differs from plugin worktree",
               branchDecisionContext.openclawConfigInstallSourceRealPath === branchDecisionContext.pluginRealPath ? "OpenClaw install source realpath matches plugin realpath" : "OpenClaw install source realpath differs from plugin realpath",
               Array.isArray(branchDecisionContext.openclawConfigPluginLoadPaths) && branchDecisionContext.openclawConfigPluginLoadPaths.includes(branchDecisionContext.pluginWorkTree) ? "plugin worktree is present in plugins.load.paths" : "plugin worktree is missing from plugins.load.paths",
               Array.isArray(branchDecisionContext.openclawConfigPluginLoadPathRealPaths) && branchDecisionContext.openclawConfigPluginLoadPathRealPaths.includes(branchDecisionContext.pluginRealPath) ? "plugin realpath is present in plugins.load.paths realpaths" : "plugin realpath is missing from plugins.load.paths realpaths",
-              branchDecisionContext.duplicateSourceRisk ? "duplicate source risk detected because plugins.load.paths contains a different realpath than the configured install source" : "no duplicate source risk detected from plugin config paths",
+              branchDecisionContext.duplicateSourceRisk ? `duplicate source risk detected because config points at competing DevClaw realpaths: ${JSON.stringify(branchDecisionContext.pluginSourceConfigSummary)}` : "no duplicate source risk detected from plugin config paths",
             ],
             duplicateSourceDecision: branchDecisionContext.duplicateSourceRisk
               ? "live install evidence is ambiguous because multiple DevClaw realpaths are configured"
