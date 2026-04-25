@@ -109,7 +109,27 @@ export async function executeCompletion(opts: {
           prUrl = prStatus.url ?? await provider.getMergedMRUrl(issueId) ?? undefined;
           prTitle = prStatus.title;
           sourceBranch = prStatus.sourceBranch;
+          await recordLoopDiagnostic(workspaceDir, "pipeline_detect_pr", {
+            project: projectName,
+            issueId,
+            role,
+            result,
+            detectedPrUrl: prStatus.url ?? null,
+            finalPrUrl: prUrl ?? null,
+            prTitle: prTitle ?? null,
+            sourceBranch: sourceBranch ?? null,
+            mergeable: prStatus.mergeable ?? null,
+            repoPath,
+          }).catch(() => {});
         } catch (err) {
+          await recordLoopDiagnostic(workspaceDir, "pipeline_detect_pr_error", {
+            project: projectName,
+            issueId,
+            role,
+            result,
+            repoPath,
+            error: (err as Error).message ?? String(err),
+          }).catch(() => {});
           auditLog(workspaceDir, "pipeline_warning", { step: "detectPr", issue: issueId, role, error: (err as Error).message ?? String(err) }).catch(() => {});
         } }
         break;
@@ -206,6 +226,21 @@ export async function executeCompletion(opts: {
   // Then execute post-transition actions (close/reopen)
   // Finally deactivate worker (last — ensures label is set even if deactivation fails)
   const transitionedTo = rule.to as StateLabel;
+
+  await recordLoopDiagnostic(workspaceDir, "work_finish_transition_planned", {
+    project: projectName,
+    issueId,
+    role,
+    result,
+    from: rule.from,
+    to: transitionedTo,
+    summary: summary ?? null,
+    prUrl: prUrl ?? null,
+    sourceBranch: sourceBranch ?? null,
+    repoPath,
+    actions: rule.actions,
+  }).catch(() => {});
+
   await provider.transitionLabel(issueId, rule.from as StateLabel, transitionedTo);
 
   await recordLoopDiagnostic(workspaceDir, "work_finish_transition", {
@@ -217,6 +252,9 @@ export async function executeCompletion(opts: {
     to: transitionedTo,
     summary: summary ?? null,
     prUrl: prUrl ?? null,
+    sourceBranch: sourceBranch ?? null,
+    repoPath,
+    actions: rule.actions,
   }).catch(() => {});
 
   // Execute post-transition actions
