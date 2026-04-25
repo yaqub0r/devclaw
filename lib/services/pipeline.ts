@@ -180,6 +180,8 @@ export async function executeCompletion(opts: {
     prState: string | null;
     prSourceBranch: string | null;
     prMergeable: boolean | null;
+    prLookupProbeDecision?: string | null;
+    prLookupProbeSummary?: Record<string, unknown> | null;
     isConflictCycle: boolean | null;
     branchResolution: Record<string, unknown>;
     branchResolutionDecision: string;
@@ -623,6 +625,8 @@ export async function executeCompletion(opts: {
     prValidationBranchResolutionPreferredSource: prValidationSummary?.preferredBranchSource ?? null,
     prValidationPreferredBranchConfidence: prValidationSummary?.preferredBranchConfidence ?? null,
     prValidationBranchResolutionPreferredEvidence: prValidationSummary?.branchResolutionPreferredEvidence ?? null,
+    prValidationLookupProbeDecision: prValidationSummary?.prLookupProbeDecision ?? null,
+    prValidationLookupProbeSummary: prValidationSummary?.prLookupProbeSummary ?? null,
     prValidationBranchSourceCandidateDecisionTable: prValidationSummary?.branchSourceCandidateDecisionTable ?? null,
     prValidationBranchSourceCandidatesInPriorityOrder: prValidationSummary?.branchSourceCandidatesInPriorityOrder ?? null,
     prValidationLaneMismatchSummary: prValidationSummary?.branchMismatchSummary ?? null,
@@ -706,6 +710,8 @@ export async function executeCompletion(opts: {
       prValidationBranchResolutionPreferredSource: prValidationSummary?.preferredBranchSource ?? null,
       prValidationPreferredBranchConfidence: prValidationSummary?.preferredBranchConfidence ?? null,
       prValidationBranchResolutionPreferredEvidence: prValidationSummary?.branchResolutionPreferredEvidence ?? null,
+    prValidationLookupProbeDecision: prValidationSummary?.prLookupProbeDecision ?? null,
+    prValidationLookupProbeSummary: prValidationSummary?.prLookupProbeSummary ?? null,
       prValidationBranchSourceCandidateDecisionTable: prValidationSummary?.branchSourceCandidateDecisionTable ?? null,
       prValidationBranchSourceCandidatesInPriorityOrder: prValidationSummary?.branchSourceCandidatesInPriorityOrder ?? null,
       prValidationLaneMismatchSummary: prValidationSummary?.branchMismatchSummary ?? null,
@@ -831,6 +837,8 @@ export async function executeCompletion(opts: {
     prValidationBranchResolutionPreferredSource: prValidationSummary?.preferredBranchSource ?? null,
     prValidationPreferredBranchConfidence: prValidationSummary?.preferredBranchConfidence ?? null,
     prValidationBranchResolutionPreferredEvidence: prValidationSummary?.branchResolutionPreferredEvidence ?? null,
+    prValidationLookupProbeDecision: prValidationSummary?.prLookupProbeDecision ?? null,
+    prValidationLookupProbeSummary: prValidationSummary?.prLookupProbeSummary ?? null,
     prValidationBranchSourceCandidateDecisionTable: prValidationSummary?.branchSourceCandidateDecisionTable ?? null,
     prValidationBranchSourceCandidatesInPriorityOrder: prValidationSummary?.branchSourceCandidatesInPriorityOrder ?? null,
     prValidationLaneMismatchSummary: prValidationSummary?.branchMismatchSummary ?? null,

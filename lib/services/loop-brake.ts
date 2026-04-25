@@ -45,6 +45,8 @@ function buildEventAuditExcerpt(entry: AuditEntry): Record<string, unknown> {
     prValidationBranchResolutionPreferredSource: asString(entry.prValidationBranchResolutionPreferredSource) ?? null,
     prValidationPreferredBranchConfidence: asString(entry.prValidationPreferredBranchConfidence) ?? null,
     prValidationBranchResolutionPreferredEvidence: asString(entry.prValidationBranchResolutionPreferredEvidence) ?? null,
+    prValidationLookupProbeDecision: asString(entry.prValidationLookupProbeDecision) ?? null,
+    prValidationLookupProbeSummary: isRecord(entry.prValidationLookupProbeSummary) ? entry.prValidationLookupProbeSummary : null,
     prValidationBranchSelectionWinnerSummary: asString(entry.prValidationBranchSelectionWinnerSummary) ?? null,
     prValidationBranchWinnerDecisionSummary: asString(entry.prValidationBranchWinnerDecisionSummary) ?? null,
     prValidationBranchWinnerComparedToLaneSummary: asString(entry.prValidationBranchWinnerComparedToLaneSummary) ?? null,

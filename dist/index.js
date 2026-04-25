@@ -27788,6 +27788,8 @@ async function executeCompletion(opts) {
     prValidationBranchResolutionPreferredSource: prValidationSummary?.preferredBranchSource ?? null,
     prValidationPreferredBranchConfidence: prValidationSummary?.preferredBranchConfidence ?? null,
     prValidationBranchResolutionPreferredEvidence: prValidationSummary?.branchResolutionPreferredEvidence ?? null,
+    prValidationLookupProbeDecision: prValidationSummary?.prLookupProbeDecision ?? null,
+    prValidationLookupProbeSummary: prValidationSummary?.prLookupProbeSummary ?? null,
     prValidationBranchSourceCandidateDecisionTable: prValidationSummary?.branchSourceCandidateDecisionTable ?? null,
     prValidationBranchSourceCandidatesInPriorityOrder: prValidationSummary?.branchSourceCandidatesInPriorityOrder ?? null,
     prValidationLaneMismatchSummary: prValidationSummary?.branchMismatchSummary ?? null,
@@ -27846,6 +27848,8 @@ async function executeCompletion(opts) {
       prValidationBranchResolutionPreferredSource: prValidationSummary?.preferredBranchSource ?? null,
       prValidationPreferredBranchConfidence: prValidationSummary?.preferredBranchConfidence ?? null,
       prValidationBranchResolutionPreferredEvidence: prValidationSummary?.branchResolutionPreferredEvidence ?? null,
+      prValidationLookupProbeDecision: prValidationSummary?.prLookupProbeDecision ?? null,
+      prValidationLookupProbeSummary: prValidationSummary?.prLookupProbeSummary ?? null,
       prValidationBranchSourceCandidateDecisionTable: prValidationSummary?.branchSourceCandidateDecisionTable ?? null,
       prValidationBranchSourceCandidatesInPriorityOrder: prValidationSummary?.branchSourceCandidatesInPriorityOrder ?? null,
       prValidationLaneMismatchSummary: prValidationSummary?.branchMismatchSummary ?? null,
@@ -27946,6 +27950,8 @@ async function executeCompletion(opts) {
     prValidationBranchResolutionPreferredSource: prValidationSummary?.preferredBranchSource ?? null,
     prValidationPreferredBranchConfidence: prValidationSummary?.preferredBranchConfidence ?? null,
     prValidationBranchResolutionPreferredEvidence: prValidationSummary?.branchResolutionPreferredEvidence ?? null,
+    prValidationLookupProbeDecision: prValidationSummary?.prLookupProbeDecision ?? null,
+    prValidationLookupProbeSummary: prValidationSummary?.prLookupProbeSummary ?? null,
     prValidationBranchSourceCandidateDecisionTable: prValidationSummary?.branchSourceCandidateDecisionTable ?? null,
     prValidationBranchSourceCandidatesInPriorityOrder: prValidationSummary?.branchSourceCandidatesInPriorityOrder ?? null,
     prValidationLaneMismatchSummary: prValidationSummary?.branchMismatchSummary ?? null,
@@ -28316,6 +28322,50 @@ async function recordWorkFinishDiagnostic(workspaceDir, stage, data) {
     ...data
   });
 }
+async function probeGhIssueLookup(opts) {
+  const args = [
+    "gh",
+    "issue",
+    "view",
+    String(opts.issueId),
+    "--json",
+    "number,state,repository,linkedPullRequests"
+  ];
+  if (opts.forcedRepo) args.push("--repo", opts.forcedRepo);
+  try {
+    const result = await opts.runCommand(args, { timeoutMs: 15e3, cwd: opts.cwd });
+    const raw = result.stdout.trim();
+    const parsed = raw ? JSON.parse(raw) : {};
+    const linkedPullRequests = Array.isArray(parsed.linkedPullRequests) ? parsed.linkedPullRequests : [];
+    const linkedPrHeads = linkedPullRequests.map((pr) => {
+      if (!pr || typeof pr !== "object") return null;
+      const headRefName = typeof pr.headRefName === "string" ? pr.headRefName : null;
+      const url2 = typeof pr.url === "string" ? pr.url : null;
+      const state = typeof pr.state === "string" ? pr.state : null;
+      return { headRefName, url: url2, state };
+    }).filter((pr) => pr !== null);
+    const repository = parsed.repository && typeof parsed.repository === "object" ? parsed.repository : null;
+    const repositoryNameWithOwner = repository && typeof repository.nameWithOwner === "string" ? repository.nameWithOwner : null;
+    return {
+      probeName: opts.probeName,
+      cwd: opts.cwd,
+      forcedRepo: opts.forcedRepo ?? null,
+      ok: true,
+      exitCode: result.code ?? 0,
+      repositoryNameWithOwner,
+      linkedPullRequestCount: linkedPullRequests.length,
+      linkedPullRequestHeads: linkedPrHeads
+    };
+  } catch (err) {
+    return {
+      probeName: opts.probeName,
+      cwd: opts.cwd,
+      forcedRepo: opts.forcedRepo ?? null,
+      ok: false,
+      error: err.message ?? String(err)
+    };
+  }
+}
 async function isConflictResolutionCycle(workspaceDir, issueId) {
   const auditPath = join2(workspaceDir, DATA_DIR, "log", "audit.log");
   try {
@@ -28349,6 +28399,22 @@ async function validatePrExistsForDeveloper(issueId, repoPath, provider, runComm
     });
     const repoAmbientGhTarget = typeof repoSnapshot.ghRepoView === "string" ? repoSnapshot.ghRepoView : null;
     const pluginAmbientGhTarget = typeof pluginSnapshot.ghRepoView === "string" ? pluginSnapshot.ghRepoView : null;
+    const [repoAmbientIssueProbe, pluginAmbientIssueProbe, configuredTargetIssueProbe] = await Promise.all([
+      probeGhIssueLookup({ issueId, cwd: repoPath, runCommand, probeName: "repo_ambient" }),
+      probeGhIssueLookup({ issueId, cwd: pluginSourceRoot, runCommand, probeName: "plugin_ambient" }),
+      configuredProviderTargetRepo ? probeGhIssueLookup({ issueId, cwd: repoPath, runCommand, forcedRepo: configuredProviderTargetRepo, probeName: "configured_target" }) : Promise.resolve({
+        probeName: "configured_target",
+        cwd: repoPath,
+        forcedRepo: null,
+        ok: false,
+        skipped: true,
+        reason: "no_configured_provider_target_repo"
+      })
+    ]);
+    const repoAmbientLinkedPrCount = typeof repoAmbientIssueProbe.linkedPullRequestCount === "number" ? repoAmbientIssueProbe.linkedPullRequestCount : null;
+    const pluginAmbientLinkedPrCount = typeof pluginAmbientIssueProbe.linkedPullRequestCount === "number" ? pluginAmbientIssueProbe.linkedPullRequestCount : null;
+    const configuredTargetLinkedPrCount = typeof configuredTargetIssueProbe.linkedPullRequestCount === "number" ? configuredTargetIssueProbe.linkedPullRequestCount : null;
+    const prLookupProbeDecision = configuredProviderTargetRepo ? configuredTargetLinkedPrCount !== null && repoAmbientLinkedPrCount !== null && configuredTargetLinkedPrCount !== repoAmbientLinkedPrCount ? `configured target lookup found ${configuredTargetLinkedPrCount} linked PR(s) while repo ambient lookup found ${repoAmbientLinkedPrCount}` : configuredTargetLinkedPrCount !== null && pluginAmbientLinkedPrCount !== null && configuredTargetLinkedPrCount !== pluginAmbientLinkedPrCount ? `configured target lookup found ${configuredTargetLinkedPrCount} linked PR(s) while live-plugin ambient lookup found ${pluginAmbientLinkedPrCount}` : "configured target and ambient issue-view probes did not disagree on linked PR count" : "no configured provider target repo, so only ambient issue-view probes were available";
     const prLookupTargetingDecision = configuredProviderTargetRepo ? repoAmbientGhTarget && repoAmbientGhTarget !== configuredProviderTargetRepo ? `provider PR lookup is pinned to configured target ${configuredProviderTargetRepo} even though ambient gh target at repoPath is ${repoAmbientGhTarget}` : pluginAmbientGhTarget && pluginAmbientGhTarget !== configuredProviderTargetRepo ? `provider PR lookup is pinned to configured target ${configuredProviderTargetRepo} even though ambient gh target at live plugin path is ${pluginAmbientGhTarget}` : `provider PR lookup is pinned to configured target ${configuredProviderTargetRepo}` : repoAmbientGhTarget || pluginAmbientGhTarget ? `provider PR lookup has no configured target override, so ambient gh target will be used (${repoAmbientGhTarget ?? pluginAmbientGhTarget})` : "provider PR lookup target could not be confirmed from configured target or ambient gh repo view";
     const prLookupTargeting = {
       configuredProviderTargetRepo,
@@ -28357,6 +28423,13 @@ async function validatePrExistsForDeveloper(issueId, repoPath, provider, runComm
       repoAmbientMatchesConfiguredTarget: configuredProviderTargetRepo ? repoAmbientGhTarget === configuredProviderTargetRepo : null,
       pluginAmbientMatchesConfiguredTarget: configuredProviderTargetRepo ? pluginAmbientGhTarget === configuredProviderTargetRepo : null,
       repoAndPluginAmbientGhAgree: repoAmbientGhTarget && pluginAmbientGhTarget ? repoAmbientGhTarget === pluginAmbientGhTarget : null,
+      repoAmbientIssueProbe,
+      pluginAmbientIssueProbe,
+      configuredTargetIssueProbe,
+      repoAmbientLinkedPrCount,
+      pluginAmbientLinkedPrCount,
+      configuredTargetLinkedPrCount,
+      probeDecision: prLookupProbeDecision,
       decision: prLookupTargetingDecision
     };
     const validationSummary = {
@@ -28367,6 +28440,12 @@ async function validatePrExistsForDeveloper(issueId, repoPath, provider, runComm
       prMergeable: typeof prStatus.mergeable === "boolean" ? prStatus.mergeable : null,
       prLookupTargeting,
       prLookupTargetingDecision,
+      prLookupProbeDecision,
+      prLookupProbeSummary: {
+        repoAmbientIssueProbe,
+        pluginAmbientIssueProbe,
+        configuredTargetIssueProbe
+      },
       isConflictCycle: null,
       branchResolution,
       branchResolutionDecision: branchResolution.repoBranchMatchesPrSourceBranch === true ? "repo branch matches PR source branch" : branchResolution.repoHeadPointsAtPrSourceBranch === true ? "repo HEAD points at PR source branch even though branch --show-current did not match" : branchResolution.pluginBranchMatchesPrSourceBranch === true ? "plugin branch matches PR source branch but configured repo branch does not" : branchResolution.pluginHeadPointsAtPrSourceBranch === true ? "plugin HEAD points at PR source branch even though branch --show-current did not match" : "neither configured repo branch nor plugin branch matches PR source branch",
@@ -32493,6 +32572,8 @@ function buildEventAuditExcerpt(entry) {
     prValidationBranchResolutionPreferredSource: asString(entry.prValidationBranchResolutionPreferredSource) ?? null,
     prValidationPreferredBranchConfidence: asString(entry.prValidationPreferredBranchConfidence) ?? null,
     prValidationBranchResolutionPreferredEvidence: asString(entry.prValidationBranchResolutionPreferredEvidence) ?? null,
+    prValidationLookupProbeDecision: asString(entry.prValidationLookupProbeDecision) ?? null,
+    prValidationLookupProbeSummary: isRecord(entry.prValidationLookupProbeSummary) ? entry.prValidationLookupProbeSummary : null,
     prValidationBranchSelectionWinnerSummary: asString(entry.prValidationBranchSelectionWinnerSummary) ?? null,
     prValidationBranchWinnerDecisionSummary: asString(entry.prValidationBranchWinnerDecisionSummary) ?? null,
     prValidationBranchWinnerComparedToLaneSummary: asString(entry.prValidationBranchWinnerComparedToLaneSummary) ?? null,

@@ -481,6 +481,61 @@ async function recordWorkFinishDiagnostic(
   });
 }
 
+async function probeGhIssueLookup(opts: {
+  issueId: number;
+  cwd: string;
+  runCommand: RunCommand;
+  forcedRepo?: string | null;
+  probeName: string;
+}): Promise<Record<string, unknown>> {
+  const args = [
+    "gh",
+    "issue",
+    "view",
+    String(opts.issueId),
+    "--json",
+    "number,state,repository,linkedPullRequests",
+  ];
+  if (opts.forcedRepo) args.push("--repo", opts.forcedRepo);
+
+  try {
+    const result = await opts.runCommand(args, { timeoutMs: 15_000, cwd: opts.cwd });
+    const raw = result.stdout.trim();
+    const parsed = raw ? JSON.parse(raw) as Record<string, unknown> : {};
+    const linkedPullRequests = Array.isArray(parsed.linkedPullRequests) ? parsed.linkedPullRequests : [];
+    const linkedPrHeads = linkedPullRequests
+      .map((pr) => {
+        if (!pr || typeof pr !== "object") return null;
+        const headRefName = typeof (pr as { headRefName?: unknown }).headRefName === "string" ? (pr as { headRefName: string }).headRefName : null;
+        const url = typeof (pr as { url?: unknown }).url === "string" ? (pr as { url: string }).url : null;
+        const state = typeof (pr as { state?: unknown }).state === "string" ? (pr as { state: string }).state : null;
+        return { headRefName, url, state };
+      })
+      .filter((pr): pr is { headRefName: string | null; url: string | null; state: string | null } => pr !== null);
+    const repository = parsed.repository && typeof parsed.repository === "object" ? parsed.repository as Record<string, unknown> : null;
+    const repositoryNameWithOwner = repository && typeof repository.nameWithOwner === "string" ? repository.nameWithOwner : null;
+
+    return {
+      probeName: opts.probeName,
+      cwd: opts.cwd,
+      forcedRepo: opts.forcedRepo ?? null,
+      ok: true,
+      exitCode: result.code ?? 0,
+      repositoryNameWithOwner,
+      linkedPullRequestCount: linkedPullRequests.length,
+      linkedPullRequestHeads: linkedPrHeads,
+    };
+  } catch (err) {
+    return {
+      probeName: opts.probeName,
+      cwd: opts.cwd,
+      forcedRepo: opts.forcedRepo ?? null,
+      ok: false,
+      error: (err as Error).message ?? String(err),
+    };
+  }
+}
+
 type WorkFinishPrValidationSummary = {
   lookupOutcome: "pr_found" | "pr_missing" | "conflict_cycle_verified" | "conflict_cycle_rejected" | "validation_warning";
   prUrl: string | null;
@@ -489,6 +544,8 @@ type WorkFinishPrValidationSummary = {
   prMergeable: boolean | null;
   prLookupTargeting?: Record<string, unknown>;
   prLookupTargetingDecision?: string;
+  prLookupProbeDecision?: string | null;
+  prLookupProbeSummary?: Record<string, unknown> | null;
   isConflictCycle: boolean | null;
   branchResolution: Record<string, unknown>;
   branchResolutionDecision: string;
@@ -575,6 +632,30 @@ async function validatePrExistsForDeveloper(
     });
     const repoAmbientGhTarget = typeof repoSnapshot.ghRepoView === "string" ? repoSnapshot.ghRepoView : null;
     const pluginAmbientGhTarget = typeof pluginSnapshot.ghRepoView === "string" ? pluginSnapshot.ghRepoView : null;
+    const [repoAmbientIssueProbe, pluginAmbientIssueProbe, configuredTargetIssueProbe] = await Promise.all([
+      probeGhIssueLookup({ issueId, cwd: repoPath, runCommand, probeName: "repo_ambient" }),
+      probeGhIssueLookup({ issueId, cwd: pluginSourceRoot, runCommand, probeName: "plugin_ambient" }),
+      configuredProviderTargetRepo
+        ? probeGhIssueLookup({ issueId, cwd: repoPath, runCommand, forcedRepo: configuredProviderTargetRepo, probeName: "configured_target" })
+        : Promise.resolve({
+          probeName: "configured_target",
+          cwd: repoPath,
+          forcedRepo: null,
+          ok: false,
+          skipped: true,
+          reason: "no_configured_provider_target_repo",
+        } as Record<string, unknown>),
+    ]);
+    const repoAmbientLinkedPrCount = typeof repoAmbientIssueProbe.linkedPullRequestCount === "number" ? repoAmbientIssueProbe.linkedPullRequestCount : null;
+    const pluginAmbientLinkedPrCount = typeof pluginAmbientIssueProbe.linkedPullRequestCount === "number" ? pluginAmbientIssueProbe.linkedPullRequestCount : null;
+    const configuredTargetLinkedPrCount = typeof configuredTargetIssueProbe.linkedPullRequestCount === "number" ? configuredTargetIssueProbe.linkedPullRequestCount : null;
+    const prLookupProbeDecision = configuredProviderTargetRepo
+      ? configuredTargetLinkedPrCount !== null && repoAmbientLinkedPrCount !== null && configuredTargetLinkedPrCount !== repoAmbientLinkedPrCount
+        ? `configured target lookup found ${configuredTargetLinkedPrCount} linked PR(s) while repo ambient lookup found ${repoAmbientLinkedPrCount}`
+        : configuredTargetLinkedPrCount !== null && pluginAmbientLinkedPrCount !== null && configuredTargetLinkedPrCount !== pluginAmbientLinkedPrCount
+          ? `configured target lookup found ${configuredTargetLinkedPrCount} linked PR(s) while live-plugin ambient lookup found ${pluginAmbientLinkedPrCount}`
+          : "configured target and ambient issue-view probes did not disagree on linked PR count"
+      : "no configured provider target repo, so only ambient issue-view probes were available";
     const prLookupTargetingDecision = configuredProviderTargetRepo
       ? repoAmbientGhTarget && repoAmbientGhTarget !== configuredProviderTargetRepo
         ? `provider PR lookup is pinned to configured target ${configuredProviderTargetRepo} even though ambient gh target at repoPath is ${repoAmbientGhTarget}`
@@ -591,6 +672,13 @@ async function validatePrExistsForDeveloper(
       repoAmbientMatchesConfiguredTarget: configuredProviderTargetRepo ? repoAmbientGhTarget === configuredProviderTargetRepo : null,
       pluginAmbientMatchesConfiguredTarget: configuredProviderTargetRepo ? pluginAmbientGhTarget === configuredProviderTargetRepo : null,
       repoAndPluginAmbientGhAgree: repoAmbientGhTarget && pluginAmbientGhTarget ? repoAmbientGhTarget === pluginAmbientGhTarget : null,
+      repoAmbientIssueProbe,
+      pluginAmbientIssueProbe,
+      configuredTargetIssueProbe,
+      repoAmbientLinkedPrCount,
+      pluginAmbientLinkedPrCount,
+      configuredTargetLinkedPrCount,
+      probeDecision: prLookupProbeDecision,
       decision: prLookupTargetingDecision,
     };
 
@@ -602,6 +690,12 @@ async function validatePrExistsForDeveloper(
       prMergeable: typeof prStatus.mergeable === "boolean" ? prStatus.mergeable : null,
       prLookupTargeting,
       prLookupTargetingDecision,
+      prLookupProbeDecision,
+      prLookupProbeSummary: {
+        repoAmbientIssueProbe,
+        pluginAmbientIssueProbe,
+        configuredTargetIssueProbe,
+      },
       isConflictCycle: null,
       branchResolution,
       branchResolutionDecision:
