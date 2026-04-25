@@ -45,6 +45,14 @@ function buildEventAuditExcerpt(entry: AuditEntry): Record<string, unknown> {
     prValidationBranchResolutionPreferredSource: asString(entry.prValidationBranchResolutionPreferredSource) ?? null,
     prValidationPreferredBranchConfidence: asString(entry.prValidationPreferredBranchConfidence) ?? null,
     prValidationBranchResolutionPreferredEvidence: asString(entry.prValidationBranchResolutionPreferredEvidence) ?? null,
+    prValidationLookupTargetingDecision: asString(entry.prValidationLookupTargetingDecision) ?? null,
+    prValidationLookupTargetingSummary: isRecord(entry.prValidationLookupTargetingSummary) ? entry.prValidationLookupTargetingSummary : null,
+    prValidationConfiguredProviderTargetRepo: asString(entry.prValidationConfiguredProviderTargetRepo) ?? null,
+    prValidationRepoAmbientGhTarget: asString(entry.prValidationRepoAmbientGhTarget) ?? null,
+    prValidationPluginAmbientGhTarget: asString(entry.prValidationPluginAmbientGhTarget) ?? null,
+    prValidationRepoAmbientLinkedPrCount: asNumber(entry.prValidationRepoAmbientLinkedPrCount),
+    prValidationPluginAmbientLinkedPrCount: asNumber(entry.prValidationPluginAmbientLinkedPrCount),
+    prValidationConfiguredTargetLinkedPrCount: asNumber(entry.prValidationConfiguredTargetLinkedPrCount),
     prValidationLookupProbeDecision: asString(entry.prValidationLookupProbeDecision) ?? null,
     prValidationLookupProbeSummary: isRecord(entry.prValidationLookupProbeSummary) ? entry.prValidationLookupProbeSummary : null,
     prValidationBranchSelectionWinnerSummary: asString(entry.prValidationBranchSelectionWinnerSummary) ?? null,
@@ -70,6 +78,7 @@ function buildEventAuditExcerpt(entry: AuditEntry): Record<string, unknown> {
     laneMismatchSummary: asString(entry.laneMismatchSummary) ?? null,
     laneMismatchCategory: asString(entry.laneMismatchCategory) ?? null,
     branchSourceCandidateDecisionTable: Array.isArray(entry.branchSourceCandidateDecisionTable) ? entry.branchSourceCandidateDecisionTable : null,
+    branchSourceCandidateDiagnostics: Array.isArray(entry.branchSourceCandidateDiagnostics) ? entry.branchSourceCandidateDiagnostics : null,
     branchSourceCandidatesInPriorityOrder: Array.isArray(entry.branchSourceCandidatesInPriorityOrder) ? entry.branchSourceCandidatesInPriorityOrder : null,
     repoSnapshot: isRecord(entry.repoSnapshot) ? entry.repoSnapshot : null,
     pluginSnapshot: isRecord(entry.pluginSnapshot) ? entry.pluginSnapshot : null,
@@ -435,7 +444,9 @@ function toLoopEvent(entry: AuditEntry): LoopBrakeDecision["events"][number] | n
       rawDuplicateSourceWinningRealPathGuess: asString(entry.duplicateSourceWinningRealPathGuess),
       rawDuplicateSourceCompetingRealPaths: Array.isArray(entry.duplicateSourceCompetingRealPaths) ? entry.duplicateSourceCompetingRealPaths : null,
       rawBranchSourceCandidateDecisionTable: Array.isArray(entry.branchSourceCandidateDecisionTable) ? entry.branchSourceCandidateDecisionTable : null,
+      rawBranchSourceCandidateDiagnostics: Array.isArray(entry.branchSourceCandidateDiagnostics) ? entry.branchSourceCandidateDiagnostics : null,
       rawPrValidationBranchSourceCandidateDecisionTable: Array.isArray(entry.prValidationBranchSourceCandidateDecisionTable) ? entry.prValidationBranchSourceCandidateDecisionTable : null,
+      rawPrValidationBranchSourceCandidateDiagnostics: Array.isArray(entry.prValidationBranchSourceCandidateDiagnostics) ? entry.prValidationBranchSourceCandidateDiagnostics : null,
       rawAuditExcerpt: buildEventAuditExcerpt(entry),
     };
   }
@@ -510,7 +521,9 @@ function toLoopEvent(entry: AuditEntry): LoopBrakeDecision["events"][number] | n
       rawDuplicateSourceWinningRealPathGuess: asString(entry.duplicateSourceWinningRealPathGuess),
       rawDuplicateSourceCompetingRealPaths: Array.isArray(entry.duplicateSourceCompetingRealPaths) ? entry.duplicateSourceCompetingRealPaths : null,
       rawBranchSourceCandidateDecisionTable: Array.isArray(entry.branchSourceCandidateDecisionTable) ? entry.branchSourceCandidateDecisionTable : null,
+      rawBranchSourceCandidateDiagnostics: Array.isArray(entry.branchSourceCandidateDiagnostics) ? entry.branchSourceCandidateDiagnostics : null,
       rawPrValidationBranchSourceCandidateDecisionTable: Array.isArray(entry.prValidationBranchSourceCandidateDecisionTable) ? entry.prValidationBranchSourceCandidateDecisionTable : null,
+      rawPrValidationBranchSourceCandidateDiagnostics: Array.isArray(entry.prValidationBranchSourceCandidateDiagnostics) ? entry.prValidationBranchSourceCandidateDiagnostics : null,
       rawAuditExcerpt: buildEventAuditExcerpt(entry),
     };
   }

@@ -470,6 +470,85 @@ function buildBranchResolutionDiagnostic(opts: {
   };
 }
 
+function summarizeDetectedBranchSource(opts: {
+  detectedBranch: string | null;
+  branchResolution: Record<string, unknown>;
+}): Record<string, unknown> {
+  const detectedBranch = opts.detectedBranch;
+  const branchWinner = typeof opts.branchResolution.branchWinner === "string" ? opts.branchResolution.branchWinner : null;
+  const preferredBranchSource = typeof opts.branchResolution.preferredBranchSource === "string" ? opts.branchResolution.preferredBranchSource : null;
+  const repoBranch = typeof opts.branchResolution.repoBranch === "string" ? opts.branchResolution.repoBranch : null;
+  const pluginBranch = typeof opts.branchResolution.pluginBranch === "string" ? opts.branchResolution.pluginBranch : null;
+  const prSourceBranch = typeof opts.branchResolution.prSourceBranch === "string" ? opts.branchResolution.prSourceBranch : null;
+  const repoHeadBranches = Array.isArray(opts.branchResolution.repoHeadBranches)
+    ? opts.branchResolution.repoHeadBranches.filter((value): value is string => typeof value === "string")
+    : [];
+  const pluginHeadBranches = Array.isArray(opts.branchResolution.pluginHeadBranches)
+    ? opts.branchResolution.pluginHeadBranches.filter((value): value is string => typeof value === "string")
+    : [];
+
+  const detectedBranchSource =
+    detectedBranch === null
+      ? "missing"
+      : repoBranch !== null && detectedBranch === repoBranch
+        ? "configured_repo_branch"
+        : pluginBranch !== null && detectedBranch === pluginBranch
+          ? "live_plugin_branch"
+          : prSourceBranch !== null && detectedBranch === prSourceBranch
+            ? "pr_source_branch"
+            : repoHeadBranches.includes(detectedBranch)
+              ? "configured_repo_head_branches"
+              : pluginHeadBranches.includes(detectedBranch)
+                ? "live_plugin_head_branches"
+                : branchWinner !== null && detectedBranch === branchWinner
+                  ? "branch_resolution_winner"
+                  : "unexpected_or_unclassified";
+
+  const mismatchReasons = [
+    detectedBranch !== null && branchWinner !== null && detectedBranch !== branchWinner
+      ? `detected branch ${detectedBranch} differs from branch-resolution winner ${branchWinner}`
+      : null,
+    detectedBranch !== null && repoBranch !== null && detectedBranch !== repoBranch
+      ? `detected branch ${detectedBranch} differs from configured repo branch ${repoBranch}`
+      : null,
+    detectedBranch !== null && pluginBranch !== null && detectedBranch !== pluginBranch
+      ? `detected branch ${detectedBranch} differs from live plugin branch ${pluginBranch}`
+      : null,
+    detectedBranch !== null && prSourceBranch !== null && detectedBranch !== prSourceBranch
+      ? `detected branch ${detectedBranch} differs from PR source branch ${prSourceBranch}`
+      : null,
+    detectedBranch !== null && preferredBranchSource !== null && detectedBranchSource === "unexpected_or_unclassified"
+      ? `detected branch ${detectedBranch} could not be explained by preferred branch source ${preferredBranchSource}`
+      : null,
+  ].filter((value): value is string => Boolean(value));
+
+  return {
+    detectedBranch,
+    detectedBranchSource,
+    detectedBranchMatchesBranchWinner: detectedBranch !== null && branchWinner !== null ? detectedBranch === branchWinner : null,
+    detectedBranchMatchesConfiguredRepoBranch: detectedBranch !== null && repoBranch !== null ? detectedBranch === repoBranch : null,
+    detectedBranchMatchesLivePluginBranch: detectedBranch !== null && pluginBranch !== null ? detectedBranch === pluginBranch : null,
+    detectedBranchMatchesPrSourceBranch: detectedBranch !== null && prSourceBranch !== null ? detectedBranch === prSourceBranch : null,
+    detectedBranchMismatchReasons: mismatchReasons,
+    detectedBranchDecisionSummary:
+      detectedBranch === null
+        ? "detected branch lookup returned no branch name"
+        : detectedBranchSource === "configured_repo_branch"
+          ? `detected branch ${detectedBranch} came directly from the configured repo branch`
+          : detectedBranchSource === "live_plugin_branch"
+            ? `detected branch ${detectedBranch} matches the live plugin branch`
+            : detectedBranchSource === "pr_source_branch"
+              ? `detected branch ${detectedBranch} matches the PR source branch`
+              : detectedBranchSource === "configured_repo_head_branches"
+                ? `detected branch ${detectedBranch} appears among configured repo HEAD-attached branches`
+                : detectedBranchSource === "live_plugin_head_branches"
+                  ? `detected branch ${detectedBranch} appears among live plugin HEAD-attached branches`
+                  : detectedBranchSource === "branch_resolution_winner"
+                    ? `detected branch ${detectedBranch} matches the branch-resolution winner ${branchWinner}`
+                    : `detected branch ${detectedBranch} could not be cleanly explained by repo, plugin, or PR branch evidence`,
+  };
+}
+
 async function recordWorkFinishDiagnostic(
   workspaceDir: string,
   stage: string,
@@ -749,6 +828,22 @@ async function validatePrExistsForDeveloper(
               : branchResolution.pluginHeadPointsAtPrSourceBranch === true
                 ? "plugin HEAD points at PR source branch even though branch --show-current did not match"
                 : "neither configured repo branch nor plugin branch matches PR source branch",
+      branchResolutionPreferredSource: typeof branchResolution.preferredBranchSource === "string" ? branchResolution.preferredBranchSource : null,
+      preferredBranchSource: typeof branchResolution.preferredBranchSource === "string" ? branchResolution.preferredBranchSource : null,
+      preferredBranchConfidence: typeof branchResolution.preferredBranchConfidence === "string" ? branchResolution.preferredBranchConfidence : null,
+      branchResolutionPreferredEvidence: typeof branchResolution.preferredBranchEvidence === "string" ? branchResolution.preferredBranchEvidence : null,
+      branchWinnerDecisionSummary: typeof branchResolution.branchWinnerDecisionSummary === "string" ? branchResolution.branchWinnerDecisionSummary : null,
+      branchSelectionWinnerSummary: typeof branchResolution.branchSelectionWinnerSummary === "string" ? branchResolution.branchSelectionWinnerSummary : null,
+      branchWinnerComparedToLaneSummary: typeof branchResolution.branchWinnerComparedToLaneSummary === "string" ? branchResolution.branchWinnerComparedToLaneSummary : null,
+      branchSourceCandidateDecisionTable: Array.isArray(branchResolution.branchSourceCandidateDecisionTable) ? branchResolution.branchSourceCandidateDecisionTable as Array<Record<string, unknown>> : null,
+      branchSourceCandidateDiagnostics: Array.isArray(branchResolution.branchSourceCandidateDiagnostics) ? branchResolution.branchSourceCandidateDiagnostics as Array<Record<string, unknown>> : null,
+      branchSourceCandidatesInPriorityOrder: Array.isArray(branchResolution.branchSourceCandidatesInPriorityOrder) ? branchResolution.branchSourceCandidatesInPriorityOrder as Array<Record<string, unknown>> : null,
+      laneMismatchSummary: Array.isArray(branchResolution.branchMismatchSummary) ? branchResolution.branchMismatchSummary.filter((value): value is string => typeof value === "string") : null,
+      laneMismatchCategory: typeof branchResolution.repoRealPath === "string" && typeof branchResolution.pluginRealPath === "string" && branchResolution.repoRealPath !== branchResolution.pluginRealPath
+        ? "repo_plugin_realpath_mismatch"
+        : typeof branchResolution.repoBranch === "string" && typeof branchResolution.pluginBranch === "string" && branchResolution.repoBranch !== branchResolution.pluginBranch
+          ? "repo_plugin_branch_mismatch"
+          : "lane_aligned_or_unresolved",
       branchResolutionNotes: [
         branchResolution.repoAndPluginSameWorkTree === true ? "repo and plugin resolve to the same worktree" : "repo and plugin resolve to different worktrees",
         branchResolution.repoAndPluginSameBranch === true ? "repo and plugin report the same current branch" : "repo and plugin report different current branches",
@@ -767,6 +862,18 @@ async function validatePrExistsForDeveloper(
         // Fall back to generic placeholder
       }
 
+      const missingPrBranchResolution = buildBranchResolutionDiagnostic({
+        repoPath,
+        pluginSourceRoot,
+        repoSnapshot,
+        pluginSnapshot,
+        prSourceBranch: null,
+      });
+      const detectedBranchSummary = summarizeDetectedBranchSource({
+        detectedBranch: branchName,
+        branchResolution: missingPrBranchResolution,
+      });
+
       await recordWorkFinishDiagnostic(workspaceDir, "work_finish_pr_missing", {
         project: projectSlug,
         issueId,
@@ -775,13 +882,24 @@ async function validatePrExistsForDeveloper(
         pluginSourceRoot,
         pluginSnapshot,
         detectedBranch: branchName,
-        branchResolution: buildBranchResolutionDiagnostic({
-          repoPath,
-          pluginSourceRoot,
-          repoSnapshot,
-          pluginSnapshot,
-          prSourceBranch: null,
-        }),
+        ...detectedBranchSummary,
+        branchResolution: missingPrBranchResolution,
+        branchResolutionPreferredSource: typeof missingPrBranchResolution.preferredBranchSource === "string" ? missingPrBranchResolution.preferredBranchSource : null,
+        preferredBranchSource: typeof missingPrBranchResolution.preferredBranchSource === "string" ? missingPrBranchResolution.preferredBranchSource : null,
+        preferredBranchConfidence: typeof missingPrBranchResolution.preferredBranchConfidence === "string" ? missingPrBranchResolution.preferredBranchConfidence : null,
+        branchResolutionPreferredEvidence: typeof missingPrBranchResolution.preferredBranchEvidence === "string" ? missingPrBranchResolution.preferredBranchEvidence : null,
+        branchWinnerDecisionSummary: typeof missingPrBranchResolution.branchWinnerDecisionSummary === "string" ? missingPrBranchResolution.branchWinnerDecisionSummary : null,
+        branchSelectionWinnerSummary: typeof missingPrBranchResolution.branchSelectionWinnerSummary === "string" ? missingPrBranchResolution.branchSelectionWinnerSummary : null,
+        branchWinnerComparedToLaneSummary: typeof missingPrBranchResolution.branchWinnerComparedToLaneSummary === "string" ? missingPrBranchResolution.branchWinnerComparedToLaneSummary : null,
+        branchSourceCandidateDecisionTable: Array.isArray(missingPrBranchResolution.branchSourceCandidateDecisionTable) ? missingPrBranchResolution.branchSourceCandidateDecisionTable as Array<Record<string, unknown>> : null,
+        branchSourceCandidateDiagnostics: Array.isArray(missingPrBranchResolution.branchSourceCandidateDiagnostics) ? missingPrBranchResolution.branchSourceCandidateDiagnostics as Array<Record<string, unknown>> : null,
+        branchSourceCandidatesInPriorityOrder: Array.isArray(missingPrBranchResolution.branchSourceCandidatesInPriorityOrder) ? missingPrBranchResolution.branchSourceCandidatesInPriorityOrder as Array<Record<string, unknown>> : null,
+        laneMismatchSummary: Array.isArray(missingPrBranchResolution.branchMismatchSummary) ? missingPrBranchResolution.branchMismatchSummary.filter((value): value is string => typeof value === "string") : null,
+        laneMismatchCategory: typeof missingPrBranchResolution.repoRealPath === "string" && typeof missingPrBranchResolution.pluginRealPath === "string" && missingPrBranchResolution.repoRealPath !== missingPrBranchResolution.pluginRealPath
+          ? "repo_plugin_realpath_mismatch"
+          : typeof missingPrBranchResolution.repoBranch === "string" && typeof missingPrBranchResolution.pluginBranch === "string" && missingPrBranchResolution.repoBranch !== missingPrBranchResolution.pluginBranch
+            ? "repo_plugin_branch_mismatch"
+            : "lane_aligned_or_unresolved",
         prLookupTargeting,
         prLookupTargetingDecision,
       }).catch(() => {});

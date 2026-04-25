@@ -27773,6 +27773,7 @@ async function executeCompletion(opts) {
     duplicateSourceWinningRealPathGuess: branchDecisionContext.pluginSourceConfigSummary.likelyWinningLiveRealPath ?? null,
     duplicateSourceCompetingRealPaths: branchDecisionContext.pluginSourceConfigSummary.conflictingDevclawRealPaths,
     branchSourceCandidateDecisionTable: branchDecisionContext.branchSourceCandidateDecisionTable,
+    branchSourceCandidateDiagnostics: branchDecisionContext.branchSourceCandidateDiagnostics ?? null,
     branchSourceCandidatesInPriorityOrder: branchDecisionContext.branchSourceCandidatesInPriorityOrder ?? null,
     laneMismatchSummary: branchDecisionContext.branchMismatchSummary ?? null,
     laneMismatchCategory: branchDecisionContext.repoRealPath !== null && branchDecisionContext.pluginRealPath !== null && branchDecisionContext.repoRealPath !== branchDecisionContext.pluginRealPath ? "repo_plugin_realpath_mismatch" : branchDecisionContext.repoBranch !== null && branchDecisionContext.pluginBranch !== null && branchDecisionContext.repoBranch !== branchDecisionContext.pluginBranch ? "repo_plugin_branch_mismatch" : "lane_aligned_or_unresolved",
@@ -27788,9 +27789,18 @@ async function executeCompletion(opts) {
     prValidationBranchResolutionPreferredSource: prValidationSummary?.preferredBranchSource ?? null,
     prValidationPreferredBranchConfidence: prValidationSummary?.preferredBranchConfidence ?? null,
     prValidationBranchResolutionPreferredEvidence: prValidationSummary?.branchResolutionPreferredEvidence ?? null,
+    prValidationLookupTargetingDecision: prValidationSummary?.prLookupTargetingDecision ?? null,
+    prValidationLookupTargetingSummary: prValidationSummary?.prLookupTargeting ?? null,
+    prValidationConfiguredProviderTargetRepo: typeof prValidationSummary?.prLookupTargeting?.configuredProviderTargetRepo === "string" ? prValidationSummary.prLookupTargeting.configuredProviderTargetRepo : null,
+    prValidationRepoAmbientGhTarget: typeof prValidationSummary?.prLookupTargeting?.repoAmbientGhTarget === "string" ? prValidationSummary.prLookupTargeting.repoAmbientGhTarget : null,
+    prValidationPluginAmbientGhTarget: typeof prValidationSummary?.prLookupTargeting?.pluginAmbientGhTarget === "string" ? prValidationSummary.prLookupTargeting.pluginAmbientGhTarget : null,
+    prValidationRepoAmbientLinkedPrCount: typeof prValidationSummary?.prLookupTargeting?.repoAmbientLinkedPrCount === "number" ? prValidationSummary.prLookupTargeting.repoAmbientLinkedPrCount : null,
+    prValidationPluginAmbientLinkedPrCount: typeof prValidationSummary?.prLookupTargeting?.pluginAmbientLinkedPrCount === "number" ? prValidationSummary.prLookupTargeting.pluginAmbientLinkedPrCount : null,
+    prValidationConfiguredTargetLinkedPrCount: typeof prValidationSummary?.prLookupTargeting?.configuredTargetLinkedPrCount === "number" ? prValidationSummary.prLookupTargeting.configuredTargetLinkedPrCount : null,
     prValidationLookupProbeDecision: prValidationSummary?.prLookupProbeDecision ?? null,
     prValidationLookupProbeSummary: prValidationSummary?.prLookupProbeSummary ?? null,
     prValidationBranchSourceCandidateDecisionTable: prValidationSummary?.branchSourceCandidateDecisionTable ?? null,
+    prValidationBranchSourceCandidateDiagnostics: Array.isArray(prValidationSummary?.branchResolution?.branchSourceCandidateDiagnostics) ? prValidationSummary.branchResolution.branchSourceCandidateDiagnostics : null,
     prValidationBranchSourceCandidatesInPriorityOrder: prValidationSummary?.branchSourceCandidatesInPriorityOrder ?? null,
     prValidationLaneMismatchSummary: prValidationSummary?.branchMismatchSummary ?? null,
     prValidationLaneMismatchCategory: prValidationSummary?.laneMismatchCategory ?? null
@@ -27833,6 +27843,7 @@ async function executeCompletion(opts) {
       duplicateSourceWinningRealPathGuess: branchDecisionContext.pluginSourceConfigSummary.likelyWinningLiveRealPath ?? null,
       duplicateSourceCompetingRealPaths: branchDecisionContext.pluginSourceConfigSummary.conflictingDevclawRealPaths,
       branchSourceCandidateDecisionTable: branchDecisionContext.branchSourceCandidateDecisionTable,
+      branchSourceCandidateDiagnostics: branchDecisionContext.branchSourceCandidateDiagnostics ?? null,
       laneMismatchCategory: branchDecisionContext.repoRealPath !== null && branchDecisionContext.pluginRealPath !== null && branchDecisionContext.repoRealPath !== branchDecisionContext.pluginRealPath ? "repo_plugin_realpath_mismatch" : branchDecisionContext.repoBranch !== null && branchDecisionContext.pluginBranch !== null && branchDecisionContext.repoBranch !== branchDecisionContext.pluginBranch ? "repo_plugin_branch_mismatch" : "lane_aligned_or_unresolved",
       error: err.message ?? String(err),
       errorName: err instanceof Error ? err.name : null,
@@ -27935,6 +27946,7 @@ async function executeCompletion(opts) {
     duplicateSourceWinningRealPathGuess: branchDecisionContext.pluginSourceConfigSummary.likelyWinningLiveRealPath ?? null,
     duplicateSourceCompetingRealPaths: branchDecisionContext.pluginSourceConfigSummary.conflictingDevclawRealPaths,
     branchSourceCandidateDecisionTable: branchDecisionContext.branchSourceCandidateDecisionTable,
+    branchSourceCandidateDiagnostics: branchDecisionContext.branchSourceCandidateDiagnostics ?? null,
     branchSourceCandidatesInPriorityOrder: branchDecisionContext.branchSourceCandidatesInPriorityOrder ?? null,
     laneMismatchSummary: branchDecisionContext.branchMismatchSummary ?? null,
     laneMismatchCategory: branchDecisionContext.repoRealPath !== null && branchDecisionContext.pluginRealPath !== null && branchDecisionContext.repoRealPath !== branchDecisionContext.pluginRealPath ? "repo_plugin_realpath_mismatch" : branchDecisionContext.repoBranch !== null && branchDecisionContext.pluginBranch !== null && branchDecisionContext.repoBranch !== branchDecisionContext.pluginBranch ? "repo_plugin_branch_mismatch" : "lane_aligned_or_unresolved",
@@ -27950,9 +27962,18 @@ async function executeCompletion(opts) {
     prValidationBranchResolutionPreferredSource: prValidationSummary?.preferredBranchSource ?? null,
     prValidationPreferredBranchConfidence: prValidationSummary?.preferredBranchConfidence ?? null,
     prValidationBranchResolutionPreferredEvidence: prValidationSummary?.branchResolutionPreferredEvidence ?? null,
+    prValidationLookupTargetingDecision: prValidationSummary?.prLookupTargetingDecision ?? null,
+    prValidationLookupTargetingSummary: prValidationSummary?.prLookupTargeting ?? null,
+    prValidationConfiguredProviderTargetRepo: typeof prValidationSummary?.prLookupTargeting?.configuredProviderTargetRepo === "string" ? prValidationSummary.prLookupTargeting.configuredProviderTargetRepo : null,
+    prValidationRepoAmbientGhTarget: typeof prValidationSummary?.prLookupTargeting?.repoAmbientGhTarget === "string" ? prValidationSummary.prLookupTargeting.repoAmbientGhTarget : null,
+    prValidationPluginAmbientGhTarget: typeof prValidationSummary?.prLookupTargeting?.pluginAmbientGhTarget === "string" ? prValidationSummary.prLookupTargeting.pluginAmbientGhTarget : null,
+    prValidationRepoAmbientLinkedPrCount: typeof prValidationSummary?.prLookupTargeting?.repoAmbientLinkedPrCount === "number" ? prValidationSummary.prLookupTargeting.repoAmbientLinkedPrCount : null,
+    prValidationPluginAmbientLinkedPrCount: typeof prValidationSummary?.prLookupTargeting?.pluginAmbientLinkedPrCount === "number" ? prValidationSummary.prLookupTargeting.pluginAmbientLinkedPrCount : null,
+    prValidationConfiguredTargetLinkedPrCount: typeof prValidationSummary?.prLookupTargeting?.configuredTargetLinkedPrCount === "number" ? prValidationSummary.prLookupTargeting.configuredTargetLinkedPrCount : null,
     prValidationLookupProbeDecision: prValidationSummary?.prLookupProbeDecision ?? null,
     prValidationLookupProbeSummary: prValidationSummary?.prLookupProbeSummary ?? null,
     prValidationBranchSourceCandidateDecisionTable: prValidationSummary?.branchSourceCandidateDecisionTable ?? null,
+    prValidationBranchSourceCandidateDiagnostics: Array.isArray(prValidationSummary?.branchResolution?.branchSourceCandidateDiagnostics) ? prValidationSummary.branchResolution.branchSourceCandidateDiagnostics : null,
     prValidationBranchSourceCandidatesInPriorityOrder: prValidationSummary?.branchSourceCandidatesInPriorityOrder ?? null,
     prValidationLaneMismatchSummary: prValidationSummary?.branchMismatchSummary ?? null,
     prValidationLaneMismatchCategory: prValidationSummary?.laneMismatchCategory ?? null
@@ -28316,6 +28337,34 @@ function buildBranchResolutionDiagnostic(opts) {
     ]
   };
 }
+function summarizeDetectedBranchSource(opts) {
+  const detectedBranch = opts.detectedBranch;
+  const branchWinner = typeof opts.branchResolution.branchWinner === "string" ? opts.branchResolution.branchWinner : null;
+  const preferredBranchSource = typeof opts.branchResolution.preferredBranchSource === "string" ? opts.branchResolution.preferredBranchSource : null;
+  const repoBranch = typeof opts.branchResolution.repoBranch === "string" ? opts.branchResolution.repoBranch : null;
+  const pluginBranch = typeof opts.branchResolution.pluginBranch === "string" ? opts.branchResolution.pluginBranch : null;
+  const prSourceBranch = typeof opts.branchResolution.prSourceBranch === "string" ? opts.branchResolution.prSourceBranch : null;
+  const repoHeadBranches = Array.isArray(opts.branchResolution.repoHeadBranches) ? opts.branchResolution.repoHeadBranches.filter((value) => typeof value === "string") : [];
+  const pluginHeadBranches = Array.isArray(opts.branchResolution.pluginHeadBranches) ? opts.branchResolution.pluginHeadBranches.filter((value) => typeof value === "string") : [];
+  const detectedBranchSource = detectedBranch === null ? "missing" : repoBranch !== null && detectedBranch === repoBranch ? "configured_repo_branch" : pluginBranch !== null && detectedBranch === pluginBranch ? "live_plugin_branch" : prSourceBranch !== null && detectedBranch === prSourceBranch ? "pr_source_branch" : repoHeadBranches.includes(detectedBranch) ? "configured_repo_head_branches" : pluginHeadBranches.includes(detectedBranch) ? "live_plugin_head_branches" : branchWinner !== null && detectedBranch === branchWinner ? "branch_resolution_winner" : "unexpected_or_unclassified";
+  const mismatchReasons = [
+    detectedBranch !== null && branchWinner !== null && detectedBranch !== branchWinner ? `detected branch ${detectedBranch} differs from branch-resolution winner ${branchWinner}` : null,
+    detectedBranch !== null && repoBranch !== null && detectedBranch !== repoBranch ? `detected branch ${detectedBranch} differs from configured repo branch ${repoBranch}` : null,
+    detectedBranch !== null && pluginBranch !== null && detectedBranch !== pluginBranch ? `detected branch ${detectedBranch} differs from live plugin branch ${pluginBranch}` : null,
+    detectedBranch !== null && prSourceBranch !== null && detectedBranch !== prSourceBranch ? `detected branch ${detectedBranch} differs from PR source branch ${prSourceBranch}` : null,
+    detectedBranch !== null && preferredBranchSource !== null && detectedBranchSource === "unexpected_or_unclassified" ? `detected branch ${detectedBranch} could not be explained by preferred branch source ${preferredBranchSource}` : null
+  ].filter((value) => Boolean(value));
+  return {
+    detectedBranch,
+    detectedBranchSource,
+    detectedBranchMatchesBranchWinner: detectedBranch !== null && branchWinner !== null ? detectedBranch === branchWinner : null,
+    detectedBranchMatchesConfiguredRepoBranch: detectedBranch !== null && repoBranch !== null ? detectedBranch === repoBranch : null,
+    detectedBranchMatchesLivePluginBranch: detectedBranch !== null && pluginBranch !== null ? detectedBranch === pluginBranch : null,
+    detectedBranchMatchesPrSourceBranch: detectedBranch !== null && prSourceBranch !== null ? detectedBranch === prSourceBranch : null,
+    detectedBranchMismatchReasons: mismatchReasons,
+    detectedBranchDecisionSummary: detectedBranch === null ? "detected branch lookup returned no branch name" : detectedBranchSource === "configured_repo_branch" ? `detected branch ${detectedBranch} came directly from the configured repo branch` : detectedBranchSource === "live_plugin_branch" ? `detected branch ${detectedBranch} matches the live plugin branch` : detectedBranchSource === "pr_source_branch" ? `detected branch ${detectedBranch} matches the PR source branch` : detectedBranchSource === "configured_repo_head_branches" ? `detected branch ${detectedBranch} appears among configured repo HEAD-attached branches` : detectedBranchSource === "live_plugin_head_branches" ? `detected branch ${detectedBranch} appears among live plugin HEAD-attached branches` : detectedBranchSource === "branch_resolution_winner" ? `detected branch ${detectedBranch} matches the branch-resolution winner ${branchWinner}` : `detected branch ${detectedBranch} could not be cleanly explained by repo, plugin, or PR branch evidence`
+  };
+}
 async function recordWorkFinishDiagnostic(workspaceDir, stage, data) {
   await log(workspaceDir, "loop_diagnostic", {
     stage,
@@ -28476,6 +28525,18 @@ async function validatePrExistsForDeveloper(issueId, repoPath, provider, runComm
       prLookupTargetingDecision,
       branchResolution,
       branchResolutionDecision: branchResolution.repoBranchMatchesPrSourceBranch === true ? "repo branch matches PR source branch" : branchResolution.repoHeadPointsAtPrSourceBranch === true ? "repo HEAD points at PR source branch even though branch --show-current did not match" : branchResolution.pluginBranchMatchesPrSourceBranch === true ? "plugin branch matches PR source branch but configured repo branch does not" : branchResolution.pluginHeadPointsAtPrSourceBranch === true ? "plugin HEAD points at PR source branch even though branch --show-current did not match" : "neither configured repo branch nor plugin branch matches PR source branch",
+      branchResolutionPreferredSource: typeof branchResolution.preferredBranchSource === "string" ? branchResolution.preferredBranchSource : null,
+      preferredBranchSource: typeof branchResolution.preferredBranchSource === "string" ? branchResolution.preferredBranchSource : null,
+      preferredBranchConfidence: typeof branchResolution.preferredBranchConfidence === "string" ? branchResolution.preferredBranchConfidence : null,
+      branchResolutionPreferredEvidence: typeof branchResolution.preferredBranchEvidence === "string" ? branchResolution.preferredBranchEvidence : null,
+      branchWinnerDecisionSummary: typeof branchResolution.branchWinnerDecisionSummary === "string" ? branchResolution.branchWinnerDecisionSummary : null,
+      branchSelectionWinnerSummary: typeof branchResolution.branchSelectionWinnerSummary === "string" ? branchResolution.branchSelectionWinnerSummary : null,
+      branchWinnerComparedToLaneSummary: typeof branchResolution.branchWinnerComparedToLaneSummary === "string" ? branchResolution.branchWinnerComparedToLaneSummary : null,
+      branchSourceCandidateDecisionTable: Array.isArray(branchResolution.branchSourceCandidateDecisionTable) ? branchResolution.branchSourceCandidateDecisionTable : null,
+      branchSourceCandidateDiagnostics: Array.isArray(branchResolution.branchSourceCandidateDiagnostics) ? branchResolution.branchSourceCandidateDiagnostics : null,
+      branchSourceCandidatesInPriorityOrder: Array.isArray(branchResolution.branchSourceCandidatesInPriorityOrder) ? branchResolution.branchSourceCandidatesInPriorityOrder : null,
+      laneMismatchSummary: Array.isArray(branchResolution.branchMismatchSummary) ? branchResolution.branchMismatchSummary.filter((value) => typeof value === "string") : null,
+      laneMismatchCategory: typeof branchResolution.repoRealPath === "string" && typeof branchResolution.pluginRealPath === "string" && branchResolution.repoRealPath !== branchResolution.pluginRealPath ? "repo_plugin_realpath_mismatch" : typeof branchResolution.repoBranch === "string" && typeof branchResolution.pluginBranch === "string" && branchResolution.repoBranch !== branchResolution.pluginBranch ? "repo_plugin_branch_mismatch" : "lane_aligned_or_unresolved",
       branchResolutionNotes: [
         branchResolution.repoAndPluginSameWorkTree === true ? "repo and plugin resolve to the same worktree" : "repo and plugin resolve to different worktrees",
         branchResolution.repoAndPluginSameBranch === true ? "repo and plugin report the same current branch" : "repo and plugin report different current branches",
@@ -28489,6 +28550,17 @@ async function validatePrExistsForDeveloper(issueId, repoPath, provider, runComm
         branchName = await getCurrentBranch(repoPath, runCommand);
       } catch {
       }
+      const missingPrBranchResolution = buildBranchResolutionDiagnostic({
+        repoPath,
+        pluginSourceRoot,
+        repoSnapshot,
+        pluginSnapshot,
+        prSourceBranch: null
+      });
+      const detectedBranchSummary = summarizeDetectedBranchSource({
+        detectedBranch: branchName,
+        branchResolution: missingPrBranchResolution
+      });
       await recordWorkFinishDiagnostic(workspaceDir, "work_finish_pr_missing", {
         project: projectSlug,
         issueId,
@@ -28497,13 +28569,20 @@ async function validatePrExistsForDeveloper(issueId, repoPath, provider, runComm
         pluginSourceRoot,
         pluginSnapshot,
         detectedBranch: branchName,
-        branchResolution: buildBranchResolutionDiagnostic({
-          repoPath,
-          pluginSourceRoot,
-          repoSnapshot,
-          pluginSnapshot,
-          prSourceBranch: null
-        }),
+        ...detectedBranchSummary,
+        branchResolution: missingPrBranchResolution,
+        branchResolutionPreferredSource: typeof missingPrBranchResolution.preferredBranchSource === "string" ? missingPrBranchResolution.preferredBranchSource : null,
+        preferredBranchSource: typeof missingPrBranchResolution.preferredBranchSource === "string" ? missingPrBranchResolution.preferredBranchSource : null,
+        preferredBranchConfidence: typeof missingPrBranchResolution.preferredBranchConfidence === "string" ? missingPrBranchResolution.preferredBranchConfidence : null,
+        branchResolutionPreferredEvidence: typeof missingPrBranchResolution.preferredBranchEvidence === "string" ? missingPrBranchResolution.preferredBranchEvidence : null,
+        branchWinnerDecisionSummary: typeof missingPrBranchResolution.branchWinnerDecisionSummary === "string" ? missingPrBranchResolution.branchWinnerDecisionSummary : null,
+        branchSelectionWinnerSummary: typeof missingPrBranchResolution.branchSelectionWinnerSummary === "string" ? missingPrBranchResolution.branchSelectionWinnerSummary : null,
+        branchWinnerComparedToLaneSummary: typeof missingPrBranchResolution.branchWinnerComparedToLaneSummary === "string" ? missingPrBranchResolution.branchWinnerComparedToLaneSummary : null,
+        branchSourceCandidateDecisionTable: Array.isArray(missingPrBranchResolution.branchSourceCandidateDecisionTable) ? missingPrBranchResolution.branchSourceCandidateDecisionTable : null,
+        branchSourceCandidateDiagnostics: Array.isArray(missingPrBranchResolution.branchSourceCandidateDiagnostics) ? missingPrBranchResolution.branchSourceCandidateDiagnostics : null,
+        branchSourceCandidatesInPriorityOrder: Array.isArray(missingPrBranchResolution.branchSourceCandidatesInPriorityOrder) ? missingPrBranchResolution.branchSourceCandidatesInPriorityOrder : null,
+        laneMismatchSummary: Array.isArray(missingPrBranchResolution.branchMismatchSummary) ? missingPrBranchResolution.branchMismatchSummary.filter((value) => typeof value === "string") : null,
+        laneMismatchCategory: typeof missingPrBranchResolution.repoRealPath === "string" && typeof missingPrBranchResolution.pluginRealPath === "string" && missingPrBranchResolution.repoRealPath !== missingPrBranchResolution.pluginRealPath ? "repo_plugin_realpath_mismatch" : typeof missingPrBranchResolution.repoBranch === "string" && typeof missingPrBranchResolution.pluginBranch === "string" && missingPrBranchResolution.repoBranch !== missingPrBranchResolution.pluginBranch ? "repo_plugin_branch_mismatch" : "lane_aligned_or_unresolved",
         prLookupTargeting,
         prLookupTargetingDecision
       }).catch(() => {
@@ -32572,6 +32651,14 @@ function buildEventAuditExcerpt(entry) {
     prValidationBranchResolutionPreferredSource: asString(entry.prValidationBranchResolutionPreferredSource) ?? null,
     prValidationPreferredBranchConfidence: asString(entry.prValidationPreferredBranchConfidence) ?? null,
     prValidationBranchResolutionPreferredEvidence: asString(entry.prValidationBranchResolutionPreferredEvidence) ?? null,
+    prValidationLookupTargetingDecision: asString(entry.prValidationLookupTargetingDecision) ?? null,
+    prValidationLookupTargetingSummary: isRecord(entry.prValidationLookupTargetingSummary) ? entry.prValidationLookupTargetingSummary : null,
+    prValidationConfiguredProviderTargetRepo: asString(entry.prValidationConfiguredProviderTargetRepo) ?? null,
+    prValidationRepoAmbientGhTarget: asString(entry.prValidationRepoAmbientGhTarget) ?? null,
+    prValidationPluginAmbientGhTarget: asString(entry.prValidationPluginAmbientGhTarget) ?? null,
+    prValidationRepoAmbientLinkedPrCount: asNumber(entry.prValidationRepoAmbientLinkedPrCount),
+    prValidationPluginAmbientLinkedPrCount: asNumber(entry.prValidationPluginAmbientLinkedPrCount),
+    prValidationConfiguredTargetLinkedPrCount: asNumber(entry.prValidationConfiguredTargetLinkedPrCount),
     prValidationLookupProbeDecision: asString(entry.prValidationLookupProbeDecision) ?? null,
     prValidationLookupProbeSummary: isRecord(entry.prValidationLookupProbeSummary) ? entry.prValidationLookupProbeSummary : null,
     prValidationBranchSelectionWinnerSummary: asString(entry.prValidationBranchSelectionWinnerSummary) ?? null,
@@ -32597,6 +32684,7 @@ function buildEventAuditExcerpt(entry) {
     laneMismatchSummary: asString(entry.laneMismatchSummary) ?? null,
     laneMismatchCategory: asString(entry.laneMismatchCategory) ?? null,
     branchSourceCandidateDecisionTable: Array.isArray(entry.branchSourceCandidateDecisionTable) ? entry.branchSourceCandidateDecisionTable : null,
+    branchSourceCandidateDiagnostics: Array.isArray(entry.branchSourceCandidateDiagnostics) ? entry.branchSourceCandidateDiagnostics : null,
     branchSourceCandidatesInPriorityOrder: Array.isArray(entry.branchSourceCandidatesInPriorityOrder) ? entry.branchSourceCandidatesInPriorityOrder : null,
     repoSnapshot: isRecord(entry.repoSnapshot) ? entry.repoSnapshot : null,
     pluginSnapshot: isRecord(entry.pluginSnapshot) ? entry.pluginSnapshot : null,
@@ -32793,7 +32881,9 @@ function toLoopEvent(entry) {
       rawDuplicateSourceWinningRealPathGuess: asString(entry.duplicateSourceWinningRealPathGuess),
       rawDuplicateSourceCompetingRealPaths: Array.isArray(entry.duplicateSourceCompetingRealPaths) ? entry.duplicateSourceCompetingRealPaths : null,
       rawBranchSourceCandidateDecisionTable: Array.isArray(entry.branchSourceCandidateDecisionTable) ? entry.branchSourceCandidateDecisionTable : null,
+      rawBranchSourceCandidateDiagnostics: Array.isArray(entry.branchSourceCandidateDiagnostics) ? entry.branchSourceCandidateDiagnostics : null,
       rawPrValidationBranchSourceCandidateDecisionTable: Array.isArray(entry.prValidationBranchSourceCandidateDecisionTable) ? entry.prValidationBranchSourceCandidateDecisionTable : null,
+      rawPrValidationBranchSourceCandidateDiagnostics: Array.isArray(entry.prValidationBranchSourceCandidateDiagnostics) ? entry.prValidationBranchSourceCandidateDiagnostics : null,
       rawAuditExcerpt: buildEventAuditExcerpt(entry)
     };
   }
@@ -32865,7 +32955,9 @@ function toLoopEvent(entry) {
       rawDuplicateSourceWinningRealPathGuess: asString(entry.duplicateSourceWinningRealPathGuess),
       rawDuplicateSourceCompetingRealPaths: Array.isArray(entry.duplicateSourceCompetingRealPaths) ? entry.duplicateSourceCompetingRealPaths : null,
       rawBranchSourceCandidateDecisionTable: Array.isArray(entry.branchSourceCandidateDecisionTable) ? entry.branchSourceCandidateDecisionTable : null,
+      rawBranchSourceCandidateDiagnostics: Array.isArray(entry.branchSourceCandidateDiagnostics) ? entry.branchSourceCandidateDiagnostics : null,
       rawPrValidationBranchSourceCandidateDecisionTable: Array.isArray(entry.prValidationBranchSourceCandidateDecisionTable) ? entry.prValidationBranchSourceCandidateDecisionTable : null,
+      rawPrValidationBranchSourceCandidateDiagnostics: Array.isArray(entry.prValidationBranchSourceCandidateDiagnostics) ? entry.prValidationBranchSourceCandidateDiagnostics : null,
       rawAuditExcerpt: buildEventAuditExcerpt(entry)
     };
   }
