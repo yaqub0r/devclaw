@@ -313,6 +313,14 @@ export async function executeCompletion(opts: {
                         : branchDecisionContext.pluginBranch !== null
                           ? "no PR-aware configured repo match existed, so live plugin branch would be used as fallback"
                           : "neither configured repo nor live plugin exposed a trustworthy branch candidate",
+            inferredBranchWinnerCategory:
+              branchDecisionContext.repoRealPath !== null && branchDecisionContext.pluginRealPath !== null && branchDecisionContext.repoRealPath !== branchDecisionContext.pluginRealPath
+                ? "repo_plugin_realpath_mismatch"
+                : branchDecisionContext.repoBranch !== null && branchDecisionContext.pluginBranch !== null && branchDecisionContext.repoBranch !== branchDecisionContext.pluginBranch
+                  ? "repo_plugin_branch_mismatch"
+                  : sourceBranch == null
+                    ? "no_pr_source_branch"
+                    : "pr_source_branch_resolved",
             branchDecisionNotes: [
               branchDecisionContext.repoWorkTree === branchDecisionContext.pluginWorkTree ? "repoPath and plugin source report the same worktree" : "repoPath and plugin source report different worktrees",
               branchDecisionContext.repoBranch === branchDecisionContext.pluginBranch ? "repoPath and plugin source report the same current branch" : "repoPath and plugin source report different current branches",
@@ -341,6 +349,14 @@ export async function executeCompletion(opts: {
               { source: "live_plugin_branch", value: branchDecisionContext.pluginBranch, matchesSourceBranch: branchDecisionContext.pluginBranch !== null && sourceBranch != null && branchDecisionContext.pluginBranch === sourceBranch },
               { source: "live_plugin_head_branches", value: branchDecisionContext.pluginHeadBranches, matchesSourceBranch: sourceBranch != null && branchDecisionContext.pluginHeadBranches.includes(sourceBranch) },
             ],
+            duplicateSourceCompetingRealPaths: branchDecisionContext.pluginSourceConfigSummary.conflictingDevclawRealPaths,
+            duplicateSourceWinningRealPathGuess: branchDecisionContext.pluginSourceConfigSummary.likelyWinningLiveRealPath,
+            laneMismatchCategory:
+              branchDecisionContext.repoRealPath !== null && branchDecisionContext.pluginRealPath !== null && branchDecisionContext.repoRealPath !== branchDecisionContext.pluginRealPath
+                ? "repo_plugin_realpath_mismatch"
+                : branchDecisionContext.repoBranch !== null && branchDecisionContext.pluginBranch !== null && branchDecisionContext.repoBranch !== branchDecisionContext.pluginBranch
+                  ? "repo_plugin_branch_mismatch"
+                  : "lane_aligned_or_unresolved",
             decisionPath: prStatus.url
               ? "provider returned PR status directly during DETECT_PR action"
               : mergedFallbackUrl

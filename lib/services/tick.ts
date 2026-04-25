@@ -175,6 +175,7 @@ export async function projectTick(opts: {
         to: event.to ?? null,
         reason: event.reason,
         rawReason: event.rawReason ?? null,
+        orphanReason: event.orphanReason ?? null,
         countedByRule: event.countedByRule ?? null,
         rawEvent: event.rawEvent ?? null,
         rawStage: event.rawStage ?? null,

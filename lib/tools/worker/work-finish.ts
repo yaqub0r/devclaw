@@ -636,6 +636,7 @@ export function createWorkFinishTool(ctx: PluginContext) {
               : "repo path and live plugin agree on worktree but disagree on current branch before PR lookup"
             : "repo path and live plugin disagree on worktree before PR lookup",
         branchResolutionPreferredSource: initialBranchResolution.preferredBranchSource,
+        branchResolutionPreferredEvidence: initialBranchResolution.preferredBranchEvidence,
         branchResolutionMismatchFlags: {
           repoPathMatchesResolvedWorkTree: initialBranchResolution.repoPathMatchesResolvedWorkTree,
           repoRealPathMatchesResolvedWorkTree: initialBranchResolution.repoRealPathMatchesResolvedWorkTree,
@@ -649,12 +650,21 @@ export function createWorkFinishTool(ctx: PluginContext) {
           context.duplicateSourceRisk
             ? "plugin config points at more than one distinct realpath, so install evidence is ambiguous until duplicate source is cleared"
             : "plugin config realpaths are singular or unresolved, so duplicate source risk is not evident from config alone",
+        duplicateSourceCompetingRealPaths: pluginSourceConfigSummary.conflictingDevclawRealPaths,
+        duplicateSourceWinningRealPathGuess: pluginSourceConfigSummary.likelyWinningLiveRealPath,
         liveSourceDecision:
           openclawConfigInstallSourceRealPath && typeof pluginSnapshot.realRepoPath === "string"
             ? openclawConfigInstallSourceRealPath === pluginSnapshot.realRepoPath
               ? "observed live plugin realpath matches configured install source realpath"
               : "observed live plugin realpath differs from configured install source realpath"
             : "live-source comparison could not be completed because one of the realpaths was unavailable",
+        liveSourceAgreementMatrix: {
+          installSourceMatchesInstalledPath: pluginSourceConfigSummary.installSourceMatchesInstalledPath,
+          installSourceMatchesLivePlugin: pluginSourceConfigSummary.installSourceMatchesLivePlugin,
+          installedPathMatchesLivePlugin: pluginSourceConfigSummary.installedPathMatchesLivePlugin,
+          pluginLoadPathsContainLivePlugin: pluginSourceConfigSummary.pluginLoadPathsContainLivePlugin,
+          pluginLoadPathsContainInstallSource: pluginSourceConfigSummary.pluginLoadPathsContainInstallSource,
+        },
         branchSelectionDecision:
           initialBranchResolution.preferredBranchSource === "configured_repo_branch"
             ? "configured repo branch would be trusted first if it matches PR source branch"
@@ -665,6 +675,7 @@ export function createWorkFinishTool(ctx: PluginContext) {
                 : initialBranchResolution.preferredBranchSource === "live_plugin_head_branches"
                   ? "live plugin detached-HEAD candidates currently look more trustworthy than configured repo branch for PR matching"
                   : "no PR-aware branch match exists yet, so fallback branch selection would be ambiguous",
+        branchSelectionCandidateSnapshot: initialBranchResolution.branchSourceCandidatesInPriorityOrder,
         laneIdentitySummary: {
           configuredRepoPathBasename: typeof repoPath === "string" ? repoPath.split("/").filter(Boolean).at(-1) ?? null : null,
           pluginSourceRootBasename: pluginSourceRoot.split("/").filter(Boolean).at(-1) ?? null,
@@ -679,6 +690,12 @@ export function createWorkFinishTool(ctx: PluginContext) {
               ? "configured repo path and live plugin appear to be the same lane"
               : "configured repo path and live plugin share a realpath but report different branches, so branch inference may be stale or detached"
             : "configured repo path and live plugin resolve to different realpaths, so active lane versus detected branch may be mismatched",
+        laneMismatchCategory:
+          initialBranchResolution.repoAndPluginSameRealPath === true
+            ? initialBranchResolution.repoAndPluginSameBranch === true
+              ? "same_realpath_same_branch"
+              : "same_realpath_branch_mismatch"
+            : "different_realpaths",
       }).catch(() => {});
 
       try {
