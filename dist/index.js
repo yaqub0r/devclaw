@@ -32577,6 +32577,12 @@ function toLoopEvent(entry) {
       rawLaneMismatchCategory: asString(entry.laneMismatchCategory),
       rawDuplicateSourceRisk: typeof entry.duplicateSourceRisk === "boolean" ? entry.duplicateSourceRisk : null,
       rawCanRequeueIssue: typeof entry.canRequeueIssue === "boolean" ? entry.canRequeueIssue : null,
+      rawLiveSourceDecision: asString(entry.liveSourceDecision),
+      rawLiveSourceSingularitySummary: asString(entry.liveSourceSingularitySummary),
+      rawDuplicateSourceWinningRealPathGuess: asString(entry.duplicateSourceWinningRealPathGuess),
+      rawDuplicateSourceCompetingRealPaths: Array.isArray(entry.duplicateSourceCompetingRealPaths) ? entry.duplicateSourceCompetingRealPaths : null,
+      rawBranchSourceCandidateDecisionTable: Array.isArray(entry.branchSourceCandidateDecisionTable) ? entry.branchSourceCandidateDecisionTable : null,
+      rawPrValidationBranchSourceCandidateDecisionTable: Array.isArray(entry.prValidationBranchSourceCandidateDecisionTable) ? entry.prValidationBranchSourceCandidateDecisionTable : null,
       rawAuditExcerpt: buildEventAuditExcerpt(entry)
     };
   }
@@ -32633,6 +32639,12 @@ function toLoopEvent(entry) {
       rawLaneMismatchCategory: asString(entry.laneMismatchCategory),
       rawDuplicateSourceRisk: typeof entry.duplicateSourceRisk === "boolean" ? entry.duplicateSourceRisk : null,
       rawCanRequeueIssue: typeof entry.canRequeueIssue === "boolean" ? entry.canRequeueIssue : null,
+      rawLiveSourceDecision: asString(entry.liveSourceDecision),
+      rawLiveSourceSingularitySummary: asString(entry.liveSourceSingularitySummary),
+      rawDuplicateSourceWinningRealPathGuess: asString(entry.duplicateSourceWinningRealPathGuess),
+      rawDuplicateSourceCompetingRealPaths: Array.isArray(entry.duplicateSourceCompetingRealPaths) ? entry.duplicateSourceCompetingRealPaths : null,
+      rawBranchSourceCandidateDecisionTable: Array.isArray(entry.branchSourceCandidateDecisionTable) ? entry.branchSourceCandidateDecisionTable : null,
+      rawPrValidationBranchSourceCandidateDecisionTable: Array.isArray(entry.prValidationBranchSourceCandidateDecisionTable) ? entry.prValidationBranchSourceCandidateDecisionTable : null,
       rawAuditExcerpt: buildEventAuditExcerpt(entry)
     };
   }
@@ -32687,6 +32699,12 @@ function toLoopEvent(entry) {
         rawLaneMismatchCategory: asString(entry.laneMismatchCategory),
         rawDuplicateSourceRisk: typeof entry.duplicateSourceRisk === "boolean" ? entry.duplicateSourceRisk : null,
         rawCanRequeueIssue: typeof entry.canRequeueIssue === "boolean" ? entry.canRequeueIssue : null,
+        rawLiveSourceDecision: asString(entry.liveSourceDecision),
+        rawLiveSourceSingularitySummary: asString(entry.liveSourceSingularitySummary),
+        rawDuplicateSourceWinningRealPathGuess: asString(entry.duplicateSourceWinningRealPathGuess),
+        rawDuplicateSourceCompetingRealPaths: Array.isArray(entry.duplicateSourceCompetingRealPaths) ? entry.duplicateSourceCompetingRealPaths : null,
+        rawBranchSourceCandidateDecisionTable: Array.isArray(entry.branchSourceCandidateDecisionTable) ? entry.branchSourceCandidateDecisionTable : null,
+        rawPrValidationBranchSourceCandidateDecisionTable: Array.isArray(entry.prValidationBranchSourceCandidateDecisionTable) ? entry.prValidationBranchSourceCandidateDecisionTable : null,
         rawAuditExcerpt: buildEventAuditExcerpt(entry)
       };
     }
@@ -32841,6 +32859,12 @@ async function projectTick(opts) {
         rawLaneMismatchCategory: event.rawLaneMismatchCategory ?? null,
         rawDuplicateSourceRisk: event.rawDuplicateSourceRisk ?? null,
         rawCanRequeueIssue: event.rawCanRequeueIssue ?? null,
+        rawLiveSourceDecision: event.rawLiveSourceDecision ?? null,
+        rawLiveSourceSingularitySummary: event.rawLiveSourceSingularitySummary ?? null,
+        rawDuplicateSourceWinningRealPathGuess: event.rawDuplicateSourceWinningRealPathGuess ?? null,
+        rawDuplicateSourceCompetingRealPaths: event.rawDuplicateSourceCompetingRealPaths ?? null,
+        rawBranchSourceCandidateDecisionTable: event.rawBranchSourceCandidateDecisionTable ?? null,
+        rawPrValidationBranchSourceCandidateDecisionTable: event.rawPrValidationBranchSourceCandidateDecisionTable ?? null,
         rawAuditExcerpt: event.rawAuditExcerpt ?? null,
         decisionPath: event.decisionPath ?? null
       })),
@@ -32929,6 +32953,12 @@ async function projectTick(opts) {
           rawLaneMismatchCategory: event.rawLaneMismatchCategory ?? null,
           rawDuplicateSourceRisk: event.rawDuplicateSourceRisk ?? null,
           rawCanRequeueIssue: event.rawCanRequeueIssue ?? null,
+          rawLiveSourceDecision: event.rawLiveSourceDecision ?? null,
+          rawLiveSourceSingularitySummary: event.rawLiveSourceSingularitySummary ?? null,
+          rawDuplicateSourceWinningRealPathGuess: event.rawDuplicateSourceWinningRealPathGuess ?? null,
+          rawDuplicateSourceCompetingRealPaths: event.rawDuplicateSourceCompetingRealPaths ?? null,
+          rawBranchSourceCandidateDecisionTable: event.rawBranchSourceCandidateDecisionTable ?? null,
+          rawPrValidationBranchSourceCandidateDecisionTable: event.rawPrValidationBranchSourceCandidateDecisionTable ?? null,
           rawAuditExcerpt: event.rawAuditExcerpt ?? null,
           decisionPath: event.decisionPath ?? null
         })),
