@@ -27052,12 +27052,12 @@ function resolveTarget(workflow, currentLabel, currentState) {
 // lib/tools/worker/work-finish.ts
 import { readFile as readFile2, realpath as realpath2 } from "node:fs/promises";
 import { fileURLToPath as fileURLToPath4 } from "node:url";
-import { dirname as dirname3, join as join2 } from "node:path";
+import { basename as basename2, dirname as dirname3, join as join2 } from "node:path";
 
 // lib/services/pipeline.ts
 import { realpath } from "node:fs/promises";
 import { fileURLToPath as fileURLToPath3 } from "node:url";
-import { dirname as dirname2 } from "node:path";
+import { basename, dirname as dirname2 } from "node:path";
 
 // lib/dispatch/notify.ts
 init_audit();
@@ -27378,25 +27378,38 @@ async function recordLoopDiagnostic(workspaceDir, stage, data) {
 // lib/services/pipeline.ts
 init_workflow();
 function getPluginSourceRoot() {
-  return dirname2(dirname2(dirname2(fileURLToPath3(import.meta.url))));
+  const moduleFilePath = fileURLToPath3(import.meta.url);
+  let current = dirname2(moduleFilePath);
+  for (let depth = 0; depth < 8; depth += 1) {
+    if (basename(current) === "dist") return dirname2(current);
+    const parent = dirname2(current);
+    if (parent === current) break;
+    current = parent;
+  }
+  return dirname2(dirname2(moduleFilePath));
 }
 function getPluginSourceDerivation() {
   const moduleFilePath = fileURLToPath3(import.meta.url);
   const moduleDir = dirname2(moduleFilePath);
   const selectedPluginSourceRoot = getPluginSourceRoot();
-  const candidateRoots = [
-    { label: "dirname^0", path: moduleDir },
-    { label: "dirname^1", path: dirname2(moduleDir) },
-    { label: "dirname^2", path: dirname2(dirname2(moduleDir)) },
-    { label: "dirname^3(selected)", path: selectedPluginSourceRoot },
-    { label: "dirname^4", path: dirname2(selectedPluginSourceRoot) }
-  ];
+  const candidateRoots = [];
+  let current = moduleDir;
+  let distDepth = null;
+  for (let depth = 0; depth < 8; depth += 1) {
+    const isDist = basename(current) === "dist";
+    candidateRoots.push({ label: `dirname^${depth}${current === selectedPluginSourceRoot ? "(selected)" : ""}`, path: current, isDist });
+    if (isDist && distDepth === null) distDepth = depth;
+    const parent = dirname2(current);
+    if (parent === current) break;
+    current = parent;
+  }
   return {
     moduleImportUrl: import.meta.url,
     moduleFilePath,
     moduleDir,
     selectedPluginSourceRoot,
-    selectionRule: "pipeline uses dirname(dirname(dirname(fileURLToPath(import.meta.url)))) as pluginSourceRoot",
+    selectionRule: 'walk upward until basename == "dist", then use its parent as pluginSourceRoot',
+    distDepth,
     candidateRoots
   };
 }
@@ -28152,26 +28165,38 @@ async function getGitSnapshot2(repoPath, runCommand) {
   return snapshot;
 }
 function getPluginSourceRoot2() {
-  return dirname3(dirname3(dirname3(dirname3(fileURLToPath4(import.meta.url)))));
+  const moduleFilePath = fileURLToPath4(import.meta.url);
+  let current = dirname3(moduleFilePath);
+  for (let depth = 0; depth < 8; depth += 1) {
+    if (basename2(current) === "dist") return dirname3(current);
+    const parent = dirname3(current);
+    if (parent === current) break;
+    current = parent;
+  }
+  return dirname3(dirname3(moduleFilePath));
 }
 function getPluginSourceDerivation2() {
   const moduleFilePath = fileURLToPath4(import.meta.url);
   const moduleDir = dirname3(moduleFilePath);
   const selectedPluginSourceRoot = getPluginSourceRoot2();
-  const candidateRoots = [
-    { label: "dirname^0", path: moduleDir },
-    { label: "dirname^1", path: dirname3(moduleDir) },
-    { label: "dirname^2", path: dirname3(dirname3(moduleDir)) },
-    { label: "dirname^3", path: dirname3(dirname3(dirname3(moduleDir))) },
-    { label: "dirname^4(selected)", path: selectedPluginSourceRoot },
-    { label: "dirname^5", path: dirname3(selectedPluginSourceRoot) }
-  ];
+  const candidateRoots = [];
+  let current = moduleDir;
+  let distDepth = null;
+  for (let depth = 0; depth < 8; depth += 1) {
+    const isDist = basename2(current) === "dist";
+    candidateRoots.push({ label: `dirname^${depth}${current === selectedPluginSourceRoot ? "(selected)" : ""}`, path: current, isDist });
+    if (isDist && distDepth === null) distDepth = depth;
+    const parent = dirname3(current);
+    if (parent === current) break;
+    current = parent;
+  }
   return {
     moduleImportUrl: import.meta.url,
     moduleFilePath,
     moduleDir,
     selectedPluginSourceRoot,
-    selectionRule: "work_finish uses dirname(dirname(dirname(dirname(fileURLToPath(import.meta.url))))) as pluginSourceRoot",
+    selectionRule: 'walk upward until basename == "dist", then use its parent as pluginSourceRoot',
+    distDepth,
     candidateRoots
   };
 }
@@ -32814,6 +32839,7 @@ function buildEventAuditExcerpt(entry) {
   return {
     ts: typeof entry.ts === "string" ? entry.ts : null,
     event: typeof entry.event === "string" ? entry.event : null,
+    decisionPath: asString(entry.decisionPath) ?? null,
     stage: asString(entry.stage) ?? null,
     result: asString(entry.result) ?? null,
     from: asString(entry.from) ?? null,
@@ -33425,6 +33451,9 @@ async function projectTick(opts) {
         rawBranchResolutionDecision: event.rawBranchResolutionDecision ?? null,
         rawPrValidationDecision: event.rawPrValidationDecision ?? null,
         rawPrValidationLookupOutcome: event.rawPrValidationLookupOutcome ?? null,
+        rawPrValidationBranchResolutionPreferredSource: event.rawPrValidationBranchResolutionPreferredSource ?? null,
+        rawPrValidationPreferredBranchConfidence: event.rawPrValidationPreferredBranchConfidence ?? null,
+        rawPrValidationBranchResolutionPreferredEvidence: event.rawPrValidationBranchResolutionPreferredEvidence ?? null,
         rawPrValidationLookupTargetingDecision: event.rawPrValidationLookupTargetingDecision ?? null,
         rawPrValidationLookupProbeDecision: event.rawPrValidationLookupProbeDecision ?? null,
         rawPrValidationLookupTargetingSummary: event.rawPrValidationLookupTargetingSummary ?? null,
@@ -33442,6 +33471,9 @@ async function projectTick(opts) {
         rawHealthDecisionSummary: event.rawHealthDecisionSummary ?? null,
         rawBranchSelectionDecision: event.rawBranchSelectionDecision ?? null,
         rawBranchWinnerSummary: event.rawBranchWinnerSummary ?? null,
+        rawBranchWinnerComparedToLaneSummary: event.rawBranchWinnerComparedToLaneSummary ?? null,
+        rawHeadCommitComparisonCategory: event.rawHeadCommitComparisonCategory ?? null,
+        rawHeadCommitDecisionSummary: event.rawHeadCommitDecisionSummary ?? null,
         rawDuplicateSourceDecision: event.rawDuplicateSourceDecision ?? null,
         rawPreferredBranchSource: event.rawPreferredBranchSource ?? null,
         rawBranchResolutionPreferredEvidence: event.rawBranchResolutionPreferredEvidence ?? null,
@@ -33470,6 +33502,11 @@ async function projectTick(opts) {
         rawBranchSelectionCandidateSnapshot: event.rawBranchSelectionCandidateSnapshot ?? null,
         rawBranchSelectionCandidateDecisionTable: event.rawBranchSelectionCandidateDecisionTable ?? null,
         rawBranchSourceCandidatesInPriorityOrder: event.rawBranchSourceCandidatesInPriorityOrder ?? null,
+        rawPrValidationBranchSelectionWinnerSummary: event.rawPrValidationBranchSelectionWinnerSummary ?? null,
+        rawPrValidationBranchWinnerDecisionSummary: event.rawPrValidationBranchWinnerDecisionSummary ?? null,
+        rawPrValidationBranchWinnerComparedToLaneSummary: event.rawPrValidationBranchWinnerComparedToLaneSummary ?? null,
+        rawPrValidationLaneMismatchSummary: event.rawPrValidationLaneMismatchSummary ?? null,
+        rawPrValidationLaneMismatchCategory: event.rawPrValidationLaneMismatchCategory ?? null,
         rawPrValidationBranchSourceCandidateDecisionTable: event.rawPrValidationBranchSourceCandidateDecisionTable ?? null,
         rawPrValidationBranchSourceCandidateDiagnostics: event.rawPrValidationBranchSourceCandidateDiagnostics ?? null,
         rawPrValidationBranchSourceCandidatesInPriorityOrder: event.rawPrValidationBranchSourceCandidatesInPriorityOrder ?? null,
@@ -33502,7 +33539,15 @@ async function projectTick(opts) {
         rawBranchSourceCandidatesInPriorityOrder: loopBrake.events[0]?.rawBranchSourceCandidatesInPriorityOrder ?? null,
         rawPrValidationLookupTargetingDecision: loopBrake.events[0]?.rawPrValidationLookupTargetingDecision ?? null,
         rawPrValidationLookupProbeDecision: loopBrake.events[0]?.rawPrValidationLookupProbeDecision ?? null,
+        rawPrValidationBranchResolutionPreferredSource: loopBrake.events[0]?.rawPrValidationBranchResolutionPreferredSource ?? null,
+        rawPrValidationPreferredBranchConfidence: loopBrake.events[0]?.rawPrValidationPreferredBranchConfidence ?? null,
+        rawPrValidationBranchResolutionPreferredEvidence: loopBrake.events[0]?.rawPrValidationBranchResolutionPreferredEvidence ?? null,
         rawPrValidationDetectedBranchDecisionSummary: loopBrake.events[0]?.rawPrValidationDetectedBranchDecisionSummary ?? null,
+        rawPrValidationBranchSelectionWinnerSummary: loopBrake.events[0]?.rawPrValidationBranchSelectionWinnerSummary ?? null,
+        rawPrValidationBranchWinnerDecisionSummary: loopBrake.events[0]?.rawPrValidationBranchWinnerDecisionSummary ?? null,
+        rawPrValidationBranchWinnerComparedToLaneSummary: loopBrake.events[0]?.rawPrValidationBranchWinnerComparedToLaneSummary ?? null,
+        rawPrValidationLaneMismatchSummary: loopBrake.events[0]?.rawPrValidationLaneMismatchSummary ?? null,
+        rawPrValidationLaneMismatchCategory: loopBrake.events[0]?.rawPrValidationLaneMismatchCategory ?? null,
         rawPrValidationBranchSourceCandidatesInPriorityOrder: loopBrake.events[0]?.rawPrValidationBranchSourceCandidatesInPriorityOrder ?? null
       } : null,
       countedBecause: loopBrake.events.length > 0 ? `counted ${loopBrake.events.length} events inside the retry window because they matched loop-brake rules for health_requeue, work_finish -> Refining, or review_transition non-progress reasons` : `no prior loop events matched inside the retry window; ${loopBrake.auditScan.matchOutcomeSummary}`,
@@ -33577,6 +33622,9 @@ async function projectTick(opts) {
           rawBranchResolutionDecision: event.rawBranchResolutionDecision ?? null,
           rawPrValidationDecision: event.rawPrValidationDecision ?? null,
           rawPrValidationLookupOutcome: event.rawPrValidationLookupOutcome ?? null,
+          rawPrValidationBranchResolutionPreferredSource: event.rawPrValidationBranchResolutionPreferredSource ?? null,
+          rawPrValidationPreferredBranchConfidence: event.rawPrValidationPreferredBranchConfidence ?? null,
+          rawPrValidationBranchResolutionPreferredEvidence: event.rawPrValidationBranchResolutionPreferredEvidence ?? null,
           rawPrValidationLookupTargetingDecision: event.rawPrValidationLookupTargetingDecision ?? null,
           rawPrValidationLookupProbeDecision: event.rawPrValidationLookupProbeDecision ?? null,
           rawPrValidationLookupTargetingSummary: event.rawPrValidationLookupTargetingSummary ?? null,
@@ -33593,6 +33641,9 @@ async function projectTick(opts) {
           compactDecisionSummary: event.compactDecisionSummary ?? null,
           rawHealthDecisionSummary: event.rawHealthDecisionSummary ?? null,
           rawBranchWinnerSummary: event.rawBranchWinnerSummary ?? null,
+          rawBranchWinnerComparedToLaneSummary: event.rawBranchWinnerComparedToLaneSummary ?? null,
+          rawHeadCommitComparisonCategory: event.rawHeadCommitComparisonCategory ?? null,
+          rawHeadCommitDecisionSummary: event.rawHeadCommitDecisionSummary ?? null,
           rawDuplicateSourceDecision: event.rawDuplicateSourceDecision ?? null,
           rawPreferredBranchSource: event.rawPreferredBranchSource ?? null,
           rawBranchResolutionPreferredEvidence: event.rawBranchResolutionPreferredEvidence ?? null,
@@ -33617,6 +33668,11 @@ async function projectTick(opts) {
           rawDuplicateSourceCompetingRealPaths: event.rawDuplicateSourceCompetingRealPaths ?? null,
           rawBranchSourceCandidateDecisionTable: event.rawBranchSourceCandidateDecisionTable ?? null,
           rawBranchSourceCandidateDiagnostics: event.rawBranchSourceCandidateDiagnostics ?? null,
+          rawPrValidationBranchSelectionWinnerSummary: event.rawPrValidationBranchSelectionWinnerSummary ?? null,
+          rawPrValidationBranchWinnerDecisionSummary: event.rawPrValidationBranchWinnerDecisionSummary ?? null,
+          rawPrValidationBranchWinnerComparedToLaneSummary: event.rawPrValidationBranchWinnerComparedToLaneSummary ?? null,
+          rawPrValidationLaneMismatchSummary: event.rawPrValidationLaneMismatchSummary ?? null,
+          rawPrValidationLaneMismatchCategory: event.rawPrValidationLaneMismatchCategory ?? null,
           rawPrValidationBranchSourceCandidateDecisionTable: event.rawPrValidationBranchSourceCandidateDecisionTable ?? null,
           rawPrValidationBranchSourceCandidateDiagnostics: event.rawPrValidationBranchSourceCandidateDiagnostics ?? null,
           rawAuditExcerpt: event.rawAuditExcerpt ?? null,
@@ -33643,7 +33699,15 @@ async function projectTick(opts) {
           rawHeadCommitDecisionSummary: loopBrake.events[0]?.rawHeadCommitDecisionSummary ?? null,
           rawPrValidationLookupTargetingDecision: loopBrake.events[0]?.rawPrValidationLookupTargetingDecision ?? null,
           rawPrValidationLookupProbeDecision: loopBrake.events[0]?.rawPrValidationLookupProbeDecision ?? null,
-          rawPrValidationDetectedBranchDecisionSummary: loopBrake.events[0]?.rawPrValidationDetectedBranchDecisionSummary ?? null
+          rawPrValidationBranchResolutionPreferredSource: loopBrake.events[0]?.rawPrValidationBranchResolutionPreferredSource ?? null,
+          rawPrValidationPreferredBranchConfidence: loopBrake.events[0]?.rawPrValidationPreferredBranchConfidence ?? null,
+          rawPrValidationBranchResolutionPreferredEvidence: loopBrake.events[0]?.rawPrValidationBranchResolutionPreferredEvidence ?? null,
+          rawPrValidationDetectedBranchDecisionSummary: loopBrake.events[0]?.rawPrValidationDetectedBranchDecisionSummary ?? null,
+          rawPrValidationBranchSelectionWinnerSummary: loopBrake.events[0]?.rawPrValidationBranchSelectionWinnerSummary ?? null,
+          rawPrValidationBranchWinnerDecisionSummary: loopBrake.events[0]?.rawPrValidationBranchWinnerDecisionSummary ?? null,
+          rawPrValidationBranchWinnerComparedToLaneSummary: loopBrake.events[0]?.rawPrValidationBranchWinnerComparedToLaneSummary ?? null,
+          rawPrValidationLaneMismatchSummary: loopBrake.events[0]?.rawPrValidationLaneMismatchSummary ?? null,
+          rawPrValidationLaneMismatchCategory: loopBrake.events[0]?.rawPrValidationLaneMismatchCategory ?? null
         } : null,
         countedBecause: `loop brake threshold ${loopBrake.threshold} was met by ${loopBrake.events.length} events that matched non-progress counting rules inside the retry window`,
         auditScanDecisionSummary: `${loopBrake.auditScan.matchOutcomeCategory}: ${loopBrake.auditScan.matchOutcomeSummary}`,

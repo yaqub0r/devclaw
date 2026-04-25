@@ -6,7 +6,7 @@
 import type { PluginRuntime } from "openclaw/plugin-sdk";
 import { realpath } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import { dirname } from "node:path";
+import { basename, dirname } from "node:path";
 import type { StateLabel, IssueProvider } from "../providers/provider.js";
 import { deactivateWorker, loadProjectBySlug, getRoleWorker } from "../projects/index.js";
 import type { RunCommand } from "../context.js";
@@ -40,27 +40,40 @@ export type CompletionOutput = {
 };
 
 export function getPluginSourceRoot(): string {
-  return dirname(dirname(dirname(fileURLToPath(import.meta.url))));
+  const moduleFilePath = fileURLToPath(import.meta.url);
+  let current = dirname(moduleFilePath);
+  for (let depth = 0; depth < 8; depth += 1) {
+    if (basename(current) === "dist") return dirname(current);
+    const parent = dirname(current);
+    if (parent === current) break;
+    current = parent;
+  }
+  return dirname(dirname(moduleFilePath));
 }
 
 export function getPluginSourceDerivation(): Record<string, unknown> {
   const moduleFilePath = fileURLToPath(import.meta.url);
   const moduleDir = dirname(moduleFilePath);
   const selectedPluginSourceRoot = getPluginSourceRoot();
-  const candidateRoots = [
-    { label: "dirname^0", path: moduleDir },
-    { label: "dirname^1", path: dirname(moduleDir) },
-    { label: "dirname^2", path: dirname(dirname(moduleDir)) },
-    { label: "dirname^3(selected)", path: selectedPluginSourceRoot },
-    { label: "dirname^4", path: dirname(selectedPluginSourceRoot) },
-  ];
+  const candidateRoots: Array<Record<string, unknown>> = [];
+  let current = moduleDir;
+  let distDepth: number | null = null;
+  for (let depth = 0; depth < 8; depth += 1) {
+    const isDist = basename(current) === "dist";
+    candidateRoots.push({ label: `dirname^${depth}${current === selectedPluginSourceRoot ? "(selected)" : ""}`, path: current, isDist });
+    if (isDist && distDepth === null) distDepth = depth;
+    const parent = dirname(current);
+    if (parent === current) break;
+    current = parent;
+  }
 
   return {
     moduleImportUrl: import.meta.url,
     moduleFilePath,
     moduleDir,
     selectedPluginSourceRoot,
-    selectionRule: "pipeline uses dirname(dirname(dirname(fileURLToPath(import.meta.url)))) as pluginSourceRoot",
+    selectionRule: 'walk upward until basename == "dist", then use its parent as pluginSourceRoot',
+    distDepth,
     candidateRoots,
   };
 }

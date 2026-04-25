@@ -9,7 +9,7 @@
  */
 import { readFile, realpath } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import type { ToolContext } from "../../types.js";
 import type { PluginContext, RunCommand } from "../../context.js";
 import { getRoleWorker, resolveRepoPath, findSlotByIssue } from "../../projects/index.js";
@@ -72,28 +72,40 @@ async function getGitSnapshot(repoPath: string, runCommand: RunCommand): Promise
 }
 
 function getPluginSourceRoot(): string {
-  return dirname(dirname(dirname(dirname(fileURLToPath(import.meta.url)))));
+  const moduleFilePath = fileURLToPath(import.meta.url);
+  let current = dirname(moduleFilePath);
+  for (let depth = 0; depth < 8; depth += 1) {
+    if (basename(current) === "dist") return dirname(current);
+    const parent = dirname(current);
+    if (parent === current) break;
+    current = parent;
+  }
+  return dirname(dirname(moduleFilePath));
 }
 
 function getPluginSourceDerivation(): Record<string, unknown> {
   const moduleFilePath = fileURLToPath(import.meta.url);
   const moduleDir = dirname(moduleFilePath);
   const selectedPluginSourceRoot = getPluginSourceRoot();
-  const candidateRoots = [
-    { label: "dirname^0", path: moduleDir },
-    { label: "dirname^1", path: dirname(moduleDir) },
-    { label: "dirname^2", path: dirname(dirname(moduleDir)) },
-    { label: "dirname^3", path: dirname(dirname(dirname(moduleDir))) },
-    { label: "dirname^4(selected)", path: selectedPluginSourceRoot },
-    { label: "dirname^5", path: dirname(selectedPluginSourceRoot) },
-  ];
+  const candidateRoots: Array<Record<string, unknown>> = [];
+  let current = moduleDir;
+  let distDepth: number | null = null;
+  for (let depth = 0; depth < 8; depth += 1) {
+    const isDist = basename(current) === "dist";
+    candidateRoots.push({ label: `dirname^${depth}${current === selectedPluginSourceRoot ? "(selected)" : ""}`, path: current, isDist });
+    if (isDist && distDepth === null) distDepth = depth;
+    const parent = dirname(current);
+    if (parent === current) break;
+    current = parent;
+  }
 
   return {
     moduleImportUrl: import.meta.url,
     moduleFilePath,
     moduleDir,
     selectedPluginSourceRoot,
-    selectionRule: "work_finish uses dirname(dirname(dirname(dirname(fileURLToPath(import.meta.url))))) as pluginSourceRoot",
+    selectionRule: 'walk upward until basename == "dist", then use its parent as pluginSourceRoot',
+    distDepth,
     candidateRoots,
   };
 }
