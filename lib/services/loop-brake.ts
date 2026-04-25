@@ -73,6 +73,22 @@ export type LoopBrakeDecision = {
     skippedBecauseIssueDidNotMatch: number;
     skippedBecauseNoLoopRuleMatched: number;
     skippedBecauseOutsideWindow: number;
+    matchOutcomeCategory: string;
+    matchOutcomeSummary: string;
+    newestMatchedEventTs: string | null;
+    oldestMatchedEventTs: string | null;
+    newestMatchedEventInsideWindowTs: string | null;
+    newestMatchedEventReason: string | null;
+    newestIssueEntryTs: string | null;
+    newestIssueEntryEvent: string | null;
+    newestIssueEntryStage: string | null;
+    newestIssueEntrySummary: string | null;
+    newestNonMatchingIssueEntryTs: string | null;
+    newestNonMatchingIssueEntryEvent: string | null;
+    newestNonMatchingIssueEntryStage: string | null;
+    newestNonMatchingIssueEntrySummary: string | null;
+    recentIssueEntryExcerpts: Array<Record<string, unknown>>;
+    recentNonMatchingIssueEntryExcerpts: Array<Record<string, unknown>>;
   };
   events: Array<{
     ts: string;
@@ -143,9 +159,31 @@ export async function evaluateLoopBrake(
   const loopEventCandidates = issueEntries
     .map((entry) => toLoopEvent(entry))
     .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
+  const nonMatchingIssueEntries = issueEntries.filter((entry) => toLoopEvent(entry) === null);
   const events = loopEventCandidates
     .filter((entry) => Date.parse(entry.ts) >= cutoff)
     .sort((a, b) => Date.parse(a.ts) - Date.parse(b.ts));
+  const newestMatchedEvent = [...loopEventCandidates].sort((a, b) => Date.parse(b.ts) - Date.parse(a.ts))[0] ?? null;
+  const oldestMatchedEvent = [...loopEventCandidates].sort((a, b) => Date.parse(a.ts) - Date.parse(b.ts))[0] ?? null;
+  const newestMatchedEventInsideWindow = [...events].sort((a, b) => Date.parse(b.ts) - Date.parse(a.ts))[0] ?? null;
+  const newestIssueEntry = [...issueEntries].sort((a, b) => Date.parse(typeof b.ts === "string" ? b.ts : new Date(0).toISOString()) - Date.parse(typeof a.ts === "string" ? a.ts : new Date(0).toISOString()))[0] ?? null;
+  const newestNonMatchingIssueEntry = [...nonMatchingIssueEntries].sort((a, b) => Date.parse(typeof b.ts === "string" ? b.ts : new Date(0).toISOString()) - Date.parse(typeof a.ts === "string" ? a.ts : new Date(0).toISOString()))[0] ?? null;
+  const matchOutcomeCategory =
+    issueEntries.length === 0
+      ? "no_issue_history"
+      : loopEventCandidates.length === 0
+        ? "issue_history_present_but_non_matching"
+        : events.length === 0
+          ? "matching_history_outside_retry_window"
+          : "matching_history_inside_retry_window";
+  const matchOutcomeSummary =
+    matchOutcomeCategory === "no_issue_history"
+      ? "audit log contained no entries tagged to this issue"
+      : matchOutcomeCategory === "issue_history_present_but_non_matching"
+        ? `audit log contained ${issueEntries.length} issue-tagged entries, but none matched loop-brake counting rules`
+        : matchOutcomeCategory === "matching_history_outside_retry_window"
+          ? `audit log contained ${loopEventCandidates.length} loop-rule matches for this issue, but all were older than the retry window`
+          : `audit log contained ${events.length} loop-rule matches for this issue inside the retry window`;
 
   const reasonHistogram = Object.fromEntries(
     Array.from(events.reduce((map, event) => {
@@ -176,6 +214,28 @@ export async function evaluateLoopBrake(
       skippedBecauseIssueDidNotMatch: entries.length - issueEntries.length,
       skippedBecauseNoLoopRuleMatched: issueEntries.length - loopEventCandidates.length,
       skippedBecauseOutsideWindow: loopEventCandidates.length - events.length,
+      matchOutcomeCategory,
+      matchOutcomeSummary,
+      newestMatchedEventTs: newestMatchedEvent?.ts ?? null,
+      oldestMatchedEventTs: oldestMatchedEvent?.ts ?? null,
+      newestMatchedEventInsideWindowTs: newestMatchedEventInsideWindow?.ts ?? null,
+      newestMatchedEventReason: newestMatchedEvent?.reason ?? null,
+      newestIssueEntryTs: typeof newestIssueEntry?.ts === "string" ? newestIssueEntry.ts : null,
+      newestIssueEntryEvent: typeof newestIssueEntry?.event === "string" ? newestIssueEntry.event : null,
+      newestIssueEntryStage: asString(newestIssueEntry?.stage) ?? null,
+      newestIssueEntrySummary: newestIssueEntry ? summarizeIssueEntry(newestIssueEntry) : null,
+      newestNonMatchingIssueEntryTs: typeof newestNonMatchingIssueEntry?.ts === "string" ? newestNonMatchingIssueEntry.ts : null,
+      newestNonMatchingIssueEntryEvent: typeof newestNonMatchingIssueEntry?.event === "string" ? newestNonMatchingIssueEntry.event : null,
+      newestNonMatchingIssueEntryStage: asString(newestNonMatchingIssueEntry?.stage) ?? null,
+      newestNonMatchingIssueEntrySummary: newestNonMatchingIssueEntry ? summarizeIssueEntry(newestNonMatchingIssueEntry) : null,
+      recentIssueEntryExcerpts: [...issueEntries]
+        .sort((a, b) => Date.parse(typeof b.ts === "string" ? b.ts : new Date(0).toISOString()) - Date.parse(typeof a.ts === "string" ? a.ts : new Date(0).toISOString()))
+        .slice(0, 5)
+        .map((entry) => buildEventAuditExcerpt(entry)),
+      recentNonMatchingIssueEntryExcerpts: [...nonMatchingIssueEntries]
+        .sort((a, b) => Date.parse(typeof b.ts === "string" ? b.ts : new Date(0).toISOString()) - Date.parse(typeof a.ts === "string" ? a.ts : new Date(0).toISOString()))
+        .slice(0, 5)
+        .map((entry) => buildEventAuditExcerpt(entry)),
     },
     events,
     reasonHistogram,
@@ -403,6 +463,19 @@ function toLoopEvent(entry: AuditEntry): LoopBrakeDecision["events"][number] | n
   }
 
   return null;
+}
+
+function summarizeIssueEntry(entry: AuditEntry): string {
+  return [
+    typeof entry.event === "string" ? `event=${entry.event}` : null,
+    asString(entry.stage) ? `stage=${asString(entry.stage)}` : null,
+    asString(entry.result) ? `result=${asString(entry.result)}` : null,
+    asString(entry.from) || asString(entry.to) ? `labels=${asString(entry.from) ?? "?"}->${asString(entry.to) ?? "?"}` : null,
+    asString(entry.reason) ? `reason=${asString(entry.reason)}` : null,
+    asString(entry.loopBrakeReason) ? `loopBrakeReason=${asString(entry.loopBrakeReason)}` : null,
+    asString(entry.healthDecisionCategory) ? `healthDecisionCategory=${asString(entry.healthDecisionCategory)}` : null,
+    asString(entry.transitionReasonCategory) ? `transitionReasonCategory=${asString(entry.transitionReasonCategory)}` : null,
+  ].filter((value): value is string => Boolean(value)).join("; ");
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

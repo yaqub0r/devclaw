@@ -213,7 +213,15 @@ export async function projectTick(opts: {
       })),
       countedBecause: loopBrake.events.length > 0
         ? `counted ${loopBrake.events.length} events inside the retry window because they matched loop-brake rules for health_requeue, work_finish -> Refining, or review_transition non-progress reasons`
-        : `no prior loop events matched inside the retry window; audit scan saw ${loopBrake.auditScan.issueEntriesSeen} issue-tagged audit entries and ${loopBrake.auditScan.matchedLoopEventsBeforeWindow} loop-rule matches before time filtering`,
+        : `no prior loop events matched inside the retry window; ${loopBrake.auditScan.matchOutcomeSummary}`,
+      auditScanDecisionSummary: `${loopBrake.auditScan.matchOutcomeCategory}: ${loopBrake.auditScan.matchOutcomeSummary}`,
+      mostRecentMatchedLoopEvent: loopBrake.auditScan.newestMatchedEventTs
+        ? {
+            ts: loopBrake.auditScan.newestMatchedEventTs,
+            reason: loopBrake.auditScan.newestMatchedEventReason,
+            insideRetryWindow: loopBrake.auditScan.newestMatchedEventInsideWindowTs === loopBrake.auditScan.newestMatchedEventTs,
+          }
+        : null,
       decisionPath: holdLabel
         ? loopBrake.blocked
           ? `loop brake will move ${currentLabel} -> ${holdLabel} because ${loopBrake.events.length} recent non-progress loop events met threshold ${loopBrake.threshold}`
@@ -297,6 +305,14 @@ export async function projectTick(opts: {
           decisionPath: event.decisionPath ?? null,
         })),
         countedBecause: `loop brake threshold ${loopBrake.threshold} was met by ${loopBrake.events.length} events that matched non-progress counting rules inside the retry window`,
+        auditScanDecisionSummary: `${loopBrake.auditScan.matchOutcomeCategory}: ${loopBrake.auditScan.matchOutcomeSummary}`,
+        mostRecentMatchedLoopEvent: loopBrake.auditScan.newestMatchedEventTs
+          ? {
+              ts: loopBrake.auditScan.newestMatchedEventTs,
+              reason: loopBrake.auditScan.newestMatchedEventReason,
+              insideRetryWindow: loopBrake.auditScan.newestMatchedEventInsideWindowTs === loopBrake.auditScan.newestMatchedEventTs,
+            }
+          : null,
         haltClassification: "issue was moved to the hold label because redispatch would likely repeat without new information",
         issueLabels: issue.labels,
         loopBrakeReason: "retry_ceiling_reached",
