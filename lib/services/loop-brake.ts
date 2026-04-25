@@ -27,7 +27,12 @@ export type LoopBrakeDecision = {
     to?: string;
     reason: string;
     rawReason?: string;
+    orphanReason?: string;
     decisionPath?: string;
+    countedByRule?: string;
+    rawEvent?: string;
+    rawStage?: string;
+    rawResult?: string;
   }>;
   reasonHistogram: Record<string, number>;
   sourceHistogram: Record<string, number>;
@@ -143,8 +148,13 @@ function toLoopEvent(entry: AuditEntry): LoopBrakeDecision["events"][number] | n
       from: asString(entry.from),
       to: asString(entry.to),
       reason: rawReason ?? "orphan_requeue",
-      rawReason: rawReason ?? null,
+      rawReason: rawReason ?? undefined,
+      orphanReason: asString(entry.orphanReason) ?? undefined,
       decisionPath: asString(entry.decisionPath),
+      countedByRule: 'count loop_diagnostic stage="health_requeue" as a non-progress orphan recovery event',
+      rawEvent: event,
+      rawStage: asString(entry.stage),
+      rawResult: asString(entry.result),
     };
   }
 
@@ -158,8 +168,12 @@ function toLoopEvent(entry: AuditEntry): LoopBrakeDecision["events"][number] | n
       from: asString(entry.from),
       to: asString(entry.to),
       reason: rawReason ?? "blocked",
-      rawReason: rawReason ?? null,
+      rawReason: rawReason ?? undefined,
       decisionPath: asString(entry.decisionPath),
+      countedByRule: 'count loop_diagnostic stage="work_finish_transition" to="Refining" as a non-progress worker completion loop event',
+      rawEvent: event,
+      rawStage: asString(entry.stage),
+      rawResult: asString(entry.result),
     };
   }
 
@@ -175,6 +189,10 @@ function toLoopEvent(entry: AuditEntry): LoopBrakeDecision["events"][number] | n
         reason: reason!,
         rawReason: reason!,
         decisionPath: asString(entry.summary) ?? asString(entry.note),
+        countedByRule: `count review_transition reason="${reason}" as a non-progress review loop event`,
+        rawEvent: event,
+        rawStage: asString(entry.stage),
+        rawResult: asString(entry.result),
       };
     }
   }

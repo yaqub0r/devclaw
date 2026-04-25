@@ -66,6 +66,13 @@ function summarizePluginSourceConfig(opts: {
     ? distinctRealPaths
     : distinctRealPaths.filter((realPath) => realPath !== opts.installSourceRealPath);
 
+  const pluginLoadPathsDistinctFromInstallSource = opts.pluginLoadPathRealPaths
+    .filter((realPath): realPath is string => typeof realPath === "string" && realPath.length > 0)
+    .filter((realPath) => realPath !== opts.installSourceRealPath);
+  const duplicateSourceRisk =
+    opts.installSourceRealPath !== null
+    && opts.pluginLoadPathRealPaths.some((realPath) => realPath !== null && realPath !== opts.installSourceRealPath);
+
   return {
     distinctDevclawRealPaths: distinctRealPaths,
     distinctDevclawRealPathCount: distinctRealPaths.length,
@@ -75,9 +82,21 @@ function summarizePluginSourceConfig(opts: {
     installedPathMatchesLivePlugin: opts.installPathRealPath !== null && opts.installPathRealPath === opts.pluginRealPath,
     pluginLoadPathsContainLivePlugin: opts.pluginRealPath !== null && opts.pluginLoadPathRealPaths.includes(opts.pluginRealPath),
     pluginLoadPathsContainInstallSource: opts.installSourceRealPath !== null && opts.pluginLoadPathRealPaths.includes(opts.installSourceRealPath),
-    duplicateSourceRisk:
-      opts.installSourceRealPath !== null
-      && opts.pluginLoadPathRealPaths.some((realPath) => realPath !== null && realPath !== opts.installSourceRealPath),
+    pluginLoadPathsDistinctFromInstallSource,
+    expectedLiveRealPath: opts.installSourceRealPath,
+    installedExtensionRealPath: opts.installPathRealPath,
+    observedLivePluginRealPath: opts.pluginRealPath,
+    likelyWinningLiveRealPath: opts.pluginRealPath ?? opts.installPathRealPath ?? opts.installSourceRealPath,
+    duplicateSourceRisk,
+    duplicateSourceReasons: [
+      duplicateSourceRisk ? `plugins.load.paths contains competing DevClaw realpaths outside install source: ${JSON.stringify(pluginLoadPathsDistinctFromInstallSource)}` : null,
+      opts.installSourceRealPath !== null && opts.installPathRealPath !== null && opts.installSourceRealPath !== opts.installPathRealPath
+        ? `installed extension realpath ${opts.installPathRealPath} differs from install source ${opts.installSourceRealPath}`
+        : null,
+      opts.installSourceRealPath !== null && opts.pluginRealPath !== null && opts.installSourceRealPath !== opts.pluginRealPath
+        ? `observed live plugin realpath ${opts.pluginRealPath} differs from install source ${opts.installSourceRealPath}`
+        : null,
+    ].filter((value): value is string => Boolean(value)),
   };
 }
 
@@ -266,6 +285,34 @@ export async function executeCompletion(opts: {
               repoBranchMatchesSourceBranch: branchDecisionContext.repoBranch !== null && sourceBranch != null && branchDecisionContext.repoBranch === sourceBranch,
               pluginBranchMatchesSourceBranch: branchDecisionContext.pluginBranch !== null && sourceBranch != null && branchDecisionContext.pluginBranch === sourceBranch,
             },
+            inferredBranchWinner:
+              branchDecisionContext.repoBranch !== null && sourceBranch != null && branchDecisionContext.repoBranch === sourceBranch
+                ? "configured_repo_branch"
+                : sourceBranch != null && branchDecisionContext.repoHeadBranches.includes(sourceBranch)
+                  ? "configured_repo_head_branches"
+                  : branchDecisionContext.pluginBranch !== null && sourceBranch != null && branchDecisionContext.pluginBranch === sourceBranch
+                    ? "live_plugin_branch"
+                    : sourceBranch != null && branchDecisionContext.pluginHeadBranches.includes(sourceBranch)
+                      ? "live_plugin_head_branches"
+                      : branchDecisionContext.repoBranch !== null
+                        ? "configured_repo_branch_fallback"
+                        : branchDecisionContext.pluginBranch !== null
+                          ? "live_plugin_branch_fallback"
+                          : "no_branch_match",
+            inferredBranchWinnerReason:
+              branchDecisionContext.repoBranch !== null && sourceBranch != null && branchDecisionContext.repoBranch === sourceBranch
+                ? "configured repo branch directly matched the detected PR source branch"
+                : sourceBranch != null && branchDecisionContext.repoHeadBranches.includes(sourceBranch)
+                  ? "configured repo HEAD pointed at the detected PR source branch"
+                  : branchDecisionContext.pluginBranch !== null && sourceBranch != null && branchDecisionContext.pluginBranch === sourceBranch
+                    ? "live plugin branch matched the detected PR source branch after configured repo branch failed to match"
+                    : sourceBranch != null && branchDecisionContext.pluginHeadBranches.includes(sourceBranch)
+                      ? "live plugin HEAD pointed at the detected PR source branch after configured repo branch candidates failed to match"
+                      : branchDecisionContext.repoBranch !== null
+                        ? "no PR-aware match existed, so configured repo branch would be used as fallback"
+                        : branchDecisionContext.pluginBranch !== null
+                          ? "no PR-aware configured repo match existed, so live plugin branch would be used as fallback"
+                          : "neither configured repo nor live plugin exposed a trustworthy branch candidate",
             branchDecisionNotes: [
               branchDecisionContext.repoWorkTree === branchDecisionContext.pluginWorkTree ? "repoPath and plugin source report the same worktree" : "repoPath and plugin source report different worktrees",
               branchDecisionContext.repoBranch === branchDecisionContext.pluginBranch ? "repoPath and plugin source report the same current branch" : "repoPath and plugin source report different current branches",
@@ -282,6 +329,12 @@ export async function executeCompletion(opts: {
             duplicateSourceDecision: branchDecisionContext.duplicateSourceRisk
               ? "live install evidence is ambiguous because multiple DevClaw realpaths are configured"
               : "live install evidence is singular or unresolved from config",
+            liveSourceDecision:
+              branchDecisionContext.openclawConfigInstallSourceRealPath && branchDecisionContext.pluginRealPath
+                ? branchDecisionContext.openclawConfigInstallSourceRealPath === branchDecisionContext.pluginRealPath
+                  ? "observed live plugin realpath matches configured install source realpath"
+                  : "observed live plugin realpath differs from configured install source realpath"
+                : "live-source comparison could not be completed because one of the realpaths was unavailable",
             branchSelectionCandidatesInPriorityOrder: [
               { source: "configured_repo_branch", value: branchDecisionContext.repoBranch, matchesSourceBranch: branchDecisionContext.repoBranch !== null && sourceBranch != null && branchDecisionContext.repoBranch === sourceBranch },
               { source: "configured_repo_head_branches", value: branchDecisionContext.repoHeadBranches, matchesSourceBranch: sourceBranch != null && branchDecisionContext.repoHeadBranches.includes(sourceBranch) },
@@ -426,10 +479,65 @@ export async function executeCompletion(opts: {
       repoBranchMatchesSourceBranch: branchDecisionContext.repoBranch !== null && sourceBranch != null && branchDecisionContext.repoBranch === sourceBranch,
       pluginBranchMatchesSourceBranch: branchDecisionContext.pluginBranch !== null && sourceBranch != null && branchDecisionContext.pluginBranch === sourceBranch,
     },
+    transitionReasonCategory: transitionedTo === "Refining"
+      ? `work_finish_${result}`
+      : transitionedTo === "To Review"
+        ? "developer_done_to_review"
+        : transitionedTo === "To Improve"
+          ? "tester_fail_to_improve"
+          : transitionedTo === "Done"
+            ? `${role}_${result}_to_done`
+            : `${role}_${result}_transition`,
+    refiningDecisionPath: transitionedTo === "Refining"
+      ? `completion rule ${key} routes directly to Refining because role=${role} result=${result} is defined as a human-intervention hold transition`
+      : null,
     decisionPath: `completion rule ${key} selected workflow transition ${rule.from} -> ${transitionedTo}`,
   }).catch(() => {});
 
-  await provider.transitionLabel(issueId, rule.from as StateLabel, transitionedTo);
+  try {
+    await provider.transitionLabel(issueId, rule.from as StateLabel, transitionedTo);
+  } catch (err) {
+    await recordLoopDiagnostic(workspaceDir, "work_finish_transition_failed", {
+      project: projectName,
+      issueId,
+      role,
+      result,
+      from: rule.from,
+      to: transitionedTo,
+      summary: summary ?? null,
+      prUrl: prUrl ?? null,
+      sourceBranch: sourceBranch ?? null,
+      repoPath,
+      repoSnapshot,
+      pluginSourceRoot,
+      pluginSnapshot,
+      actions: rule.actions,
+      loopBrakeReason: transitionedTo === "Refining" ? `work_finish_${result}` : null,
+      refiningTransition: transitionedTo === "Refining",
+      branchDecisionContext: {
+        ...branchDecisionContext,
+        sourceBranch: sourceBranch ?? null,
+        repoBranchMatchesSourceBranch: branchDecisionContext.repoBranch !== null && sourceBranch != null && branchDecisionContext.repoBranch === sourceBranch,
+        pluginBranchMatchesSourceBranch: branchDecisionContext.pluginBranch !== null && sourceBranch != null && branchDecisionContext.pluginBranch === sourceBranch,
+      },
+      error: (err as Error).message ?? String(err),
+      errorName: err instanceof Error ? err.name : null,
+      transitionReasonCategory: transitionedTo === "Refining"
+        ? `work_finish_${result}`
+        : transitionedTo === "To Review"
+          ? "developer_done_to_review"
+          : transitionedTo === "To Improve"
+            ? "tester_fail_to_improve"
+            : transitionedTo === "Done"
+              ? `${role}_${result}_to_done`
+              : `${role}_${result}_transition`,
+      refiningDecisionPath: transitionedTo === "Refining"
+        ? `completion rule ${key} would have routed to Refining because role=${role} result=${result} is a hold transition, but provider.transitionLabel failed`
+        : null,
+      decisionPath: `completion rule ${key} attempted workflow transition ${rule.from} -> ${transitionedTo}, but provider.transitionLabel threw before the transition could be recorded as complete`,
+    }).catch(() => {});
+    throw err;
+  }
 
   await recordLoopDiagnostic(workspaceDir, "work_finish_transition", {
     project: projectName,
@@ -454,6 +562,18 @@ export async function executeCompletion(opts: {
       repoBranchMatchesSourceBranch: branchDecisionContext.repoBranch !== null && sourceBranch != null && branchDecisionContext.repoBranch === sourceBranch,
       pluginBranchMatchesSourceBranch: branchDecisionContext.pluginBranch !== null && sourceBranch != null && branchDecisionContext.pluginBranch === sourceBranch,
     },
+    transitionReasonCategory: transitionedTo === "Refining"
+      ? `work_finish_${result}`
+      : transitionedTo === "To Review"
+        ? "developer_done_to_review"
+        : transitionedTo === "To Improve"
+          ? "tester_fail_to_improve"
+          : transitionedTo === "Done"
+            ? `${role}_${result}_to_done`
+            : `${role}_${result}_transition`,
+    refiningDecisionPath: transitionedTo === "Refining"
+      ? `completion rule ${key} completed a direct hold transition into Refining because role=${role} result=${result} requires human intervention`
+      : null,
     decisionPath: `completion rule ${key} completed workflow transition ${rule.from} -> ${transitionedTo}`,
   }).catch(() => {});
 

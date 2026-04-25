@@ -175,8 +175,15 @@ export async function projectTick(opts: {
         to: event.to ?? null,
         reason: event.reason,
         rawReason: event.rawReason ?? null,
+        countedByRule: event.countedByRule ?? null,
+        rawEvent: event.rawEvent ?? null,
+        rawStage: event.rawStage ?? null,
+        rawResult: event.rawResult ?? null,
         decisionPath: event.decisionPath ?? null,
       })),
+      countedBecause: loopBrake.events.length > 0
+        ? `counted ${loopBrake.events.length} events inside the retry window because they matched loop-brake rules for health_requeue, work_finish -> Refining, or review_transition non-progress reasons`
+        : "no prior loop events matched the loop-brake rules inside the retry window",
       decisionPath: holdLabel
         ? loopBrake.blocked
           ? `loop brake will move ${currentLabel} -> ${holdLabel} because ${loopBrake.events.length} recent non-progress loop events met threshold ${loopBrake.threshold}`
@@ -223,8 +230,15 @@ export async function projectTick(opts: {
           to: event.to ?? null,
           reason: event.reason,
           rawReason: event.rawReason ?? null,
+          orphanReason: event.orphanReason ?? null,
+          countedByRule: event.countedByRule ?? null,
+          rawEvent: event.rawEvent ?? null,
+          rawStage: event.rawStage ?? null,
+          rawResult: event.rawResult ?? null,
           decisionPath: event.decisionPath ?? null,
         })),
+        countedBecause: `loop brake threshold ${loopBrake.threshold} was met by ${loopBrake.events.length} events that matched non-progress counting rules inside the retry window`,
+        haltClassification: "issue was moved to the hold label because redispatch would likely repeat without new information",
         issueLabels: issue.labels,
         loopBrakeReason: "retry_ceiling_reached",
         decisionPath: `loop brake moved ${currentLabel} -> ${holdLabel} after ${loopBrake.events.length} recent non-progress loop events`,

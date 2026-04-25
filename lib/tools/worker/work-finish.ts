@@ -97,6 +97,13 @@ function summarizePluginSourceConfig(opts: {
     ? distinctRealPaths
     : distinctRealPaths.filter((realPath) => realPath !== opts.installSourceRealPath);
 
+  const pluginLoadPathsDistinctFromInstallSource = opts.pluginLoadPathRealPaths
+    .filter((realPath): realPath is string => typeof realPath === "string" && realPath.length > 0)
+    .filter((realPath) => realPath !== opts.installSourceRealPath);
+  const duplicateSourceRisk =
+    opts.installSourceRealPath !== null
+    && opts.pluginLoadPathRealPaths.some((realPath) => realPath !== null && realPath !== opts.installSourceRealPath);
+
   return {
     distinctDevclawRealPaths: distinctRealPaths,
     distinctDevclawRealPathCount: distinctRealPaths.length,
@@ -106,9 +113,21 @@ function summarizePluginSourceConfig(opts: {
     installedPathMatchesLivePlugin: opts.installPathRealPath !== null && opts.installPathRealPath === opts.pluginRealPath,
     pluginLoadPathsContainLivePlugin: opts.pluginRealPath !== null && opts.pluginLoadPathRealPaths.includes(opts.pluginRealPath),
     pluginLoadPathsContainInstallSource: opts.installSourceRealPath !== null && opts.pluginLoadPathRealPaths.includes(opts.installSourceRealPath),
-    duplicateSourceRisk:
-      opts.installSourceRealPath !== null
-      && opts.pluginLoadPathRealPaths.some((realPath) => realPath !== null && realPath !== opts.installSourceRealPath),
+    pluginLoadPathsDistinctFromInstallSource,
+    expectedLiveRealPath: opts.installSourceRealPath,
+    installedExtensionRealPath: opts.installPathRealPath,
+    observedLivePluginRealPath: opts.pluginRealPath,
+    likelyWinningLiveRealPath: opts.pluginRealPath ?? opts.installPathRealPath ?? opts.installSourceRealPath,
+    duplicateSourceRisk,
+    duplicateSourceReasons: [
+      duplicateSourceRisk ? `plugins.load.paths contains competing DevClaw realpaths outside install source: ${JSON.stringify(pluginLoadPathsDistinctFromInstallSource)}` : null,
+      opts.installSourceRealPath !== null && opts.installPathRealPath !== null && opts.installSourceRealPath !== opts.installPathRealPath
+        ? `installed extension realpath ${opts.installPathRealPath} differs from install source ${opts.installSourceRealPath}`
+        : null,
+      opts.installSourceRealPath !== null && opts.pluginRealPath !== null && opts.installSourceRealPath !== opts.pluginRealPath
+        ? `observed live plugin realpath ${opts.pluginRealPath} differs from install source ${opts.installSourceRealPath}`
+        : null,
+    ].filter((value): value is string => Boolean(value)),
   };
 }
 
@@ -630,6 +649,12 @@ export function createWorkFinishTool(ctx: PluginContext) {
           context.duplicateSourceRisk
             ? "plugin config points at more than one distinct realpath, so install evidence is ambiguous until duplicate source is cleared"
             : "plugin config realpaths are singular or unresolved, so duplicate source risk is not evident from config alone",
+        liveSourceDecision:
+          openclawConfigInstallSourceRealPath && typeof pluginSnapshot.realRepoPath === "string"
+            ? openclawConfigInstallSourceRealPath === pluginSnapshot.realRepoPath
+              ? "observed live plugin realpath matches configured install source realpath"
+              : "observed live plugin realpath differs from configured install source realpath"
+            : "live-source comparison could not be completed because one of the realpaths was unavailable",
         branchSelectionDecision:
           initialBranchResolution.preferredBranchSource === "configured_repo_branch"
             ? "configured repo branch would be trusted first if it matches PR source branch"
@@ -640,35 +665,66 @@ export function createWorkFinishTool(ctx: PluginContext) {
                 : initialBranchResolution.preferredBranchSource === "live_plugin_head_branches"
                   ? "live plugin detached-HEAD candidates currently look more trustworthy than configured repo branch for PR matching"
                   : "no PR-aware branch match exists yet, so fallback branch selection would be ambiguous",
+        laneIdentitySummary: {
+          configuredRepoPathBasename: typeof repoPath === "string" ? repoPath.split("/").filter(Boolean).at(-1) ?? null : null,
+          pluginSourceRootBasename: pluginSourceRoot.split("/").filter(Boolean).at(-1) ?? null,
+          configuredRepoBranch: initialBranchResolution.repoBranch,
+          livePluginBranch: initialBranchResolution.pluginBranch,
+          configuredRepoWorkTree: initialBranchResolution.repoWorkTree,
+          livePluginWorkTree: initialBranchResolution.pluginWorkTree,
+        },
+        laneMismatchDecision:
+          initialBranchResolution.repoAndPluginSameRealPath === true
+            ? initialBranchResolution.repoAndPluginSameBranch === true
+              ? "configured repo path and live plugin appear to be the same lane"
+              : "configured repo path and live plugin share a realpath but report different branches, so branch inference may be stale or detached"
+            : "configured repo path and live plugin resolve to different realpaths, so active lane versus detected branch may be mismatched",
       }).catch(() => {});
 
-      // For developers marking work as done, validate that a PR exists
-      if (role === "developer" && result === "done") {
-        await validatePrExistsForDeveloper(issueId, repoPath, provider, ctx.runCommand, workspaceDir, project.slug, context);
+      try {
+        // For developers marking work as done, validate that a PR exists
+        if (role === "developer" && result === "done") {
+          await validatePrExistsForDeveloper(issueId, repoPath, provider, ctx.runCommand, workspaceDir, project.slug, context);
+        }
+
+        const completion = await executeCompletion({
+          workspaceDir, projectSlug: project.slug, role, result, issueId, summary, prUrl, provider, repoPath,
+          projectName: project.name,
+          channels: project.channels,
+          pluginConfig,
+          level: slotLevel,
+          slotIndex,
+          runtime: ctx.runtime,
+          workflow,
+          createdTasks,
+          runCommand: ctx.runCommand,
+        });
+
+        await auditLog(workspaceDir, "work_finish", {
+          project: project.name, issue: issueId, role, result,
+          summary: summary ?? null, labelTransition: completion.labelTransition,
+        });
+
+        return jsonResult({
+          success: true, project: project.name, projectSlug: project.slug, issueId, role, result,
+          ...completion,
+        });
+      } catch (err) {
+        await recordWorkFinishDiagnostic(workspaceDir, "work_finish_execute_error", {
+          project: project.slug,
+          issueId,
+          ...context,
+          summary: summary ?? null,
+          prUrl: prUrl ?? null,
+          createdTaskIds: createdTasks?.map((task) => task.id) ?? [],
+          error: (err as Error).message ?? String(err),
+          errorName: err instanceof Error ? err.name : null,
+          decisionPath: role === "developer" && result === "done"
+            ? "work_finish failed during developer done handling, after start-time branch/worktree/plugin-source diagnostics were recorded"
+            : "work_finish failed after start-time branch/worktree/plugin-source diagnostics were recorded",
+        }).catch(() => {});
+        throw err;
       }
-
-      const completion = await executeCompletion({
-        workspaceDir, projectSlug: project.slug, role, result, issueId, summary, prUrl, provider, repoPath,
-        projectName: project.name,
-        channels: project.channels,
-        pluginConfig,
-        level: slotLevel,
-        slotIndex,
-        runtime: ctx.runtime,
-        workflow,
-        createdTasks,
-        runCommand: ctx.runCommand,
-      });
-
-      await auditLog(workspaceDir, "work_finish", {
-        project: project.name, issue: issueId, role, result,
-        summary: summary ?? null, labelTransition: completion.labelTransition,
-      });
-
-      return jsonResult({
-        success: true, project: project.name, projectSlug: project.slug, issueId, role, result,
-        ...completion,
-      });
     },
   });
 }
