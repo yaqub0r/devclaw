@@ -160,6 +160,7 @@ export async function projectTick(opts: {
       blocked: loopBrake.blocked,
       threshold: loopBrake.threshold,
       windowMs: loopBrake.windowMs,
+      auditScan: loopBrake.auditScan,
       eventCount: loopBrake.events.length,
       events: loopBrake.events,
       reasonHistogram: loopBrake.reasonHistogram,
@@ -199,7 +200,7 @@ export async function projectTick(opts: {
       })),
       countedBecause: loopBrake.events.length > 0
         ? `counted ${loopBrake.events.length} events inside the retry window because they matched loop-brake rules for health_requeue, work_finish -> Refining, or review_transition non-progress reasons`
-        : "no prior loop events matched the loop-brake rules inside the retry window",
+        : `no prior loop events matched inside the retry window; audit scan saw ${loopBrake.auditScan.issueEntriesSeen} issue-tagged audit entries and ${loopBrake.auditScan.matchedLoopEventsBeforeWindow} loop-rule matches before time filtering`,
       decisionPath: holdLabel
         ? loopBrake.blocked
           ? `loop brake will move ${currentLabel} -> ${holdLabel} because ${loopBrake.events.length} recent non-progress loop events met threshold ${loopBrake.threshold}`
@@ -233,6 +234,7 @@ export async function projectTick(opts: {
         to: holdLabel,
         threshold: loopBrake.threshold,
         windowMs: loopBrake.windowMs,
+        auditScan: loopBrake.auditScan,
         events: loopBrake.events,
         reasonHistogram: loopBrake.reasonHistogram,
         sourceHistogram: loopBrake.sourceHistogram,

@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { log as auditLog } from "../audit.js";
 import { DATA_DIR } from "../setup/migrate-layout.js";
@@ -40,6 +40,19 @@ export type LoopBrakeDecision = {
   blocked: boolean;
   threshold: number;
   windowMs: number;
+  auditScan: {
+    filePath: string;
+    fileExists: boolean;
+    fileSizeBytes: number | null;
+    fileMtime: string | null;
+    totalEntriesRead: number;
+    issueEntriesSeen: number;
+    matchedLoopEventsBeforeWindow: number;
+    matchedLoopEventsInsideWindow: number;
+    skippedBecauseIssueDidNotMatch: number;
+    skippedBecauseNoLoopRuleMatched: number;
+    skippedBecauseOutsideWindow: number;
+  };
   events: Array<{
     ts: string;
     source: string;
@@ -90,12 +103,13 @@ export async function evaluateLoopBrake(
   workspaceDir: string,
   issueId: number,
 ): Promise<LoopBrakeDecision> {
-  const entries = await readRecentAuditEntries(workspaceDir);
+  const { filePath, entries, fileExists, fileSizeBytes, fileMtime } = await readRecentAuditEntries(workspaceDir);
   const cutoff = Date.now() - LOOP_BRAKE_WINDOW_MS;
-  const events = entries
-    .filter((entry) => getIssueId(entry) === issueId)
+  const issueEntries = entries.filter((entry) => getIssueId(entry) === issueId);
+  const loopEventCandidates = issueEntries
     .map((entry) => toLoopEvent(entry))
-    .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry))
+    .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
+  const events = loopEventCandidates
     .filter((entry) => Date.parse(entry.ts) >= cutoff)
     .sort((a, b) => Date.parse(a.ts) - Date.parse(b.ts));
 
@@ -116,6 +130,19 @@ export async function evaluateLoopBrake(
     blocked: events.length >= LOOP_BRAKE_THRESHOLD,
     threshold: LOOP_BRAKE_THRESHOLD,
     windowMs: LOOP_BRAKE_WINDOW_MS,
+    auditScan: {
+      filePath,
+      fileExists,
+      fileSizeBytes,
+      fileMtime,
+      totalEntriesRead: entries.length,
+      issueEntriesSeen: issueEntries.length,
+      matchedLoopEventsBeforeWindow: loopEventCandidates.length,
+      matchedLoopEventsInsideWindow: events.length,
+      skippedBecauseIssueDidNotMatch: entries.length - issueEntries.length,
+      skippedBecauseNoLoopRuleMatched: issueEntries.length - loopEventCandidates.length,
+      skippedBecauseOutsideWindow: loopEventCandidates.length - events.length,
+    },
     events,
     reasonHistogram,
     sourceHistogram,
@@ -145,24 +172,43 @@ export async function recordLoopBrakeHalt(opts: {
   });
 }
 
-async function readRecentAuditEntries(workspaceDir: string): Promise<AuditEntry[]> {
+async function readRecentAuditEntries(workspaceDir: string): Promise<{
+  filePath: string;
+  fileExists: boolean;
+  fileSizeBytes: number | null;
+  fileMtime: string | null;
+  entries: AuditEntry[];
+}> {
   const filePath = join(workspaceDir, DATA_DIR, "log", "audit.log");
   try {
+    const meta = await stat(filePath);
     const raw = await readFile(filePath, "utf-8");
-    return raw
-      .split("\n")
-      .map((line) => line.trim())
-      .filter(Boolean)
-      .map((line) => {
-        try {
-          return JSON.parse(line) as AuditEntry;
-        } catch {
-          return null;
-        }
-      })
-      .filter((entry): entry is AuditEntry => entry !== null);
+    return {
+      filePath,
+      fileExists: true,
+      fileSizeBytes: meta.size,
+      fileMtime: Number.isFinite(meta.mtimeMs) ? new Date(meta.mtimeMs).toISOString() : null,
+      entries: raw
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .map((line) => {
+          try {
+            return JSON.parse(line) as AuditEntry;
+          } catch {
+            return null;
+          }
+        })
+        .filter((entry): entry is AuditEntry => entry !== null),
+    };
   } catch {
-    return [];
+    return {
+      filePath,
+      fileExists: false,
+      fileSizeBytes: null,
+      fileMtime: null,
+      entries: [],
+    };
   }
 }
 
