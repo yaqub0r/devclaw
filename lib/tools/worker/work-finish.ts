@@ -231,6 +231,20 @@ function buildBranchResolutionDiagnostic(opts: {
       { source: "live_plugin_branch", value: pluginBranch, matchesPrSourceBranch: pluginBranch !== null && prSourceBranch !== null && pluginBranch === prSourceBranch },
       { source: "live_plugin_head_branches", value: pluginHeadBranches, matchesPrSourceBranch: prSourceBranch !== null && pluginHeadBranches.includes(prSourceBranch) },
     ],
+    branchSelectionWinnerSummary:
+      preferredBranchSource === "configured_repo_branch"
+        ? `configured repo branch ${repoBranch} won because it directly matched PR source branch ${prSourceBranch}`
+        : preferredBranchSource === "configured_repo_head_branches"
+          ? `configured repo HEAD branches ${JSON.stringify(repoHeadBranches)} won because they included PR source branch ${prSourceBranch}`
+          : preferredBranchSource === "live_plugin_branch"
+            ? `live plugin branch ${pluginBranch} won because configured repo candidates did not match PR source branch ${prSourceBranch}`
+            : preferredBranchSource === "live_plugin_head_branches"
+              ? `live plugin HEAD branches ${JSON.stringify(pluginHeadBranches)} won because configured repo candidates did not match PR source branch ${prSourceBranch}`
+              : preferredBranchSource === "configured_repo_branch_fallback"
+                ? `configured repo branch ${repoBranch} won as fallback because no PR-aware candidate matched`
+                : preferredBranchSource === "live_plugin_branch_fallback"
+                  ? `live plugin branch ${pluginBranch} won as fallback because configured repo branch was unavailable and no PR-aware candidate matched`
+                  : "no trustworthy branch winner could be identified",
     branchSourceCandidateDiagnostics: [
       {
         source: "configured_repo_branch",
@@ -303,6 +317,44 @@ function buildBranchResolutionDiagnostic(opts: {
                 : !pluginHeadBranches.includes(prSourceBranch)
                   ? `live plugin HEAD branches ${JSON.stringify(pluginHeadBranches)} did not include PR source branch ${prSourceBranch}`
                   : "live plugin HEAD candidate lost to a higher-priority configured repo candidate",
+      },
+    ],
+    branchSourceCandidateDecisionTable: [
+      {
+        source: "configured_repo_branch",
+        candidateValue: repoBranch,
+        candidateHead: repoHead,
+        candidateRealPath: repoRealPath,
+        prSourceBranch,
+        selectedWinner: preferredBranchSource === "configured_repo_branch",
+        candidateStatus: preferredBranchSource === "configured_repo_branch" ? "winner" : repoBranch === null ? "missing" : prSourceBranch === null ? "unverifiable_without_pr_source" : repoBranch === prSourceBranch ? "matched_but_outranked" : "mismatch",
+      },
+      {
+        source: "configured_repo_head_branches",
+        candidateValue: repoHeadBranches,
+        candidateHead: repoHead,
+        candidateRealPath: repoRealPath,
+        prSourceBranch,
+        selectedWinner: preferredBranchSource === "configured_repo_head_branches",
+        candidateStatus: preferredBranchSource === "configured_repo_head_branches" ? "winner" : repoHeadBranches.length === 0 ? "missing" : prSourceBranch === null ? "unverifiable_without_pr_source" : repoHeadBranches.includes(prSourceBranch) ? "matched_but_outranked" : "mismatch",
+      },
+      {
+        source: "live_plugin_branch",
+        candidateValue: pluginBranch,
+        candidateHead: pluginHead,
+        candidateRealPath: pluginRealPath,
+        prSourceBranch,
+        selectedWinner: preferredBranchSource === "live_plugin_branch",
+        candidateStatus: preferredBranchSource === "live_plugin_branch" ? "winner" : pluginBranch === null ? "missing" : prSourceBranch === null ? "unverifiable_without_pr_source" : pluginBranch === prSourceBranch ? "matched_but_outranked" : "mismatch",
+      },
+      {
+        source: "live_plugin_head_branches",
+        candidateValue: pluginHeadBranches,
+        candidateHead: pluginHead,
+        candidateRealPath: pluginRealPath,
+        prSourceBranch,
+        selectedWinner: preferredBranchSource === "live_plugin_head_branches",
+        candidateStatus: preferredBranchSource === "live_plugin_head_branches" ? "winner" : pluginHeadBranches.length === 0 ? "missing" : prSourceBranch === null ? "unverifiable_without_pr_source" : pluginHeadBranches.includes(prSourceBranch) ? "matched_but_outranked" : "mismatch",
       },
     ],
   };
