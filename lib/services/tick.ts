@@ -190,6 +190,7 @@ export async function projectTick(opts: {
         rawRefiningDecisionPath: event.rawRefiningDecisionPath ?? null,
         rawHealthDecisionCategory: event.rawHealthDecisionCategory ?? null,
         eventShapeSummary: event.eventShapeSummary ?? null,
+        compactDecisionSummary: event.compactDecisionSummary ?? null,
         decisionPath: event.decisionPath ?? null,
       })),
       countedBecause: loopBrake.events.length > 0
@@ -256,6 +257,7 @@ export async function projectTick(opts: {
           rawRefiningDecisionPath: event.rawRefiningDecisionPath ?? null,
           rawHealthDecisionCategory: event.rawHealthDecisionCategory ?? null,
           eventShapeSummary: event.eventShapeSummary ?? null,
+          compactDecisionSummary: event.compactDecisionSummary ?? null,
           decisionPath: event.decisionPath ?? null,
         })),
         countedBecause: `loop brake threshold ${loopBrake.threshold} was met by ${loopBrake.events.length} events that matched non-progress counting rules inside the retry window`,

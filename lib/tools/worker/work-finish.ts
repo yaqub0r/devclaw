@@ -156,6 +156,10 @@ function buildBranchResolutionDiagnostic(opts: {
   const pluginHead = typeof opts.pluginSnapshot.head === "string" ? opts.pluginSnapshot.head : null;
   const repoDetachedHead = repoBranch === null || repoBranch.length === 0;
   const pluginDetachedHead = pluginBranch === null || pluginBranch.length === 0;
+  const repoWorkTreeBasename = repoWorkTree ? repoWorkTree.split("/").filter(Boolean).at(-1) ?? null : null;
+  const pluginWorkTreeBasename = pluginWorkTree ? pluginWorkTree.split("/").filter(Boolean).at(-1) ?? null : null;
+  const configuredRepoPathBasename = opts.repoPath.split("/").filter(Boolean).at(-1) ?? null;
+  const pluginSourceRootBasename = opts.pluginSourceRoot.split("/").filter(Boolean).at(-1) ?? null;
   const preferredBranchSource =
     repoBranch !== null && prSourceBranch !== null && repoBranch === prSourceBranch
       ? "configured_repo_branch"
@@ -170,6 +174,54 @@ function buildBranchResolutionDiagnostic(opts: {
               : pluginBranch !== null
                 ? "live_plugin_branch_fallback"
                 : "no_branch_match";
+  const preferredBranchUsedFallback = preferredBranchSource === "configured_repo_branch_fallback" || preferredBranchSource === "live_plugin_branch_fallback";
+  const preferredBranchConfidence =
+    preferredBranchSource === "configured_repo_branch" || preferredBranchSource === "live_plugin_branch"
+      ? "direct_pr_branch_match"
+      : preferredBranchSource === "configured_repo_head_branches" || preferredBranchSource === "live_plugin_head_branches"
+        ? "head_points_at_pr_branch"
+        : preferredBranchUsedFallback
+          ? "fallback_without_pr_match"
+          : "no_trustworthy_match";
+  const branchWinner =
+    preferredBranchSource === "configured_repo_branch" || preferredBranchSource === "configured_repo_branch_fallback"
+      ? repoBranch
+      : preferredBranchSource === "configured_repo_head_branches"
+        ? prSourceBranch
+        : preferredBranchSource === "live_plugin_branch" || preferredBranchSource === "live_plugin_branch_fallback"
+          ? pluginBranch
+          : preferredBranchSource === "live_plugin_head_branches"
+            ? prSourceBranch
+            : null;
+  const branchWinnerSourceKind = preferredBranchSource.startsWith("configured_repo")
+    ? "configured_repo"
+    : preferredBranchSource.startsWith("live_plugin")
+      ? "live_plugin"
+      : "none";
+  const branchWinnerLooksSuspicious = Boolean(
+    (configuredRepoPathBasename && repoBranch && configuredRepoPathBasename !== repoBranch)
+    || (pluginSourceRootBasename && pluginBranch && pluginSourceRootBasename !== pluginBranch)
+    || (branchWinnerSourceKind === "configured_repo" && repoBranch && pluginBranch && repoBranch !== pluginBranch)
+    || (branchWinnerSourceKind === "configured_repo" && repoRealPath !== null && pluginRealPath !== null && repoRealPath !== pluginRealPath)
+    || preferredBranchUsedFallback,
+  );
+  const branchWinnerSuspicionReasons = [
+    configuredRepoPathBasename && repoBranch && configuredRepoPathBasename !== repoBranch
+      ? `configured repo path basename ${configuredRepoPathBasename} differs from configured repo branch ${repoBranch}`
+      : null,
+    pluginSourceRootBasename && pluginBranch && pluginSourceRootBasename !== pluginBranch
+      ? `live plugin source basename ${pluginSourceRootBasename} differs from live plugin branch ${pluginBranch}`
+      : null,
+    branchWinnerSourceKind === "configured_repo" && repoBranch && pluginBranch && repoBranch !== pluginBranch
+      ? `configured repo branch ${repoBranch} beat live plugin branch ${pluginBranch}`
+      : null,
+    branchWinnerSourceKind === "configured_repo" && repoRealPath !== null && pluginRealPath !== null && repoRealPath !== pluginRealPath
+      ? `configured repo realpath ${repoRealPath} differs from live plugin realpath ${pluginRealPath} even though configured repo won branch selection`
+      : null,
+    preferredBranchUsedFallback
+      ? `branch winner ${preferredBranchSource} relied on fallback selection because no PR-aware match was available`
+      : null,
+  ].filter((value): value is string => Boolean(value));
 
   return {
     repoBranch,
@@ -200,9 +252,17 @@ function buildBranchResolutionDiagnostic(opts: {
     pluginHeadPointsAtPrSourceBranch: prSourceBranch !== null && pluginHeadBranches.includes(prSourceBranch),
     repoDetachedHead,
     pluginDetachedHead,
-    repoWorkTreeBasename: repoWorkTree ? repoWorkTree.split("/").filter(Boolean).at(-1) ?? null : null,
-    pluginWorkTreeBasename: pluginWorkTree ? pluginWorkTree.split("/").filter(Boolean).at(-1) ?? null : null,
+    repoWorkTreeBasename,
+    pluginWorkTreeBasename,
+    configuredRepoPathBasename,
+    pluginSourceRootBasename,
     preferredBranchSource,
+    preferredBranchUsedFallback,
+    preferredBranchConfidence,
+    branchWinner,
+    branchWinnerSourceKind,
+    branchWinnerLooksSuspicious,
+    branchWinnerSuspicionReasons,
     preferredBranchEvidence:
       preferredBranchSource === "configured_repo_branch"
         ? "configured repo branch directly matched PR source branch"
@@ -245,6 +305,12 @@ function buildBranchResolutionDiagnostic(opts: {
                 : preferredBranchSource === "live_plugin_branch_fallback"
                   ? `live plugin branch ${pluginBranch} won as fallback because configured repo branch was unavailable and no PR-aware candidate matched`
                   : "no trustworthy branch winner could be identified",
+    branchWinnerDecisionSummary:
+      branchWinner === null
+        ? "no branch winner could be derived from configured repo, live plugin, or PR source state"
+        : branchWinnerLooksSuspicious
+          ? `branch winner ${branchWinner} from ${preferredBranchSource} looks suspicious: ${branchWinnerSuspicionReasons.join("; ")}`
+          : `branch winner ${branchWinner} from ${preferredBranchSource} looks consistent with the active lane evidence`,
     branchSourceCandidateDiagnostics: [
       {
         source: "configured_repo_branch",
