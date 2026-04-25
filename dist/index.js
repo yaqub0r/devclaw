@@ -31456,9 +31456,82 @@ init_audit();
 // lib/services/heartbeat/health.ts
 init_audit();
 init_workflow();
+import { readFile as readFile3 } from "node:fs/promises";
+import { homedir as homedir2 } from "node:os";
 var GRACE_PERIOD_MS = 5 * 60 * 1e3;
 var STALL_CONTEXT_THRESHOLD = 1e3;
 var NUDGE_MESSAGE = `You appear to have stalled. Continue working on your current task. If you are blocked or unable to proceed, call work_finish with result "blocked".`;
+async function getHealthLaneContext(project, runCommand) {
+  const repoPath = project.repo;
+  const pluginSourceRoot = getPluginSourceRoot();
+  const pluginSourceDerivation = getPluginSourceDerivation();
+  const [repoSnapshot, pluginSnapshot] = await Promise.all([
+    getGitSnapshot(repoPath, runCommand),
+    getGitSnapshot(pluginSourceRoot, runCommand)
+  ]);
+  let pluginConfig = null;
+  try {
+    pluginConfig = JSON.parse(await readFile3(`${homedir2()}/.openclaw/openclaw.json`, "utf8"));
+  } catch {
+    pluginConfig = null;
+  }
+  const openclawConfigPluginLoadPaths = Array.isArray(pluginConfig?.plugins?.load?.paths) ? pluginConfig.plugins?.load?.paths ?? [] : null;
+  const openclawConfigInstallSourcePath = typeof pluginConfig?.plugins?.installs?.devclaw?.sourcePath === "string" ? pluginConfig.plugins?.installs?.devclaw?.sourcePath ?? null : null;
+  const openclawConfigInstallPath = typeof pluginConfig?.plugins?.installs?.devclaw?.installPath === "string" ? pluginConfig.plugins?.installs?.devclaw?.installPath ?? null : null;
+  const openclawConfigInstallSourceRealPath = await tryRealpath(openclawConfigInstallSourcePath);
+  const openclawConfigInstallPathRealPath = await tryRealpath(openclawConfigInstallPath);
+  const openclawConfigPluginLoadPathRealPaths = await Promise.all(
+    (openclawConfigPluginLoadPaths ?? []).map((pathValue) => tryRealpath(pathValue))
+  );
+  const pluginSourceConfigSummary = summarizePluginSourceConfig({
+    installSourceRealPath: openclawConfigInstallSourceRealPath,
+    installPathRealPath: openclawConfigInstallPathRealPath,
+    pluginLoadPathRealPaths: openclawConfigPluginLoadPathRealPaths,
+    pluginRealPath: typeof pluginSnapshot.realRepoPath === "string" ? pluginSnapshot.realRepoPath : null
+  });
+  const repoBranch = typeof repoSnapshot.branch === "string" ? repoSnapshot.branch : null;
+  const pluginBranch = typeof pluginSnapshot.branch === "string" ? pluginSnapshot.branch : null;
+  const repoRealPath = typeof repoSnapshot.realRepoPath === "string" ? repoSnapshot.realRepoPath : null;
+  const pluginRealPath = typeof pluginSnapshot.realRepoPath === "string" ? pluginSnapshot.realRepoPath : null;
+  const repoHead = typeof repoSnapshot.head === "string" ? repoSnapshot.head : null;
+  const pluginHead = typeof pluginSnapshot.head === "string" ? pluginSnapshot.head : null;
+  return {
+    repoPath,
+    pluginSourceRoot,
+    pluginSourceDerivation,
+    repoSnapshot,
+    pluginSnapshot,
+    openclawConfigInstallSourcePath,
+    openclawConfigInstallSourceRealPath,
+    openclawConfigInstallPath,
+    openclawConfigInstallPathRealPath,
+    openclawConfigPluginLoadPaths,
+    openclawConfigPluginLoadPathRealPaths,
+    duplicateSourceRisk: pluginSourceConfigSummary.duplicateSourceRisk,
+    duplicateSourceDecision: pluginSourceConfigSummary.duplicateSourceRisk ? "health diagnostics detected competing DevClaw realpaths in OpenClaw config" : "health diagnostics saw a singular DevClaw live-source config",
+    duplicateSourceWinningRealPathGuess: pluginSourceConfigSummary.likelyWinningLiveRealPath ?? null,
+    duplicateSourceCompetingRealPaths: pluginSourceConfigSummary.conflictingDevclawRealPaths,
+    liveSourceDecision: openclawConfigInstallSourceRealPath && pluginRealPath ? openclawConfigInstallSourceRealPath === pluginRealPath ? "health diagnostics observed live plugin realpath matching configured install source" : "health diagnostics observed live plugin realpath differing from configured install source" : "health diagnostics could not complete live-source realpath comparison",
+    liveSourceSingularitySummary: pluginSourceConfigSummary.duplicateSourceRisk ? `health diagnostics found ${pluginSourceConfigSummary.distinctDevclawRealPathCount} distinct DevClaw realpaths in config/runtime evidence` : `health diagnostics found ${pluginSourceConfigSummary.distinctDevclawRealPathCount} singular DevClaw realpath set(s) with no competing load path outside install source`,
+    laneIdentitySummary: {
+      configuredRepoPathBasename: typeof repoPath === "string" ? repoPath.split("/").filter(Boolean).at(-1) ?? null : null,
+      pluginSourceRootBasename: pluginSourceRoot.split("/").filter(Boolean).at(-1) ?? null,
+      configuredRepoBranch: repoBranch,
+      livePluginBranch: pluginBranch,
+      configuredRepoWorkTree: typeof repoSnapshot.workTree === "string" ? repoSnapshot.workTree : null,
+      livePluginWorkTree: typeof pluginSnapshot.workTree === "string" ? pluginSnapshot.workTree : null
+    },
+    laneMismatchCategory: repoRealPath !== null && pluginRealPath !== null && repoRealPath !== pluginRealPath ? "repo_plugin_realpath_mismatch" : repoBranch !== null && pluginBranch !== null && repoBranch !== pluginBranch ? "repo_plugin_branch_mismatch" : "lane_aligned_or_unresolved",
+    laneMismatchDecision: repoRealPath !== null && pluginRealPath !== null && repoRealPath !== pluginRealPath ? "health diagnostics saw configured repo and live plugin resolving to different realpaths" : repoBranch !== null && pluginBranch !== null && repoBranch !== pluginBranch ? "health diagnostics saw configured repo and live plugin reporting different current branches" : "health diagnostics saw no repo/plugin lane mismatch, or lacked enough evidence",
+    laneMismatchSummary: [
+      repoRealPath !== null && pluginRealPath !== null && repoRealPath === pluginRealPath ? "configured repo and live plugin share a realpath" : "configured repo and live plugin resolve to different realpaths or one side was unavailable",
+      repoBranch !== null && pluginBranch !== null && repoBranch === pluginBranch ? `configured repo and live plugin share branch identity ${repoBranch}` : `configured repo branch ${repoBranch ?? "missing"} differs from live plugin branch ${pluginBranch ?? "missing"}`,
+      repoHead !== null && pluginHead !== null && repoHead === pluginHead ? `configured repo and live plugin share HEAD ${repoHead}` : `configured repo HEAD ${repoHead ?? "missing"} differs from live plugin HEAD ${pluginHead ?? "missing"}`
+    ],
+    headCommitComparisonCategory: repoHead !== null && pluginHead !== null ? repoHead === pluginHead ? repoBranch !== null && pluginBranch !== null && repoBranch === pluginBranch ? "same_head_same_branch" : "same_head_branch_identity_differs" : "different_head_commits" : "head_commit_unavailable",
+    headCommitDecisionSummary: repoHead !== null && pluginHead !== null ? repoHead === pluginHead ? repoBranch !== null && pluginBranch !== null && repoBranch === pluginBranch ? `configured repo and live plugin share HEAD ${repoHead} and branch identity ${repoBranch}` : `configured repo and live plugin share HEAD ${repoHead} but expose different branch identity (${repoBranch ?? "missing"} vs ${pluginBranch ?? "missing"})` : `configured repo HEAD ${repoHead} differs from live plugin HEAD ${pluginHead}` : "configured repo or live plugin HEAD commit was unavailable during health diagnostics"
+  };
+}
 async function fetchIssue(provider, issueId) {
   try {
     return await provider.getIssue(issueId);
@@ -31496,6 +31569,7 @@ async function checkWorkerHealth(opts) {
   const fixes = [];
   if (!hasWorkflowStates(workflow, role)) return fixes;
   const roleWorker = getRoleWorker(project, role);
+  const healthLaneContext = await getHealthLaneContext(project, opts.runCommand).catch(() => ({}));
   const expectedLabel = getActiveLabel(workflow, role);
   const queueLabel = getRevertLabel(workflow, role);
   for (const [level, slots] of Object.entries(roleWorker.levels)) {
@@ -31560,6 +31634,7 @@ async function checkWorkerHealth(opts) {
           healthRequeueLoopReason: "orphan_requeue",
           loopBrakeReason: "orphan_requeue",
           orphanReason: reason,
+          ...healthLaneContext,
           ...details
         }).catch(() => {
         });
@@ -31594,6 +31669,7 @@ async function checkWorkerHealth(opts) {
             healthRequeueLoopReason: "orphan_requeue",
             loopBrakeReason: "orphan_requeue",
             orphanReason: opts2.orphanReason ?? null,
+            ...healthLaneContext,
             decisionPath: issueIdNum == null ? "health pass considered requeue but issueId was missing" : opts2.decisionPath ?? `health pass transitioned ${from} -> ${to} because slot looked orphaned relative to issue/session state`
           }).catch(() => {
           });
@@ -31625,6 +31701,7 @@ async function checkWorkerHealth(opts) {
             healthRequeueLoopReason: "orphan_requeue",
             loopBrakeReason: "orphan_requeue",
             orphanReason: opts2.orphanReason ?? null,
+            ...healthLaneContext,
             decisionPath: opts2.decisionPath ?? `health pass attempted ${from} -> ${to} for orphan recovery, but provider.transitionLabel failed`
           }).catch(() => {
           });
@@ -31721,6 +31798,7 @@ async function checkWorkerHealth(opts) {
           healthDecisionCategory: "label_drift_deactivate_only",
           healthDecisionSummary: `health will only deactivate because issue already drifted from ${expectedLabel} to ${currentLabel ?? "unknown"}`,
           orphanReason: "label_mismatch",
+          ...healthLaneContext,
           decisionPath: `active slot was expected in ${expectedLabel}, but issue had already drifted to ${currentLabel}, so health will only deactivate the slot and must not assign orphan_requeue`
         }).catch(() => {
         });
@@ -32710,7 +32788,7 @@ init_workflow();
 init_audit();
 init_migrate_layout();
 init_workflow();
-import { readFile as readFile3, stat } from "node:fs/promises";
+import { readFile as readFile4, stat } from "node:fs/promises";
 import { join as join3 } from "node:path";
 var LOOP_BRAKE_WINDOW_MS = 6 * 60 * 60 * 1e3;
 var LOOP_BRAKE_THRESHOLD = 3;
@@ -32886,7 +32964,7 @@ async function readRecentAuditEntries(workspaceDir) {
   const filePath = join3(workspaceDir, DATA_DIR, "log", "audit.log");
   try {
     const meta3 = await stat(filePath);
-    const raw = await readFile3(filePath, "utf-8");
+    const raw = await readFile4(filePath, "utf-8");
     return {
       filePath,
       fileExists: true,
@@ -36049,7 +36127,7 @@ ${project.name} (${project.slug}):`);
 }
 
 // lib/dispatch/attachment-hook.ts
-import { homedir as homedir2 } from "node:os";
+import { homedir as homedir3 } from "node:os";
 import path17 from "node:path";
 init_audit();
 async function resolveProjectFromChannel(workspaceDir, conversationId) {
@@ -36077,7 +36155,7 @@ function resolveWorkspaceDir(config2) {
   if (agents?.defaults?.workspace) return agents.defaults.workspace;
   const devclaw = agents?.list?.find((a) => a.id === "devclaw");
   if (devclaw?.workspace) return devclaw.workspace;
-  return path17.join(homedir2(), ".openclaw", "workspace-devclaw");
+  return path17.join(homedir3(), ".openclaw", "workspace-devclaw");
 }
 function registerAttachmentHook(api, ctx) {
   api.on("message_received", async (event, eventCtx) => {

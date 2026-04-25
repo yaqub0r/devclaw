@@ -39,11 +39,11 @@ export type CompletionOutput = {
   issueReopened?: boolean;
 };
 
-function getPluginSourceRoot(): string {
+export function getPluginSourceRoot(): string {
   return dirname(dirname(dirname(fileURLToPath(import.meta.url))));
 }
 
-function getPluginSourceDerivation(): Record<string, unknown> {
+export function getPluginSourceDerivation(): Record<string, unknown> {
   const moduleFilePath = fileURLToPath(import.meta.url);
   const moduleDir = dirname(moduleFilePath);
   const selectedPluginSourceRoot = getPluginSourceRoot();
@@ -65,7 +65,7 @@ function getPluginSourceDerivation(): Record<string, unknown> {
   };
 }
 
-async function tryRealpath(pathValue: unknown): Promise<string | null> {
+export async function tryRealpath(pathValue: unknown): Promise<string | null> {
   if (typeof pathValue !== "string" || !pathValue.trim()) return null;
   try {
     return await realpath(pathValue);
@@ -74,7 +74,7 @@ async function tryRealpath(pathValue: unknown): Promise<string | null> {
   }
 }
 
-function summarizePluginSourceConfig(opts: {
+export function summarizePluginSourceConfig(opts: {
   installSourceRealPath: string | null;
   installPathRealPath: string | null;
   pluginLoadPathRealPaths: Array<string | null>;
@@ -122,7 +122,7 @@ function summarizePluginSourceConfig(opts: {
   };
 }
 
-async function getGitSnapshot(repoPath: string, runCommand: RunCommand): Promise<Record<string, unknown>> {
+export async function getGitSnapshot(repoPath: string, runCommand: RunCommand): Promise<Record<string, unknown>> {
   const commands: Array<[string, string[]]> = [
     ["branch", ["git", "branch", "--show-current"]],
     ["head", ["git", "rev-parse", "HEAD"]],

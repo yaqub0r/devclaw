@@ -48,10 +48,13 @@ import {
   type WorkflowConfig,
   type Role,
 } from "../../workflow/index.js";
+import { readFile } from "node:fs/promises";
+import { homedir } from "node:os";
 import { isSessionAlive, type SessionLookup } from "../gateway-sessions.js";
 import { sendToAgent } from "../../dispatch/session.js";
 import type { RunCommand } from "../../context.js";
 import { recordLoopDiagnostic } from "../loop-diagnostics.js";
+import { getGitSnapshot, getPluginSourceDerivation, getPluginSourceRoot, summarizePluginSourceConfig, tryRealpath } from "../pipeline.js";
 
 // Re-export for consumers that import from health.ts
 export { fetchGatewaySessions, isSessionAlive, type GatewaySession, type SessionLookup } from "../gateway-sessions.js";
@@ -103,6 +106,130 @@ export type HealthFix = {
   labelRevertFailed?: boolean;
   nudgeSent?: boolean;
 };
+
+async function getHealthLaneContext(project: Project, runCommand: RunCommand): Promise<Record<string, unknown>> {
+  const repoPath = project.repo;
+  const pluginSourceRoot = getPluginSourceRoot();
+  const pluginSourceDerivation = getPluginSourceDerivation();
+  const [repoSnapshot, pluginSnapshot] = await Promise.all([
+    getGitSnapshot(repoPath, runCommand),
+    getGitSnapshot(pluginSourceRoot, runCommand),
+  ]);
+
+  let pluginConfig: Record<string, unknown> | null = null;
+  try {
+    pluginConfig = JSON.parse(await readFile(`${homedir()}/.openclaw/openclaw.json`, "utf8")) as Record<string, unknown>;
+  } catch {
+    pluginConfig = null;
+  }
+
+  const openclawConfigPluginLoadPaths =
+    Array.isArray((pluginConfig as { plugins?: { load?: { paths?: unknown[] } } } | null)?.plugins?.load?.paths)
+      ? (((pluginConfig as { plugins?: { load?: { paths?: unknown[] } } }).plugins?.load?.paths) ?? [])
+      : null;
+  const openclawConfigInstallSourcePath =
+    typeof (pluginConfig as { plugins?: { installs?: Record<string, { sourcePath?: unknown }> } } | null)?.plugins?.installs?.devclaw?.sourcePath === "string"
+      ? ((pluginConfig as { plugins?: { installs?: Record<string, { sourcePath?: string }> } }).plugins?.installs?.devclaw?.sourcePath ?? null)
+      : null;
+  const openclawConfigInstallPath =
+    typeof (pluginConfig as { plugins?: { installs?: Record<string, { installPath?: unknown }> } } | null)?.plugins?.installs?.devclaw?.installPath === "string"
+      ? ((pluginConfig as { plugins?: { installs?: Record<string, { installPath?: string }> } }).plugins?.installs?.devclaw?.installPath ?? null)
+      : null;
+  const openclawConfigInstallSourceRealPath = await tryRealpath(openclawConfigInstallSourcePath);
+  const openclawConfigInstallPathRealPath = await tryRealpath(openclawConfigInstallPath);
+  const openclawConfigPluginLoadPathRealPaths = await Promise.all(
+    (openclawConfigPluginLoadPaths ?? []).map((pathValue) => tryRealpath(pathValue)),
+  );
+  const pluginSourceConfigSummary = summarizePluginSourceConfig({
+    installSourceRealPath: openclawConfigInstallSourceRealPath,
+    installPathRealPath: openclawConfigInstallPathRealPath,
+    pluginLoadPathRealPaths: openclawConfigPluginLoadPathRealPaths,
+    pluginRealPath: typeof pluginSnapshot.realRepoPath === "string" ? pluginSnapshot.realRepoPath : null,
+  });
+
+  const repoBranch = typeof repoSnapshot.branch === "string" ? repoSnapshot.branch : null;
+  const pluginBranch = typeof pluginSnapshot.branch === "string" ? pluginSnapshot.branch : null;
+  const repoRealPath = typeof repoSnapshot.realRepoPath === "string" ? repoSnapshot.realRepoPath : null;
+  const pluginRealPath = typeof pluginSnapshot.realRepoPath === "string" ? pluginSnapshot.realRepoPath : null;
+  const repoHead = typeof repoSnapshot.head === "string" ? repoSnapshot.head : null;
+  const pluginHead = typeof pluginSnapshot.head === "string" ? pluginSnapshot.head : null;
+
+  return {
+    repoPath,
+    pluginSourceRoot,
+    pluginSourceDerivation,
+    repoSnapshot,
+    pluginSnapshot,
+    openclawConfigInstallSourcePath,
+    openclawConfigInstallSourceRealPath,
+    openclawConfigInstallPath,
+    openclawConfigInstallPathRealPath,
+    openclawConfigPluginLoadPaths,
+    openclawConfigPluginLoadPathRealPaths,
+    duplicateSourceRisk: pluginSourceConfigSummary.duplicateSourceRisk,
+    duplicateSourceDecision: pluginSourceConfigSummary.duplicateSourceRisk
+      ? "health diagnostics detected competing DevClaw realpaths in OpenClaw config"
+      : "health diagnostics saw a singular DevClaw live-source config",
+    duplicateSourceWinningRealPathGuess: pluginSourceConfigSummary.likelyWinningLiveRealPath ?? null,
+    duplicateSourceCompetingRealPaths: pluginSourceConfigSummary.conflictingDevclawRealPaths,
+    liveSourceDecision:
+      openclawConfigInstallSourceRealPath && pluginRealPath
+        ? openclawConfigInstallSourceRealPath === pluginRealPath
+          ? "health diagnostics observed live plugin realpath matching configured install source"
+          : "health diagnostics observed live plugin realpath differing from configured install source"
+        : "health diagnostics could not complete live-source realpath comparison",
+    liveSourceSingularitySummary: pluginSourceConfigSummary.duplicateSourceRisk
+      ? `health diagnostics found ${pluginSourceConfigSummary.distinctDevclawRealPathCount} distinct DevClaw realpaths in config/runtime evidence`
+      : `health diagnostics found ${pluginSourceConfigSummary.distinctDevclawRealPathCount} singular DevClaw realpath set(s) with no competing load path outside install source`,
+    laneIdentitySummary: {
+      configuredRepoPathBasename: typeof repoPath === "string" ? repoPath.split("/").filter(Boolean).at(-1) ?? null : null,
+      pluginSourceRootBasename: pluginSourceRoot.split("/").filter(Boolean).at(-1) ?? null,
+      configuredRepoBranch: repoBranch,
+      livePluginBranch: pluginBranch,
+      configuredRepoWorkTree: typeof repoSnapshot.workTree === "string" ? repoSnapshot.workTree : null,
+      livePluginWorkTree: typeof pluginSnapshot.workTree === "string" ? pluginSnapshot.workTree : null,
+    },
+    laneMismatchCategory:
+      repoRealPath !== null && pluginRealPath !== null && repoRealPath !== pluginRealPath
+        ? "repo_plugin_realpath_mismatch"
+        : repoBranch !== null && pluginBranch !== null && repoBranch !== pluginBranch
+          ? "repo_plugin_branch_mismatch"
+          : "lane_aligned_or_unresolved",
+    laneMismatchDecision:
+      repoRealPath !== null && pluginRealPath !== null && repoRealPath !== pluginRealPath
+        ? "health diagnostics saw configured repo and live plugin resolving to different realpaths"
+        : repoBranch !== null && pluginBranch !== null && repoBranch !== pluginBranch
+          ? "health diagnostics saw configured repo and live plugin reporting different current branches"
+          : "health diagnostics saw no repo/plugin lane mismatch, or lacked enough evidence",
+    laneMismatchSummary: [
+      repoRealPath !== null && pluginRealPath !== null && repoRealPath === pluginRealPath
+        ? "configured repo and live plugin share a realpath"
+        : "configured repo and live plugin resolve to different realpaths or one side was unavailable",
+      repoBranch !== null && pluginBranch !== null && repoBranch === pluginBranch
+        ? `configured repo and live plugin share branch identity ${repoBranch}`
+        : `configured repo branch ${repoBranch ?? "missing"} differs from live plugin branch ${pluginBranch ?? "missing"}`,
+      repoHead !== null && pluginHead !== null && repoHead === pluginHead
+        ? `configured repo and live plugin share HEAD ${repoHead}`
+        : `configured repo HEAD ${repoHead ?? "missing"} differs from live plugin HEAD ${pluginHead ?? "missing"}`,
+    ],
+    headCommitComparisonCategory:
+      repoHead !== null && pluginHead !== null
+        ? repoHead === pluginHead
+          ? repoBranch !== null && pluginBranch !== null && repoBranch === pluginBranch
+            ? "same_head_same_branch"
+            : "same_head_branch_identity_differs"
+          : "different_head_commits"
+        : "head_commit_unavailable",
+    headCommitDecisionSummary:
+      repoHead !== null && pluginHead !== null
+        ? repoHead === pluginHead
+          ? repoBranch !== null && pluginBranch !== null && repoBranch === pluginBranch
+            ? `configured repo and live plugin share HEAD ${repoHead} and branch identity ${repoBranch}`
+            : `configured repo and live plugin share HEAD ${repoHead} but expose different branch identity (${repoBranch ?? "missing"} vs ${pluginBranch ?? "missing"})`
+          : `configured repo HEAD ${repoHead} differs from live plugin HEAD ${pluginHead}`
+        : "configured repo or live plugin HEAD commit was unavailable during health diagnostics",
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Issue label lookup
@@ -198,6 +325,7 @@ export async function checkWorkerHealth(opts: {
   if (!hasWorkflowStates(workflow, role)) return fixes;
 
   const roleWorker = getRoleWorker(project, role);
+  const healthLaneContext = await getHealthLaneContext(project, opts.runCommand).catch(() => ({}));
 
   // Get labels from workflow config
   const expectedLabel = getActiveLabel(workflow, role);
@@ -295,6 +423,7 @@ export async function checkWorkerHealth(opts: {
           healthRequeueLoopReason: "orphan_requeue",
           loopBrakeReason: "orphan_requeue",
           orphanReason: reason,
+          ...healthLaneContext,
           ...details,
         }).catch(() => {});
       }
@@ -335,6 +464,7 @@ export async function checkWorkerHealth(opts: {
             healthRequeueLoopReason: "orphan_requeue",
             loopBrakeReason: "orphan_requeue",
             orphanReason: opts.orphanReason ?? null,
+            ...healthLaneContext,
             decisionPath: issueIdNum == null
               ? "health pass considered requeue but issueId was missing"
               : opts.decisionPath ?? `health pass transitioned ${from} -> ${to} because slot looked orphaned relative to issue/session state`,
@@ -367,6 +497,7 @@ export async function checkWorkerHealth(opts: {
             healthRequeueLoopReason: "orphan_requeue",
             loopBrakeReason: "orphan_requeue",
             orphanReason: opts.orphanReason ?? null,
+            ...healthLaneContext,
             decisionPath: opts.decisionPath ?? `health pass attempted ${from} -> ${to} for orphan recovery, but provider.transitionLabel failed`,
           }).catch(() => {});
           fix.labelRevertFailed = true;
@@ -471,6 +602,7 @@ export async function checkWorkerHealth(opts: {
           healthDecisionCategory: "label_drift_deactivate_only",
           healthDecisionSummary: `health will only deactivate because issue already drifted from ${expectedLabel} to ${currentLabel ?? "unknown"}`,
           orphanReason: "label_mismatch",
+          ...healthLaneContext,
           decisionPath: `active slot was expected in ${expectedLabel}, but issue had already drifted to ${currentLabel}, so health will only deactivate the slot and must not assign orphan_requeue`,
         }).catch(() => {});
         if (autoFix) {
