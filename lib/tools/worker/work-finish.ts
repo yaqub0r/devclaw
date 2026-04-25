@@ -75,6 +75,29 @@ function getPluginSourceRoot(): string {
   return dirname(dirname(dirname(dirname(fileURLToPath(import.meta.url)))));
 }
 
+function getPluginSourceDerivation(): Record<string, unknown> {
+  const moduleFilePath = fileURLToPath(import.meta.url);
+  const moduleDir = dirname(moduleFilePath);
+  const selectedPluginSourceRoot = getPluginSourceRoot();
+  const candidateRoots = [
+    { label: "dirname^0", path: moduleDir },
+    { label: "dirname^1", path: dirname(moduleDir) },
+    { label: "dirname^2", path: dirname(dirname(moduleDir)) },
+    { label: "dirname^3", path: dirname(dirname(dirname(moduleDir))) },
+    { label: "dirname^4(selected)", path: selectedPluginSourceRoot },
+    { label: "dirname^5", path: dirname(selectedPluginSourceRoot) },
+  ];
+
+  return {
+    moduleImportUrl: import.meta.url,
+    moduleFilePath,
+    moduleDir,
+    selectedPluginSourceRoot,
+    selectionRule: "work_finish uses dirname(dirname(dirname(dirname(fileURLToPath(import.meta.url))))) as pluginSourceRoot",
+    candidateRoots,
+  };
+}
+
 async function tryRealpath(pathValue: unknown): Promise<string | null> {
   if (typeof pathValue !== "string" || !pathValue.trim()) return null;
   try {
@@ -1165,6 +1188,7 @@ export function createWorkFinishTool(ctx: PluginContext) {
       const repoPath = resolveRepoPath(project.repo);
       const pluginConfig = ctx.pluginConfig;
       const pluginSourceRoot = getPluginSourceRoot();
+      const pluginSourceDerivation = getPluginSourceDerivation();
       const repoSnapshot = await getGitSnapshot(repoPath, ctx.runCommand);
       const pluginSnapshot = await getGitSnapshot(pluginSourceRoot, ctx.runCommand);
       const initialBranchResolution = buildBranchResolutionDiagnostic({
@@ -1207,6 +1231,7 @@ export function createWorkFinishTool(ctx: PluginContext) {
         configuredRepoPath: repoPath,
         configuredProviderTargetRepo,
         pluginSourceRoot,
+        pluginSourceDerivation,
         loopDiagnosticsFlag: process.env.DEVCLAW_LOOP_DIAGNOSTICS ?? null,
         openclawConfigPluginLoadPaths,
         openclawConfigPluginLoadPathRealPaths,

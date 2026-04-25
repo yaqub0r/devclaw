@@ -27380,6 +27380,26 @@ init_workflow();
 function getPluginSourceRoot() {
   return dirname2(dirname2(dirname2(fileURLToPath3(import.meta.url))));
 }
+function getPluginSourceDerivation() {
+  const moduleFilePath = fileURLToPath3(import.meta.url);
+  const moduleDir = dirname2(moduleFilePath);
+  const selectedPluginSourceRoot = getPluginSourceRoot();
+  const candidateRoots = [
+    { label: "dirname^0", path: moduleDir },
+    { label: "dirname^1", path: dirname2(moduleDir) },
+    { label: "dirname^2", path: dirname2(dirname2(moduleDir)) },
+    { label: "dirname^3(selected)", path: selectedPluginSourceRoot },
+    { label: "dirname^4", path: dirname2(selectedPluginSourceRoot) }
+  ];
+  return {
+    moduleImportUrl: import.meta.url,
+    moduleFilePath,
+    moduleDir,
+    selectedPluginSourceRoot,
+    selectionRule: "pipeline uses dirname(dirname(dirname(fileURLToPath(import.meta.url)))) as pluginSourceRoot",
+    candidateRoots
+  };
+}
 async function tryRealpath(pathValue) {
   if (typeof pathValue !== "string" || !pathValue.trim()) return null;
   try {
@@ -27484,6 +27504,7 @@ async function executeCompletion(opts) {
   let prTitle;
   let sourceBranch;
   const pluginSourceRoot = getPluginSourceRoot();
+  const pluginSourceDerivation = getPluginSourceDerivation();
   const [repoSnapshot, pluginSnapshot] = await Promise.all([
     getGitSnapshot(repoPath, rc),
     getGitSnapshot(pluginSourceRoot, rc)
@@ -27558,6 +27579,7 @@ async function executeCompletion(opts) {
               repoPath,
               repoSnapshot,
               pluginSourceRoot,
+              pluginSourceDerivation,
               pluginSnapshot,
               branchDecisionContext: {
                 ...branchDecisionContext,
@@ -27709,6 +27731,7 @@ async function executeCompletion(opts) {
     repoPath,
     repoSnapshot,
     pluginSourceRoot,
+    pluginSourceDerivation,
     pluginSnapshot,
     actions: rule.actions,
     loopBrakeReason: transitionedTo === "Refining" ? `work_finish_${result}` : null,
@@ -27826,6 +27849,7 @@ async function executeCompletion(opts) {
       repoPath,
       repoSnapshot,
       pluginSourceRoot,
+      pluginSourceDerivation,
       pluginSnapshot,
       actions: rule.actions,
       loopBrakeReason: transitionedTo === "Refining" ? `work_finish_${result}` : null,
@@ -27890,6 +27914,7 @@ async function executeCompletion(opts) {
     repoPath,
     repoSnapshot,
     pluginSourceRoot,
+    pluginSourceDerivation,
     pluginSnapshot,
     actions: rule.actions,
     loopBrakeReason: transitionedTo === "Refining" ? `work_finish_${result}` : null,
@@ -28110,6 +28135,27 @@ async function getGitSnapshot2(repoPath, runCommand) {
 }
 function getPluginSourceRoot2() {
   return dirname3(dirname3(dirname3(dirname3(fileURLToPath4(import.meta.url)))));
+}
+function getPluginSourceDerivation2() {
+  const moduleFilePath = fileURLToPath4(import.meta.url);
+  const moduleDir = dirname3(moduleFilePath);
+  const selectedPluginSourceRoot = getPluginSourceRoot2();
+  const candidateRoots = [
+    { label: "dirname^0", path: moduleDir },
+    { label: "dirname^1", path: dirname3(moduleDir) },
+    { label: "dirname^2", path: dirname3(dirname3(moduleDir)) },
+    { label: "dirname^3", path: dirname3(dirname3(dirname3(moduleDir))) },
+    { label: "dirname^4(selected)", path: selectedPluginSourceRoot },
+    { label: "dirname^5", path: dirname3(selectedPluginSourceRoot) }
+  ];
+  return {
+    moduleImportUrl: import.meta.url,
+    moduleFilePath,
+    moduleDir,
+    selectedPluginSourceRoot,
+    selectionRule: "work_finish uses dirname(dirname(dirname(dirname(fileURLToPath(import.meta.url))))) as pluginSourceRoot",
+    candidateRoots
+  };
 }
 async function tryRealpath2(pathValue) {
   if (typeof pathValue !== "string" || !pathValue.trim()) return null;
@@ -28825,6 +28871,7 @@ function createWorkFinishTool(ctx) {
       const repoPath = resolveRepoPath(project.repo);
       const pluginConfig = ctx.pluginConfig;
       const pluginSourceRoot = getPluginSourceRoot2();
+      const pluginSourceDerivation = getPluginSourceDerivation2();
       const repoSnapshot = await getGitSnapshot2(repoPath, ctx.runCommand);
       const pluginSnapshot = await getGitSnapshot2(pluginSourceRoot, ctx.runCommand);
       const initialBranchResolution = buildBranchResolutionDiagnostic({
@@ -28858,6 +28905,7 @@ function createWorkFinishTool(ctx) {
         configuredRepoPath: repoPath,
         configuredProviderTargetRepo,
         pluginSourceRoot,
+        pluginSourceDerivation,
         loopDiagnosticsFlag: process.env.DEVCLAW_LOOP_DIAGNOSTICS ?? null,
         openclawConfigPluginLoadPaths,
         openclawConfigPluginLoadPathRealPaths,
@@ -32665,6 +32713,7 @@ function buildEventAuditExcerpt(entry) {
     sourceBranch: asString(entry.sourceBranch) ?? null,
     repoPath: asString(entry.repoPath) ?? null,
     pluginSourceRoot: asString(entry.pluginSourceRoot) ?? null,
+    pluginSourceDerivation: isRecord(entry.pluginSourceDerivation) ? entry.pluginSourceDerivation : null,
     loopBrakeReason: asString(entry.loopBrakeReason) ?? null,
     healthRequeueLoopReason: asString(entry.healthRequeueLoopReason) ?? null,
     orphanReason: asString(entry.orphanReason) ?? null,
@@ -32878,6 +32927,7 @@ function toLoopEvent(entry) {
       rawSourceBranch: asString(entry.sourceBranch),
       rawRepoPath: asString(entry.repoPath),
       rawPluginSourceRoot: asString(entry.pluginSourceRoot),
+      rawPluginSourceDerivation: isRecord(entry.pluginSourceDerivation) ? entry.pluginSourceDerivation : null,
       rawBranchResolutionDecision: asString(entry.branchResolutionDecision),
       rawPrValidationDecision: asString(entry.prValidationDecision),
       rawPrValidationLookupOutcome: asString(entry.prValidationLookupOutcome),
@@ -32966,6 +33016,7 @@ function toLoopEvent(entry) {
       rawSourceBranch: asString(entry.sourceBranch),
       rawRepoPath: asString(entry.repoPath),
       rawPluginSourceRoot: asString(entry.pluginSourceRoot),
+      rawPluginSourceDerivation: isRecord(entry.pluginSourceDerivation) ? entry.pluginSourceDerivation : null,
       rawBranchResolutionDecision: asString(entry.branchResolutionDecision),
       rawPrValidationDecision: asString(entry.prValidationDecision),
       rawPrValidationLookupOutcome: asString(entry.prValidationLookupOutcome),
@@ -33237,6 +33288,7 @@ async function projectTick(opts) {
         rawSourceBranch: event.rawSourceBranch ?? null,
         rawRepoPath: event.rawRepoPath ?? null,
         rawPluginSourceRoot: event.rawPluginSourceRoot ?? null,
+        rawPluginSourceDerivation: event.rawPluginSourceDerivation ?? null,
         rawBranchResolutionDecision: event.rawBranchResolutionDecision ?? null,
         rawPrValidationDecision: event.rawPrValidationDecision ?? null,
         rawPrValidationLookupOutcome: event.rawPrValidationLookupOutcome ?? null,
@@ -33294,6 +33346,7 @@ async function projectTick(opts) {
         rawBranchWinnerSummary: loopBrake.events[0]?.rawBranchWinnerSummary ?? null,
         rawPreferredBranchSource: loopBrake.events[0]?.rawPreferredBranchSource ?? null,
         rawPreferredBranchConfidence: loopBrake.events[0]?.rawPreferredBranchConfidence ?? null,
+        rawPluginSourceDerivation: loopBrake.events[0]?.rawPluginSourceDerivation ?? null,
         rawLaneMismatchCategory: loopBrake.events[0]?.rawLaneMismatchCategory ?? null,
         rawLaneMismatchSummary: loopBrake.events[0]?.rawLaneMismatchSummary ?? null,
         rawDuplicateSourceDecision: loopBrake.events[0]?.rawDuplicateSourceDecision ?? null,
@@ -33371,6 +33424,7 @@ async function projectTick(opts) {
           rawSourceBranch: event.rawSourceBranch ?? null,
           rawRepoPath: event.rawRepoPath ?? null,
           rawPluginSourceRoot: event.rawPluginSourceRoot ?? null,
+          rawPluginSourceDerivation: event.rawPluginSourceDerivation ?? null,
           rawBranchResolutionDecision: event.rawBranchResolutionDecision ?? null,
           rawPrValidationDecision: event.rawPrValidationDecision ?? null,
           rawPrValidationLookupOutcome: event.rawPrValidationLookupOutcome ?? null,
@@ -33428,6 +33482,7 @@ async function projectTick(opts) {
           rawBranchWinnerSummary: loopBrake.events[0]?.rawBranchWinnerSummary ?? null,
           rawPreferredBranchSource: loopBrake.events[0]?.rawPreferredBranchSource ?? null,
           rawPreferredBranchConfidence: loopBrake.events[0]?.rawPreferredBranchConfidence ?? null,
+          rawPluginSourceDerivation: loopBrake.events[0]?.rawPluginSourceDerivation ?? null,
           rawLaneMismatchCategory: loopBrake.events[0]?.rawLaneMismatchCategory ?? null,
           rawLaneMismatchSummary: loopBrake.events[0]?.rawLaneMismatchSummary ?? null,
           rawDuplicateSourceDecision: loopBrake.events[0]?.rawDuplicateSourceDecision ?? null,

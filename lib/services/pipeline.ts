@@ -43,6 +43,28 @@ function getPluginSourceRoot(): string {
   return dirname(dirname(dirname(fileURLToPath(import.meta.url))));
 }
 
+function getPluginSourceDerivation(): Record<string, unknown> {
+  const moduleFilePath = fileURLToPath(import.meta.url);
+  const moduleDir = dirname(moduleFilePath);
+  const selectedPluginSourceRoot = getPluginSourceRoot();
+  const candidateRoots = [
+    { label: "dirname^0", path: moduleDir },
+    { label: "dirname^1", path: dirname(moduleDir) },
+    { label: "dirname^2", path: dirname(dirname(moduleDir)) },
+    { label: "dirname^3(selected)", path: selectedPluginSourceRoot },
+    { label: "dirname^4", path: dirname(selectedPluginSourceRoot) },
+  ];
+
+  return {
+    moduleImportUrl: import.meta.url,
+    moduleFilePath,
+    moduleDir,
+    selectedPluginSourceRoot,
+    selectionRule: "pipeline uses dirname(dirname(dirname(fileURLToPath(import.meta.url)))) as pluginSourceRoot",
+    candidateRoots,
+  };
+}
+
 async function tryRealpath(pathValue: unknown): Promise<string | null> {
   if (typeof pathValue !== "string" || !pathValue.trim()) return null;
   try {
@@ -222,6 +244,7 @@ export async function executeCompletion(opts: {
   let prTitle: string | undefined;
   let sourceBranch: string | undefined;
   const pluginSourceRoot = getPluginSourceRoot();
+  const pluginSourceDerivation = getPluginSourceDerivation();
   const [repoSnapshot, pluginSnapshot] = await Promise.all([
     getGitSnapshot(repoPath, rc),
     getGitSnapshot(pluginSourceRoot, rc),
@@ -304,6 +327,7 @@ export async function executeCompletion(opts: {
             repoPath,
             repoSnapshot,
             pluginSourceRoot,
+            pluginSourceDerivation,
             pluginSnapshot,
             branchDecisionContext: {
               ...branchDecisionContext,
@@ -522,6 +546,7 @@ export async function executeCompletion(opts: {
     repoPath,
     repoSnapshot,
     pluginSourceRoot,
+    pluginSourceDerivation,
     pluginSnapshot,
     actions: rule.actions,
     loopBrakeReason: transitionedTo === "Refining" ? `work_finish_${result}` : null,
@@ -664,6 +689,7 @@ export async function executeCompletion(opts: {
       repoPath,
       repoSnapshot,
       pluginSourceRoot,
+      pluginSourceDerivation,
       pluginSnapshot,
       actions: rule.actions,
       loopBrakeReason: transitionedTo === "Refining" ? `work_finish_${result}` : null,
@@ -753,6 +779,7 @@ export async function executeCompletion(opts: {
     repoPath,
     repoSnapshot,
     pluginSourceRoot,
+    pluginSourceDerivation,
     pluginSnapshot,
     actions: rule.actions,
     loopBrakeReason: transitionedTo === "Refining" ? `work_finish_${result}` : null,
