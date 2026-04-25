@@ -27799,6 +27799,10 @@ async function executeCompletion(opts) {
     prValidationConfiguredTargetLinkedPrCount: typeof prValidationSummary?.prLookupTargeting?.configuredTargetLinkedPrCount === "number" ? prValidationSummary.prLookupTargeting.configuredTargetLinkedPrCount : null,
     prValidationLookupProbeDecision: prValidationSummary?.prLookupProbeDecision ?? null,
     prValidationLookupProbeSummary: prValidationSummary?.prLookupProbeSummary ?? null,
+    prValidationDetectedBranch: prValidationSummary?.detectedBranch ?? null,
+    prValidationDetectedBranchSource: prValidationSummary?.detectedBranchSource ?? null,
+    prValidationDetectedBranchDecisionSummary: prValidationSummary?.detectedBranchDecisionSummary ?? null,
+    prValidationDetectedBranchMismatchReasons: prValidationSummary?.detectedBranchMismatchReasons ?? null,
     prValidationBranchSourceCandidateDecisionTable: prValidationSummary?.branchSourceCandidateDecisionTable ?? null,
     prValidationBranchSourceCandidateDiagnostics: Array.isArray(prValidationSummary?.branchResolution?.branchSourceCandidateDiagnostics) ? prValidationSummary.branchResolution.branchSourceCandidateDiagnostics : null,
     prValidationBranchSourceCandidatesInPriorityOrder: prValidationSummary?.branchSourceCandidatesInPriorityOrder ?? null,
@@ -27861,6 +27865,10 @@ async function executeCompletion(opts) {
       prValidationBranchResolutionPreferredEvidence: prValidationSummary?.branchResolutionPreferredEvidence ?? null,
       prValidationLookupProbeDecision: prValidationSummary?.prLookupProbeDecision ?? null,
       prValidationLookupProbeSummary: prValidationSummary?.prLookupProbeSummary ?? null,
+      prValidationDetectedBranch: prValidationSummary?.detectedBranch ?? null,
+      prValidationDetectedBranchSource: prValidationSummary?.detectedBranchSource ?? null,
+      prValidationDetectedBranchDecisionSummary: prValidationSummary?.detectedBranchDecisionSummary ?? null,
+      prValidationDetectedBranchMismatchReasons: prValidationSummary?.detectedBranchMismatchReasons ?? null,
       prValidationBranchSourceCandidateDecisionTable: prValidationSummary?.branchSourceCandidateDecisionTable ?? null,
       prValidationBranchSourceCandidatesInPriorityOrder: prValidationSummary?.branchSourceCandidatesInPriorityOrder ?? null,
       prValidationLaneMismatchSummary: prValidationSummary?.branchMismatchSummary ?? null,
@@ -27972,6 +27980,10 @@ async function executeCompletion(opts) {
     prValidationConfiguredTargetLinkedPrCount: typeof prValidationSummary?.prLookupTargeting?.configuredTargetLinkedPrCount === "number" ? prValidationSummary.prLookupTargeting.configuredTargetLinkedPrCount : null,
     prValidationLookupProbeDecision: prValidationSummary?.prLookupProbeDecision ?? null,
     prValidationLookupProbeSummary: prValidationSummary?.prLookupProbeSummary ?? null,
+    prValidationDetectedBranch: prValidationSummary?.detectedBranch ?? null,
+    prValidationDetectedBranchSource: prValidationSummary?.detectedBranchSource ?? null,
+    prValidationDetectedBranchDecisionSummary: prValidationSummary?.detectedBranchDecisionSummary ?? null,
+    prValidationDetectedBranchMismatchReasons: prValidationSummary?.detectedBranchMismatchReasons ?? null,
     prValidationBranchSourceCandidateDecisionTable: prValidationSummary?.branchSourceCandidateDecisionTable ?? null,
     prValidationBranchSourceCandidateDiagnostics: Array.isArray(prValidationSummary?.branchResolution?.branchSourceCandidateDiagnostics) ? prValidationSummary.branchResolution.branchSourceCandidateDiagnostics : null,
     prValidationBranchSourceCandidatesInPriorityOrder: prValidationSummary?.branchSourceCandidatesInPriorityOrder ?? null,
@@ -28561,6 +28573,10 @@ async function validatePrExistsForDeveloper(issueId, repoPath, provider, runComm
         detectedBranch: branchName,
         branchResolution: missingPrBranchResolution
       });
+      validationSummary.detectedBranch = branchName;
+      validationSummary.detectedBranchSource = typeof detectedBranchSummary.detectedBranchSource === "string" ? detectedBranchSummary.detectedBranchSource : null;
+      validationSummary.detectedBranchDecisionSummary = typeof detectedBranchSummary.detectedBranchDecisionSummary === "string" ? detectedBranchSummary.detectedBranchDecisionSummary : null;
+      validationSummary.detectedBranchMismatchReasons = Array.isArray(detectedBranchSummary.detectedBranchMismatchReasons) ? detectedBranchSummary.detectedBranchMismatchReasons.filter((value) => typeof value === "string") : null;
       await recordWorkFinishDiagnostic(workspaceDir, "work_finish_pr_missing", {
         project: projectSlug,
         issueId,
@@ -28633,7 +28649,15 @@ Then call work_finish again.`
         prUrl: prStatus.url
       });
       const branchName = prStatus.sourceBranch || "your-branch";
+      const detectedBranchSummary = summarizeDetectedBranchSource({
+        detectedBranch: branchName,
+        branchResolution
+      });
       validationSummary.lookupOutcome = "conflict_cycle_rejected";
+      validationSummary.detectedBranch = branchName;
+      validationSummary.detectedBranchSource = typeof detectedBranchSummary.detectedBranchSource === "string" ? detectedBranchSummary.detectedBranchSource : null;
+      validationSummary.detectedBranchDecisionSummary = typeof detectedBranchSummary.detectedBranchDecisionSummary === "string" ? detectedBranchSummary.detectedBranchDecisionSummary : null;
+      validationSummary.detectedBranchMismatchReasons = Array.isArray(detectedBranchSummary.detectedBranchMismatchReasons) ? detectedBranchSummary.detectedBranchMismatchReasons.filter((value) => typeof value === "string") : null;
       await recordWorkFinishDiagnostic(workspaceDir, "work_finish_conflict_rejected", {
         project: projectSlug,
         issueId,
@@ -28641,6 +28665,7 @@ Then call work_finish again.`
         prUrl: prStatus.url ?? null,
         prSourceBranch: prStatus.sourceBranch ?? null,
         detectedBranch: branchName,
+        ...detectedBranchSummary,
         prMergeable: prStatus.mergeable ?? null,
         prLookupTargeting,
         prLookupTargetingDecision,
@@ -28675,6 +28700,10 @@ Once the PR shows as mergeable on GitHub, call work_finish again.`
     }
     if (isConflictCycle) {
       validationSummary.lookupOutcome = "conflict_cycle_verified";
+      validationSummary.detectedBranch = prStatus.sourceBranch ?? null;
+      validationSummary.detectedBranchSource = prStatus.sourceBranch ? "pr_source_branch" : null;
+      validationSummary.detectedBranchDecisionSummary = prStatus.sourceBranch ? `detected branch ${prStatus.sourceBranch} came from the linked PR source branch` : null;
+      validationSummary.detectedBranchMismatchReasons = null;
       await recordWorkFinishDiagnostic(workspaceDir, "work_finish_conflict_verified", {
         project: projectSlug,
         issueId,
@@ -28717,6 +28746,10 @@ Once the PR shows as mergeable on GitHub, call work_finish again.`
       prSourceBranch: null,
       prMergeable: null,
       isConflictCycle: null,
+      detectedBranch: null,
+      detectedBranchSource: null,
+      detectedBranchDecisionSummary: null,
+      detectedBranchMismatchReasons: null,
       branchResolution: {},
       branchResolutionDecision: err instanceof Error ? err.message : String(err),
       branchWinnerDecisionSummary: null,
@@ -32661,6 +32694,10 @@ function buildEventAuditExcerpt(entry) {
     prValidationConfiguredTargetLinkedPrCount: asNumber(entry.prValidationConfiguredTargetLinkedPrCount),
     prValidationLookupProbeDecision: asString(entry.prValidationLookupProbeDecision) ?? null,
     prValidationLookupProbeSummary: isRecord(entry.prValidationLookupProbeSummary) ? entry.prValidationLookupProbeSummary : null,
+    prValidationDetectedBranch: asString(entry.prValidationDetectedBranch) ?? null,
+    prValidationDetectedBranchSource: asString(entry.prValidationDetectedBranchSource) ?? null,
+    prValidationDetectedBranchDecisionSummary: asString(entry.prValidationDetectedBranchDecisionSummary) ?? null,
+    prValidationDetectedBranchMismatchReasons: Array.isArray(entry.prValidationDetectedBranchMismatchReasons) ? entry.prValidationDetectedBranchMismatchReasons : null,
     prValidationBranchSelectionWinnerSummary: asString(entry.prValidationBranchSelectionWinnerSummary) ?? null,
     prValidationBranchWinnerDecisionSummary: asString(entry.prValidationBranchWinnerDecisionSummary) ?? null,
     prValidationBranchWinnerComparedToLaneSummary: asString(entry.prValidationBranchWinnerComparedToLaneSummary) ?? null,
@@ -32882,6 +32919,10 @@ function toLoopEvent(entry) {
       rawDuplicateSourceCompetingRealPaths: Array.isArray(entry.duplicateSourceCompetingRealPaths) ? entry.duplicateSourceCompetingRealPaths : null,
       rawBranchSourceCandidateDecisionTable: Array.isArray(entry.branchSourceCandidateDecisionTable) ? entry.branchSourceCandidateDecisionTable : null,
       rawBranchSourceCandidateDiagnostics: Array.isArray(entry.branchSourceCandidateDiagnostics) ? entry.branchSourceCandidateDiagnostics : null,
+      rawPrValidationDetectedBranch: asString(entry.prValidationDetectedBranch),
+      rawPrValidationDetectedBranchSource: asString(entry.prValidationDetectedBranchSource),
+      rawPrValidationDetectedBranchDecisionSummary: asString(entry.prValidationDetectedBranchDecisionSummary),
+      rawPrValidationDetectedBranchMismatchReasons: Array.isArray(entry.prValidationDetectedBranchMismatchReasons) ? entry.prValidationDetectedBranchMismatchReasons : null,
       rawPrValidationBranchSourceCandidateDecisionTable: Array.isArray(entry.prValidationBranchSourceCandidateDecisionTable) ? entry.prValidationBranchSourceCandidateDecisionTable : null,
       rawPrValidationBranchSourceCandidateDiagnostics: Array.isArray(entry.prValidationBranchSourceCandidateDiagnostics) ? entry.prValidationBranchSourceCandidateDiagnostics : null,
       rawAuditExcerpt: buildEventAuditExcerpt(entry)
@@ -32956,6 +32997,10 @@ function toLoopEvent(entry) {
       rawDuplicateSourceCompetingRealPaths: Array.isArray(entry.duplicateSourceCompetingRealPaths) ? entry.duplicateSourceCompetingRealPaths : null,
       rawBranchSourceCandidateDecisionTable: Array.isArray(entry.branchSourceCandidateDecisionTable) ? entry.branchSourceCandidateDecisionTable : null,
       rawBranchSourceCandidateDiagnostics: Array.isArray(entry.branchSourceCandidateDiagnostics) ? entry.branchSourceCandidateDiagnostics : null,
+      rawPrValidationDetectedBranch: asString(entry.prValidationDetectedBranch),
+      rawPrValidationDetectedBranchSource: asString(entry.prValidationDetectedBranchSource),
+      rawPrValidationDetectedBranchDecisionSummary: asString(entry.prValidationDetectedBranchDecisionSummary),
+      rawPrValidationDetectedBranchMismatchReasons: Array.isArray(entry.prValidationDetectedBranchMismatchReasons) ? entry.prValidationDetectedBranchMismatchReasons : null,
       rawPrValidationBranchSourceCandidateDecisionTable: Array.isArray(entry.prValidationBranchSourceCandidateDecisionTable) ? entry.prValidationBranchSourceCandidateDecisionTable : null,
       rawPrValidationBranchSourceCandidateDiagnostics: Array.isArray(entry.prValidationBranchSourceCandidateDiagnostics) ? entry.prValidationBranchSourceCandidateDiagnostics : null,
       rawAuditExcerpt: buildEventAuditExcerpt(entry)
@@ -33017,6 +33062,10 @@ function toLoopEvent(entry) {
         rawDuplicateSourceWinningRealPathGuess: asString(entry.duplicateSourceWinningRealPathGuess),
         rawDuplicateSourceCompetingRealPaths: Array.isArray(entry.duplicateSourceCompetingRealPaths) ? entry.duplicateSourceCompetingRealPaths : null,
         rawBranchSourceCandidateDecisionTable: Array.isArray(entry.branchSourceCandidateDecisionTable) ? entry.branchSourceCandidateDecisionTable : null,
+        rawPrValidationDetectedBranch: asString(entry.prValidationDetectedBranch),
+        rawPrValidationDetectedBranchSource: asString(entry.prValidationDetectedBranchSource),
+        rawPrValidationDetectedBranchDecisionSummary: asString(entry.prValidationDetectedBranchDecisionSummary),
+        rawPrValidationDetectedBranchMismatchReasons: Array.isArray(entry.prValidationDetectedBranchMismatchReasons) ? entry.prValidationDetectedBranchMismatchReasons : null,
         rawPrValidationBranchSourceCandidateDecisionTable: Array.isArray(entry.prValidationBranchSourceCandidateDecisionTable) ? entry.prValidationBranchSourceCandidateDecisionTable : null,
         rawAuditExcerpt: buildEventAuditExcerpt(entry)
       };

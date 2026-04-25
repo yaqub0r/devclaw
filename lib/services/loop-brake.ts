@@ -55,6 +55,10 @@ function buildEventAuditExcerpt(entry: AuditEntry): Record<string, unknown> {
     prValidationConfiguredTargetLinkedPrCount: asNumber(entry.prValidationConfiguredTargetLinkedPrCount),
     prValidationLookupProbeDecision: asString(entry.prValidationLookupProbeDecision) ?? null,
     prValidationLookupProbeSummary: isRecord(entry.prValidationLookupProbeSummary) ? entry.prValidationLookupProbeSummary : null,
+    prValidationDetectedBranch: asString(entry.prValidationDetectedBranch) ?? null,
+    prValidationDetectedBranchSource: asString(entry.prValidationDetectedBranchSource) ?? null,
+    prValidationDetectedBranchDecisionSummary: asString(entry.prValidationDetectedBranchDecisionSummary) ?? null,
+    prValidationDetectedBranchMismatchReasons: Array.isArray(entry.prValidationDetectedBranchMismatchReasons) ? entry.prValidationDetectedBranchMismatchReasons : null,
     prValidationBranchSelectionWinnerSummary: asString(entry.prValidationBranchSelectionWinnerSummary) ?? null,
     prValidationBranchWinnerDecisionSummary: asString(entry.prValidationBranchWinnerDecisionSummary) ?? null,
     prValidationBranchWinnerComparedToLaneSummary: asString(entry.prValidationBranchWinnerComparedToLaneSummary) ?? null,
@@ -188,6 +192,10 @@ export type LoopBrakeDecision = {
     rawPrValidationBranchWinnerComparedToLaneSummary?: string;
     rawPrValidationLaneMismatchSummary?: string;
     rawPrValidationLaneMismatchCategory?: string;
+    rawPrValidationDetectedBranch?: string;
+    rawPrValidationDetectedBranchSource?: string;
+    rawPrValidationDetectedBranchDecisionSummary?: string;
+    rawPrValidationDetectedBranchMismatchReasons?: unknown[] | null;
     rawPrValidationBranchSourceCandidateDecisionTable?: unknown[] | null;
     rawRepoSnapshot?: Record<string, unknown> | null;
     rawPluginSnapshot?: Record<string, unknown> | null;
@@ -445,6 +453,10 @@ function toLoopEvent(entry: AuditEntry): LoopBrakeDecision["events"][number] | n
       rawDuplicateSourceCompetingRealPaths: Array.isArray(entry.duplicateSourceCompetingRealPaths) ? entry.duplicateSourceCompetingRealPaths : null,
       rawBranchSourceCandidateDecisionTable: Array.isArray(entry.branchSourceCandidateDecisionTable) ? entry.branchSourceCandidateDecisionTable : null,
       rawBranchSourceCandidateDiagnostics: Array.isArray(entry.branchSourceCandidateDiagnostics) ? entry.branchSourceCandidateDiagnostics : null,
+      rawPrValidationDetectedBranch: asString(entry.prValidationDetectedBranch),
+      rawPrValidationDetectedBranchSource: asString(entry.prValidationDetectedBranchSource),
+      rawPrValidationDetectedBranchDecisionSummary: asString(entry.prValidationDetectedBranchDecisionSummary),
+      rawPrValidationDetectedBranchMismatchReasons: Array.isArray(entry.prValidationDetectedBranchMismatchReasons) ? entry.prValidationDetectedBranchMismatchReasons : null,
       rawPrValidationBranchSourceCandidateDecisionTable: Array.isArray(entry.prValidationBranchSourceCandidateDecisionTable) ? entry.prValidationBranchSourceCandidateDecisionTable : null,
       rawPrValidationBranchSourceCandidateDiagnostics: Array.isArray(entry.prValidationBranchSourceCandidateDiagnostics) ? entry.prValidationBranchSourceCandidateDiagnostics : null,
       rawAuditExcerpt: buildEventAuditExcerpt(entry),
@@ -522,6 +534,10 @@ function toLoopEvent(entry: AuditEntry): LoopBrakeDecision["events"][number] | n
       rawDuplicateSourceCompetingRealPaths: Array.isArray(entry.duplicateSourceCompetingRealPaths) ? entry.duplicateSourceCompetingRealPaths : null,
       rawBranchSourceCandidateDecisionTable: Array.isArray(entry.branchSourceCandidateDecisionTable) ? entry.branchSourceCandidateDecisionTable : null,
       rawBranchSourceCandidateDiagnostics: Array.isArray(entry.branchSourceCandidateDiagnostics) ? entry.branchSourceCandidateDiagnostics : null,
+      rawPrValidationDetectedBranch: asString(entry.prValidationDetectedBranch),
+      rawPrValidationDetectedBranchSource: asString(entry.prValidationDetectedBranchSource),
+      rawPrValidationDetectedBranchDecisionSummary: asString(entry.prValidationDetectedBranchDecisionSummary),
+      rawPrValidationDetectedBranchMismatchReasons: Array.isArray(entry.prValidationDetectedBranchMismatchReasons) ? entry.prValidationDetectedBranchMismatchReasons : null,
       rawPrValidationBranchSourceCandidateDecisionTable: Array.isArray(entry.prValidationBranchSourceCandidateDecisionTable) ? entry.prValidationBranchSourceCandidateDecisionTable : null,
       rawPrValidationBranchSourceCandidateDiagnostics: Array.isArray(entry.prValidationBranchSourceCandidateDiagnostics) ? entry.prValidationBranchSourceCandidateDiagnostics : null,
       rawAuditExcerpt: buildEventAuditExcerpt(entry),
@@ -584,6 +600,10 @@ function toLoopEvent(entry: AuditEntry): LoopBrakeDecision["events"][number] | n
         rawDuplicateSourceWinningRealPathGuess: asString(entry.duplicateSourceWinningRealPathGuess),
         rawDuplicateSourceCompetingRealPaths: Array.isArray(entry.duplicateSourceCompetingRealPaths) ? entry.duplicateSourceCompetingRealPaths : null,
         rawBranchSourceCandidateDecisionTable: Array.isArray(entry.branchSourceCandidateDecisionTable) ? entry.branchSourceCandidateDecisionTable : null,
+        rawPrValidationDetectedBranch: asString(entry.prValidationDetectedBranch),
+        rawPrValidationDetectedBranchSource: asString(entry.prValidationDetectedBranchSource),
+        rawPrValidationDetectedBranchDecisionSummary: asString(entry.prValidationDetectedBranchDecisionSummary),
+        rawPrValidationDetectedBranchMismatchReasons: Array.isArray(entry.prValidationDetectedBranchMismatchReasons) ? entry.prValidationDetectedBranchMismatchReasons : null,
         rawPrValidationBranchSourceCandidateDecisionTable: Array.isArray(entry.prValidationBranchSourceCandidateDecisionTable) ? entry.prValidationBranchSourceCandidateDecisionTable : null,
         rawAuditExcerpt: buildEventAuditExcerpt(entry),
       };

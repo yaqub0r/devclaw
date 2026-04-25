@@ -621,6 +621,10 @@ type WorkFinishPrValidationSummary = {
   prState: string | null;
   prSourceBranch: string | null;
   prMergeable: boolean | null;
+  detectedBranch?: string | null;
+  detectedBranchSource?: string | null;
+  detectedBranchDecisionSummary?: string | null;
+  detectedBranchMismatchReasons?: string[] | null;
   prLookupTargeting?: Record<string, unknown>;
   prLookupTargetingDecision?: string;
   prLookupProbeDecision?: string | null;
@@ -873,6 +877,12 @@ async function validatePrExistsForDeveloper(
         detectedBranch: branchName,
         branchResolution: missingPrBranchResolution,
       });
+      validationSummary.detectedBranch = branchName;
+      validationSummary.detectedBranchSource = typeof detectedBranchSummary.detectedBranchSource === "string" ? detectedBranchSummary.detectedBranchSource : null;
+      validationSummary.detectedBranchDecisionSummary = typeof detectedBranchSummary.detectedBranchDecisionSummary === "string" ? detectedBranchSummary.detectedBranchDecisionSummary : null;
+      validationSummary.detectedBranchMismatchReasons = Array.isArray(detectedBranchSummary.detectedBranchMismatchReasons)
+        ? detectedBranchSummary.detectedBranchMismatchReasons.filter((value): value is string => typeof value === "string")
+        : null;
 
       await recordWorkFinishDiagnostic(workspaceDir, "work_finish_pr_missing", {
         project: projectSlug,
@@ -965,7 +975,17 @@ async function validatePrExistsForDeveloper(
       });
 
       const branchName = prStatus.sourceBranch || "your-branch";
+      const detectedBranchSummary = summarizeDetectedBranchSource({
+        detectedBranch: branchName,
+        branchResolution,
+      });
       validationSummary.lookupOutcome = "conflict_cycle_rejected";
+      validationSummary.detectedBranch = branchName;
+      validationSummary.detectedBranchSource = typeof detectedBranchSummary.detectedBranchSource === "string" ? detectedBranchSummary.detectedBranchSource : null;
+      validationSummary.detectedBranchDecisionSummary = typeof detectedBranchSummary.detectedBranchDecisionSummary === "string" ? detectedBranchSummary.detectedBranchDecisionSummary : null;
+      validationSummary.detectedBranchMismatchReasons = Array.isArray(detectedBranchSummary.detectedBranchMismatchReasons)
+        ? detectedBranchSummary.detectedBranchMismatchReasons.filter((value): value is string => typeof value === "string")
+        : null;
       await recordWorkFinishDiagnostic(workspaceDir, "work_finish_conflict_rejected", {
         project: projectSlug,
         issueId,
@@ -973,6 +993,7 @@ async function validatePrExistsForDeveloper(
         prUrl: prStatus.url ?? null,
         prSourceBranch: prStatus.sourceBranch ?? null,
         detectedBranch: branchName,
+        ...detectedBranchSummary,
         prMergeable: prStatus.mergeable ?? null,
         prLookupTargeting,
         prLookupTargetingDecision,
@@ -1001,6 +1022,12 @@ async function validatePrExistsForDeveloper(
 
     if (isConflictCycle) {
       validationSummary.lookupOutcome = "conflict_cycle_verified";
+      validationSummary.detectedBranch = prStatus.sourceBranch ?? null;
+      validationSummary.detectedBranchSource = prStatus.sourceBranch ? "pr_source_branch" : null;
+      validationSummary.detectedBranchDecisionSummary = prStatus.sourceBranch
+        ? `detected branch ${prStatus.sourceBranch} came from the linked PR source branch`
+        : null;
+      validationSummary.detectedBranchMismatchReasons = null;
       await recordWorkFinishDiagnostic(workspaceDir, "work_finish_conflict_verified", {
         project: projectSlug,
         issueId,
@@ -1044,6 +1071,10 @@ async function validatePrExistsForDeveloper(
       prSourceBranch: null,
       prMergeable: null,
       isConflictCycle: null,
+      detectedBranch: null,
+      detectedBranchSource: null,
+      detectedBranchDecisionSummary: null,
+      detectedBranchMismatchReasons: null,
       branchResolution: {},
       branchResolutionDecision: err instanceof Error ? err.message : String(err),
       branchWinnerDecisionSummary: null,
