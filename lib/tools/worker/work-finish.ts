@@ -872,6 +872,17 @@ export function createWorkFinishTool(ctx: PluginContext) {
                 : initialBranchResolution.preferredBranchSource === "live_plugin_head_branches"
                   ? "live plugin detached-HEAD candidates currently look more trustworthy than configured repo branch for PR matching"
                   : "no PR-aware branch match exists yet, so fallback branch selection would be ambiguous",
+        branchSelectionDecisionTrace: {
+          preferredBranchSource: initialBranchResolution.preferredBranchSource,
+          preferredBranchConfidence: initialBranchResolution.preferredBranchConfidence,
+          branchWinner: initialBranchResolution.branchWinner,
+          branchWinnerSourceKind: initialBranchResolution.branchWinnerSourceKind,
+          preferredBranchUsedFallback: initialBranchResolution.preferredBranchUsedFallback,
+          repoBranchMatchesPrSourceBranch: initialBranchResolution.repoBranchMatchesPrSourceBranch,
+          pluginBranchMatchesPrSourceBranch: initialBranchResolution.pluginBranchMatchesPrSourceBranch,
+          repoHeadPointsAtPrSourceBranch: initialBranchResolution.repoHeadPointsAtPrSourceBranch,
+          pluginHeadPointsAtPrSourceBranch: initialBranchResolution.pluginHeadPointsAtPrSourceBranch,
+        },
         branchSelectionWinnerSummary: initialBranchResolution.branchSelectionWinnerSummary,
         branchWinnerDecisionSummary: initialBranchResolution.branchWinnerDecisionSummary,
         branchSelectionCandidateSnapshot: initialBranchResolution.branchSourceCandidatesInPriorityOrder,

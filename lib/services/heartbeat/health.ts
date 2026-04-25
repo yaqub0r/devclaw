@@ -233,6 +233,7 @@ export async function checkWorkerHealth(opts: {
           ? sessions.get(sessionKey)
           : null;
         const canRequeueIssue = issue != null && currentLabel === expectedLabel;
+        const sessionAliveAtCheck = sessionKey && sessions ? isSessionAlive(sessionKey, sessions) : false;
         await recordLoopDiagnostic(workspaceDir, "health_orphan_detected", {
           project: project.name,
           projectSlug,
@@ -257,6 +258,24 @@ export async function checkWorkerHealth(opts: {
           gatewaySessionCount: sessions?.size ?? null,
           gatewaySessionHasSlotSessionKey: sessionKey ? sessions?.has(sessionKey) ?? false : null,
           gatewaySessionKeySample: sessionKeys.slice(0, 10),
+          sessionAliveAtCheck: sessionKey ? sessionAliveAtCheck : null,
+          sessionPresenceClassification: !sessionKey
+            ? "session_key_missing"
+            : !sessions
+              ? "session_map_unavailable"
+              : sessionAliveAtCheck
+                ? "session_present"
+                : "session_missing_from_gateway",
+          issueLabelDecisionCategory: issue == null
+            ? "issue_unavailable"
+            : currentLabel === expectedLabel
+              ? "expected_label_still_active"
+              : "label_already_drifted",
+          issueLabelDecisionSummary: issue == null
+            ? "health could not compare labels because the issue could not be loaded"
+            : currentLabel === expectedLabel
+              ? `issue still carried expected active label ${expectedLabel}`
+              : `issue label had already drifted from expected ${expectedLabel} to ${currentLabel ?? "unknown"}`,
           gatewaySessionSnapshot: sessionSnapshot
             ? {
                 updatedAt: sessionSnapshot.updatedAt ?? null,

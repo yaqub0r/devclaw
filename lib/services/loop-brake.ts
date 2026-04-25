@@ -185,6 +185,11 @@ function toLoopEvent(entry: AuditEntry): LoopBrakeDecision["events"][number] | n
       rawHealthDecisionSummary: asString(entry.healthDecisionSummary),
       rawBranchWinnerSummary: asString(entry.branchSelectionWinnerSummary) ?? asString(entry.branchWinnerDecisionSummary),
       rawDuplicateSourceDecision: asString(entry.duplicateSourceDecision),
+      rawPreferredBranchSource: asString(entry.branchResolutionPreferredSource) ?? asString(entry.preferredBranchSource),
+      rawPreferredBranchConfidence: asString(entry.preferredBranchConfidence),
+      rawLaneMismatchCategory: asString(entry.laneMismatchCategory),
+      rawDuplicateSourceRisk: typeof entry.duplicateSourceRisk === "boolean" ? entry.duplicateSourceRisk : null,
+      rawCanRequeueIssue: typeof entry.canRequeueIssue === "boolean" ? entry.canRequeueIssue : null,
     };
   }
 
@@ -220,6 +225,11 @@ function toLoopEvent(entry: AuditEntry): LoopBrakeDecision["events"][number] | n
       rawHealthDecisionSummary: asString(entry.healthDecisionSummary),
       rawBranchWinnerSummary: asString(entry.branchSelectionWinnerSummary) ?? asString(entry.branchWinnerDecisionSummary),
       rawDuplicateSourceDecision: asString(entry.duplicateSourceDecision),
+      rawPreferredBranchSource: asString(entry.branchResolutionPreferredSource) ?? asString(entry.preferredBranchSource),
+      rawPreferredBranchConfidence: asString(entry.preferredBranchConfidence),
+      rawLaneMismatchCategory: asString(entry.laneMismatchCategory),
+      rawDuplicateSourceRisk: typeof entry.duplicateSourceRisk === "boolean" ? entry.duplicateSourceRisk : null,
+      rawCanRequeueIssue: typeof entry.canRequeueIssue === "boolean" ? entry.canRequeueIssue : null,
     };
   }
 
@@ -253,6 +263,11 @@ function toLoopEvent(entry: AuditEntry): LoopBrakeDecision["events"][number] | n
         rawHealthDecisionSummary: asString(entry.healthDecisionSummary),
         rawBranchWinnerSummary: asString(entry.branchSelectionWinnerSummary) ?? asString(entry.branchWinnerDecisionSummary),
         rawDuplicateSourceDecision: asString(entry.duplicateSourceDecision),
+        rawPreferredBranchSource: asString(entry.branchResolutionPreferredSource) ?? asString(entry.preferredBranchSource),
+        rawPreferredBranchConfidence: asString(entry.preferredBranchConfidence),
+        rawLaneMismatchCategory: asString(entry.laneMismatchCategory),
+        rawDuplicateSourceRisk: typeof entry.duplicateSourceRisk === "boolean" ? entry.duplicateSourceRisk : null,
+        rawCanRequeueIssue: typeof entry.canRequeueIssue === "boolean" ? entry.canRequeueIssue : null,
       };
     }
   }
