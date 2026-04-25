@@ -663,3 +663,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function asString(value: unknown): string | undefined {
   return typeof value === "string" ? value : undefined;
 }
+
+function asNumber(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
