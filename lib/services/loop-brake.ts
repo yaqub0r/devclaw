@@ -21,9 +21,13 @@ export type LoopBrakeDecision = {
   events: Array<{
     ts: string;
     source: string;
+    stage?: string;
+    event?: string;
     from?: string;
     to?: string;
     reason: string;
+    rawReason?: string;
+    decisionPath?: string;
   }>;
 };
 
@@ -113,22 +117,32 @@ function toLoopEvent(entry: AuditEntry): LoopBrakeDecision["events"][number] | n
   const event = entry.event;
 
   if (event === "loop_diagnostic" && entry.stage === "health_requeue") {
+    const rawReason = asString(entry.loopBrakeReason) ?? asString(entry.healthRequeueLoopReason);
     return {
       ts,
+      event,
+      stage: asString(entry.stage),
       source: "health_requeue",
       from: asString(entry.from),
       to: asString(entry.to),
-      reason: asString(entry.loopBrakeReason) ?? asString(entry.healthRequeueLoopReason) ?? "orphan_requeue",
+      reason: rawReason ?? "orphan_requeue",
+      rawReason: rawReason ?? null,
+      decisionPath: asString(entry.decisionPath),
     };
   }
 
   if (event === "loop_diagnostic" && entry.stage === "work_finish_transition" && asString(entry.to) === "Refining") {
+    const rawReason = asString(entry.loopBrakeReason) ?? asString(entry.result);
     return {
       ts,
+      event,
+      stage: asString(entry.stage),
       source: "work_finish_transition",
       from: asString(entry.from),
       to: asString(entry.to),
-      reason: asString(entry.loopBrakeReason) ?? asString(entry.result) ?? "blocked",
+      reason: rawReason ?? "blocked",
+      rawReason: rawReason ?? null,
+      decisionPath: asString(entry.decisionPath),
     };
   }
 
@@ -137,10 +151,13 @@ function toLoopEvent(entry: AuditEntry): LoopBrakeDecision["events"][number] | n
     if (["pr_comments", "changes_requested", "merge_conflict", "merge_failed", "pr_closed"].includes(reason ?? "")) {
       return {
         ts,
+        event,
         source: "review_transition",
         from: asString(entry.from),
         to: asString(entry.to),
         reason: reason!,
+        rawReason: reason!,
+        decisionPath: asString(entry.summary) ?? asString(entry.note),
       };
     }
   }

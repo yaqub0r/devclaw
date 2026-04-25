@@ -43,6 +43,15 @@ function getPluginSourceRoot(): string {
   return dirname(dirname(dirname(fileURLToPath(import.meta.url))));
 }
 
+async function tryRealpath(pathValue: unknown): Promise<string | null> {
+  if (typeof pathValue !== "string" || !pathValue.trim()) return null;
+  try {
+    return await realpath(pathValue);
+  } catch {
+    return null;
+  }
+}
+
 async function getGitSnapshot(repoPath: string, runCommand: RunCommand): Promise<Record<string, unknown>> {
   const commands: Array<[string, string[]]> = [
     ["branch", ["git", "branch", "--show-current"]],
@@ -143,6 +152,23 @@ export async function executeCompletion(opts: {
     getGitSnapshot(repoPath, rc),
     getGitSnapshot(pluginSourceRoot, rc),
   ]);
+  const openclawConfigPluginLoadPaths =
+    Array.isArray((pluginConfig as { load?: { paths?: unknown[] } } | undefined)?.load?.paths)
+      ? ((pluginConfig as { load?: { paths?: unknown[] } }).load?.paths ?? [])
+      : null;
+  const openclawConfigInstallSourcePath =
+    typeof (pluginConfig as { installs?: Record<string, { sourcePath?: unknown }> } | undefined)?.installs?.devclaw?.sourcePath === "string"
+      ? (pluginConfig as { installs?: Record<string, { sourcePath?: string }> }).installs?.devclaw?.sourcePath ?? null
+      : null;
+  const openclawConfigInstallPath =
+    typeof (pluginConfig as { installs?: Record<string, { installPath?: unknown }> } | undefined)?.installs?.devclaw?.installPath === "string"
+      ? (pluginConfig as { installs?: Record<string, { installPath?: string }> }).installs?.devclaw?.installPath ?? null
+      : null;
+  const openclawConfigInstallSourceRealPath = await tryRealpath(openclawConfigInstallSourcePath);
+  const openclawConfigInstallPathRealPath = await tryRealpath(openclawConfigInstallPath);
+  const openclawConfigPluginLoadPathRealPaths = await Promise.all(
+    (openclawConfigPluginLoadPaths ?? []).map((pathValue) => tryRealpath(pathValue)),
+  );
   const branchDecisionContext = {
     repoBranch: typeof repoSnapshot.branch === "string" ? repoSnapshot.branch : null,
     repoWorkTree: typeof repoSnapshot.workTree === "string" ? repoSnapshot.workTree : null,
@@ -152,6 +178,15 @@ export async function executeCompletion(opts: {
     pluginWorkTree: typeof pluginSnapshot.workTree === "string" ? pluginSnapshot.workTree : null,
     pluginRealPath: typeof pluginSnapshot.realRepoPath === "string" ? pluginSnapshot.realRepoPath : null,
     pluginHeadBranches: typeof pluginSnapshot.headBranches === "string" ? pluginSnapshot.headBranches.split("\n").map((s) => s.trim()).filter(Boolean) : [],
+    openclawConfigPluginLoadPaths,
+    openclawConfigPluginLoadPathRealPaths,
+    openclawConfigInstallSourcePath,
+    openclawConfigInstallSourceRealPath,
+    openclawConfigInstallPath,
+    openclawConfigInstallPathRealPath,
+    duplicateSourceRisk:
+      openclawConfigInstallSourceRealPath !== null
+      && openclawConfigPluginLoadPathRealPaths.some((realPath) => realPath !== null && realPath !== openclawConfigInstallSourceRealPath),
   };
 
   // Execute pre-notification actions
@@ -198,6 +233,11 @@ export async function executeCompletion(opts: {
               branchDecisionContext.repoBranch === branchDecisionContext.pluginBranch ? "repoPath and plugin source report the same current branch" : "repoPath and plugin source report different current branches",
               sourceBranch && branchDecisionContext.repoHeadBranches.includes(sourceBranch) ? "repo HEAD points at detected source branch" : "repo HEAD does not point at detected source branch",
               sourceBranch && branchDecisionContext.pluginHeadBranches.includes(sourceBranch) ? "plugin HEAD points at detected source branch" : "plugin HEAD does not point at detected source branch",
+              branchDecisionContext.openclawConfigInstallSourcePath === branchDecisionContext.pluginWorkTree ? "OpenClaw install source path matches plugin worktree" : "OpenClaw install source path differs from plugin worktree",
+              branchDecisionContext.openclawConfigInstallSourceRealPath === branchDecisionContext.pluginRealPath ? "OpenClaw install source realpath matches plugin realpath" : "OpenClaw install source realpath differs from plugin realpath",
+              Array.isArray(branchDecisionContext.openclawConfigPluginLoadPaths) && branchDecisionContext.openclawConfigPluginLoadPaths.includes(branchDecisionContext.pluginWorkTree) ? "plugin worktree is present in plugins.load.paths" : "plugin worktree is missing from plugins.load.paths",
+              Array.isArray(branchDecisionContext.openclawConfigPluginLoadPathRealPaths) && branchDecisionContext.openclawConfigPluginLoadPathRealPaths.includes(branchDecisionContext.pluginRealPath) ? "plugin realpath is present in plugins.load.paths realpaths" : "plugin realpath is missing from plugins.load.paths realpaths",
+              branchDecisionContext.duplicateSourceRisk ? "duplicate source risk detected because plugins.load.paths contains a different realpath than the configured install source" : "no duplicate source risk detected from plugin config paths",
             ],
             decisionPath: prStatus.url
               ? "provider returned PR status directly during DETECT_PR action"

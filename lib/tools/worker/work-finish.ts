@@ -74,6 +74,15 @@ function getPluginSourceRoot(): string {
   return dirname(dirname(dirname(dirname(fileURLToPath(import.meta.url)))));
 }
 
+async function tryRealpath(pathValue: unknown): Promise<string | null> {
+  if (typeof pathValue !== "string" || !pathValue.trim()) return null;
+  try {
+    return await realpath(pathValue);
+  } catch {
+    return null;
+  }
+}
+
 function buildBranchResolutionDiagnostic(opts: {
   repoPath: string;
   pluginSourceRoot: string;
@@ -488,6 +497,23 @@ export function createWorkFinishTool(ctx: PluginContext) {
         pluginSnapshot,
         prSourceBranch: null,
       });
+      const openclawConfigPluginLoadPaths =
+        Array.isArray((pluginConfig as { load?: { paths?: unknown[] } } | undefined)?.load?.paths)
+          ? ((pluginConfig as { load?: { paths?: unknown[] } }).load?.paths ?? [])
+          : null;
+      const openclawConfigInstallSourcePath =
+        typeof (pluginConfig as { installs?: Record<string, { sourcePath?: unknown }> } | undefined)?.installs?.devclaw?.sourcePath === "string"
+          ? (pluginConfig as { installs?: Record<string, { sourcePath?: string }> }).installs?.devclaw?.sourcePath ?? null
+          : null;
+      const openclawConfigInstallPath =
+        typeof (pluginConfig as { installs?: Record<string, { installPath?: unknown }> } | undefined)?.installs?.devclaw?.installPath === "string"
+          ? (pluginConfig as { installs?: Record<string, { installPath?: string }> }).installs?.devclaw?.installPath ?? null
+          : null;
+      const openclawConfigInstallSourceRealPath = await tryRealpath(openclawConfigInstallSourcePath);
+      const openclawConfigInstallPathRealPath = await tryRealpath(openclawConfigInstallPath);
+      const openclawConfigPluginLoadPathRealPaths = await Promise.all(
+        (openclawConfigPluginLoadPaths ?? []).map((pathValue) => tryRealpath(pathValue)),
+      );
       const context = {
         channelId,
         role,
@@ -497,6 +523,15 @@ export function createWorkFinishTool(ctx: PluginContext) {
         configuredRepoPath: repoPath,
         pluginSourceRoot,
         loopDiagnosticsFlag: process.env.DEVCLAW_LOOP_DIAGNOSTICS ?? null,
+        openclawConfigPluginLoadPaths,
+        openclawConfigPluginLoadPathRealPaths,
+        openclawConfigInstallSourcePath,
+        openclawConfigInstallSourceRealPath,
+        openclawConfigInstallPath,
+        openclawConfigInstallPathRealPath,
+        duplicateSourceRisk:
+          openclawConfigInstallSourceRealPath !== null
+          && openclawConfigPluginLoadPathRealPaths.some((realPath) => realPath !== null && realPath !== openclawConfigInstallSourceRealPath),
         repoSnapshot,
         pluginSnapshot,
         branchResolution: initialBranchResolution,
@@ -513,6 +548,19 @@ export function createWorkFinishTool(ctx: PluginContext) {
               : "repo path and live plugin agree on worktree but disagree on current branch before PR lookup"
             : "repo path and live plugin disagree on worktree before PR lookup",
         branchResolutionPreferredSource: initialBranchResolution.preferredBranchSource,
+        branchResolutionMismatchFlags: {
+          repoPathMatchesResolvedWorkTree: initialBranchResolution.repoPathMatchesResolvedWorkTree,
+          repoRealPathMatchesResolvedWorkTree: initialBranchResolution.repoRealPathMatchesResolvedWorkTree,
+          pluginSourceMatchesResolvedWorkTree: initialBranchResolution.pluginSourceMatchesResolvedWorkTree,
+          pluginRealPathMatchesSourceRoot: initialBranchResolution.pluginRealPathMatchesSourceRoot,
+          repoAndPluginSameWorkTree: initialBranchResolution.repoAndPluginSameWorkTree,
+          repoAndPluginSameRealPath: initialBranchResolution.repoAndPluginSameRealPath,
+          repoAndPluginSameBranch: initialBranchResolution.repoAndPluginSameBranch,
+        },
+        duplicateSourceDecision:
+          context.duplicateSourceRisk
+            ? "plugin config points at more than one distinct realpath, so install evidence is ambiguous until duplicate source is cleared"
+            : "plugin config realpaths are singular or unresolved, so duplicate source risk is not evident from config alone",
       }).catch(() => {});
 
       // For developers marking work as done, validate that a PR exists

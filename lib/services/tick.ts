@@ -163,6 +163,18 @@ export async function projectTick(opts: {
       eventCount: loopBrake.events.length,
       events: loopBrake.events,
       issueLabels: issue.labels,
+      countedEventSummaries: loopBrake.events.map((event, index) => ({
+        index,
+        ts: event.ts,
+        source: event.source,
+        stage: event.stage ?? null,
+        event: event.event ?? null,
+        from: event.from ?? null,
+        to: event.to ?? null,
+        reason: event.reason,
+        rawReason: event.rawReason ?? null,
+        decisionPath: event.decisionPath ?? null,
+      })),
       decisionPath: holdLabel
         ? loopBrake.blocked
           ? `loop brake will move ${currentLabel} -> ${holdLabel} because ${loopBrake.events.length} recent non-progress loop events met threshold ${loopBrake.threshold}`
@@ -197,6 +209,18 @@ export async function projectTick(opts: {
         threshold: loopBrake.threshold,
         windowMs: loopBrake.windowMs,
         events: loopBrake.events,
+        countedEventSummaries: loopBrake.events.map((event, index) => ({
+          index,
+          ts: event.ts,
+          source: event.source,
+          stage: event.stage ?? null,
+          event: event.event ?? null,
+          from: event.from ?? null,
+          to: event.to ?? null,
+          reason: event.reason,
+          rawReason: event.rawReason ?? null,
+          decisionPath: event.decisionPath ?? null,
+        })),
         issueLabels: issue.labels,
         loopBrakeReason: "retry_ceiling_reached",
         decisionPath: `loop brake moved ${currentLabel} -> ${holdLabel} after ${loopBrake.events.length} recent non-progress loop events`,
