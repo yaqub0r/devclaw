@@ -506,11 +506,32 @@ export async function executeCompletion(opts: {
       repoBranchMatchesSourceBranch: branchDecisionContext.repoBranch !== null && sourceBranch != null && branchDecisionContext.repoBranch === sourceBranch,
       pluginBranchMatchesSourceBranch: branchDecisionContext.pluginBranch !== null && sourceBranch != null && branchDecisionContext.pluginBranch === sourceBranch,
     },
+    branchResolutionPreferredSource: branchDecisionContext.preferredBranchSource ?? null,
+    preferredBranchConfidence: branchDecisionContext.preferredBranchConfidence ?? null,
     branchSelectionWinnerSummary: branchDecisionContext.branchSelectionWinnerSummary ?? null,
     branchWinnerDecisionSummary: branchDecisionContext.branchWinnerDecisionSummary ?? null,
+    branchWinnerComparedToLaneSummary: branchDecisionContext.branchWinnerComparedToLaneSummary ?? null,
+    liveSourceDecision:
+      branchDecisionContext.openclawConfigInstallSourceRealPath && branchDecisionContext.pluginRealPath
+        ? branchDecisionContext.openclawConfigInstallSourceRealPath === branchDecisionContext.pluginRealPath
+          ? "observed live plugin realpath matches configured install source realpath"
+          : "observed live plugin realpath differs from configured install source realpath"
+        : "live-source comparison could not be completed because one of the realpaths was unavailable",
+    liveSourceSingularitySummary: branchDecisionContext.pluginSourceConfigSummary.duplicateSourceRisk
+      ? `config currently resolves DevClaw to ${branchDecisionContext.pluginSourceConfigSummary.distinctDevclawRealPathCount} distinct realpaths, so duplicate-source risk remains active`
+      : `config currently resolves DevClaw to ${branchDecisionContext.pluginSourceConfigSummary.distinctDevclawRealPathCount} singular realpath set(s) with no competing load path outside install source`,
     duplicateSourceDecision: branchDecisionContext.duplicateSourceRisk
       ? "transition is running with duplicate-source risk flagged in branch decision context"
       : "transition is running without duplicate-source risk in branch decision context",
+    duplicateSourceWinningRealPathGuess: branchDecisionContext.pluginSourceConfigSummary.likelyWinningLiveRealPath ?? null,
+    duplicateSourceCompetingRealPaths: branchDecisionContext.pluginSourceConfigSummary.conflictingDevclawRealPaths,
+    branchSourceCandidateDecisionTable: branchDecisionContext.branchSourceCandidateDecisionTable,
+    laneMismatchCategory:
+      branchDecisionContext.repoRealPath !== null && branchDecisionContext.pluginRealPath !== null && branchDecisionContext.repoRealPath !== branchDecisionContext.pluginRealPath
+        ? "repo_plugin_realpath_mismatch"
+        : branchDecisionContext.repoBranch !== null && branchDecisionContext.pluginBranch !== null && branchDecisionContext.repoBranch !== branchDecisionContext.pluginBranch
+          ? "repo_plugin_branch_mismatch"
+          : "lane_aligned_or_unresolved",
     transitionReasonCategory: transitionedTo === "Refining"
       ? `work_finish_${result}`
       : transitionedTo === "To Review"
@@ -552,11 +573,32 @@ export async function executeCompletion(opts: {
         repoBranchMatchesSourceBranch: branchDecisionContext.repoBranch !== null && sourceBranch != null && branchDecisionContext.repoBranch === sourceBranch,
         pluginBranchMatchesSourceBranch: branchDecisionContext.pluginBranch !== null && sourceBranch != null && branchDecisionContext.pluginBranch === sourceBranch,
       },
+      branchResolutionPreferredSource: branchDecisionContext.preferredBranchSource ?? null,
+      preferredBranchConfidence: branchDecisionContext.preferredBranchConfidence ?? null,
       branchSelectionWinnerSummary: branchDecisionContext.branchSelectionWinnerSummary ?? null,
       branchWinnerDecisionSummary: branchDecisionContext.branchWinnerDecisionSummary ?? null,
+      branchWinnerComparedToLaneSummary: branchDecisionContext.branchWinnerComparedToLaneSummary ?? null,
+      liveSourceDecision:
+        branchDecisionContext.openclawConfigInstallSourceRealPath && branchDecisionContext.pluginRealPath
+          ? branchDecisionContext.openclawConfigInstallSourceRealPath === branchDecisionContext.pluginRealPath
+            ? "observed live plugin realpath matches configured install source realpath"
+            : "observed live plugin realpath differs from configured install source realpath"
+          : "live-source comparison could not be completed because one of the realpaths was unavailable",
+      liveSourceSingularitySummary: branchDecisionContext.pluginSourceConfigSummary.duplicateSourceRisk
+        ? `config currently resolves DevClaw to ${branchDecisionContext.pluginSourceConfigSummary.distinctDevclawRealPathCount} distinct realpaths, so duplicate-source risk remains active`
+        : `config currently resolves DevClaw to ${branchDecisionContext.pluginSourceConfigSummary.distinctDevclawRealPathCount} singular realpath set(s) with no competing load path outside install source`,
       duplicateSourceDecision: branchDecisionContext.duplicateSourceRisk
         ? "transition failed while duplicate-source risk was flagged in branch decision context"
         : "transition failed without duplicate-source risk in branch decision context",
+      duplicateSourceWinningRealPathGuess: branchDecisionContext.pluginSourceConfigSummary.likelyWinningLiveRealPath ?? null,
+      duplicateSourceCompetingRealPaths: branchDecisionContext.pluginSourceConfigSummary.conflictingDevclawRealPaths,
+      branchSourceCandidateDecisionTable: branchDecisionContext.branchSourceCandidateDecisionTable,
+      laneMismatchCategory:
+        branchDecisionContext.repoRealPath !== null && branchDecisionContext.pluginRealPath !== null && branchDecisionContext.repoRealPath !== branchDecisionContext.pluginRealPath
+          ? "repo_plugin_realpath_mismatch"
+          : branchDecisionContext.repoBranch !== null && branchDecisionContext.pluginBranch !== null && branchDecisionContext.repoBranch !== branchDecisionContext.pluginBranch
+            ? "repo_plugin_branch_mismatch"
+            : "lane_aligned_or_unresolved",
       error: (err as Error).message ?? String(err),
       errorName: err instanceof Error ? err.name : null,
       transitionReasonCategory: transitionedTo === "Refining"
@@ -599,11 +641,32 @@ export async function executeCompletion(opts: {
       repoBranchMatchesSourceBranch: branchDecisionContext.repoBranch !== null && sourceBranch != null && branchDecisionContext.repoBranch === sourceBranch,
       pluginBranchMatchesSourceBranch: branchDecisionContext.pluginBranch !== null && sourceBranch != null && branchDecisionContext.pluginBranch === sourceBranch,
     },
+    branchResolutionPreferredSource: branchDecisionContext.preferredBranchSource ?? null,
+    preferredBranchConfidence: branchDecisionContext.preferredBranchConfidence ?? null,
     branchSelectionWinnerSummary: branchDecisionContext.branchSelectionWinnerSummary ?? null,
     branchWinnerDecisionSummary: branchDecisionContext.branchWinnerDecisionSummary ?? null,
+    branchWinnerComparedToLaneSummary: branchDecisionContext.branchWinnerComparedToLaneSummary ?? null,
+    liveSourceDecision:
+      branchDecisionContext.openclawConfigInstallSourceRealPath && branchDecisionContext.pluginRealPath
+        ? branchDecisionContext.openclawConfigInstallSourceRealPath === branchDecisionContext.pluginRealPath
+          ? "observed live plugin realpath matches configured install source realpath"
+          : "observed live plugin realpath differs from configured install source realpath"
+        : "live-source comparison could not be completed because one of the realpaths was unavailable",
+    liveSourceSingularitySummary: branchDecisionContext.pluginSourceConfigSummary.duplicateSourceRisk
+      ? `config currently resolves DevClaw to ${branchDecisionContext.pluginSourceConfigSummary.distinctDevclawRealPathCount} distinct realpaths, so duplicate-source risk remains active`
+      : `config currently resolves DevClaw to ${branchDecisionContext.pluginSourceConfigSummary.distinctDevclawRealPathCount} singular realpath set(s) with no competing load path outside install source`,
     duplicateSourceDecision: branchDecisionContext.duplicateSourceRisk
       ? "transition completed while duplicate-source risk was flagged in branch decision context"
       : "transition completed without duplicate-source risk in branch decision context",
+    duplicateSourceWinningRealPathGuess: branchDecisionContext.pluginSourceConfigSummary.likelyWinningLiveRealPath ?? null,
+    duplicateSourceCompetingRealPaths: branchDecisionContext.pluginSourceConfigSummary.conflictingDevclawRealPaths,
+    branchSourceCandidateDecisionTable: branchDecisionContext.branchSourceCandidateDecisionTable,
+    laneMismatchCategory:
+      branchDecisionContext.repoRealPath !== null && branchDecisionContext.pluginRealPath !== null && branchDecisionContext.repoRealPath !== branchDecisionContext.pluginRealPath
+        ? "repo_plugin_realpath_mismatch"
+        : branchDecisionContext.repoBranch !== null && branchDecisionContext.pluginBranch !== null && branchDecisionContext.repoBranch !== branchDecisionContext.pluginBranch
+          ? "repo_plugin_branch_mismatch"
+          : "lane_aligned_or_unresolved",
     transitionReasonCategory: transitionedTo === "Refining"
       ? `work_finish_${result}`
       : transitionedTo === "To Review"
