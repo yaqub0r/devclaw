@@ -52,6 +52,31 @@ async function tryRealpath(pathValue: unknown): Promise<string | null> {
   }
 }
 
+function summarizePluginSourceConfig(opts: {
+  installSourceRealPath: string | null;
+  installPathRealPath: string | null;
+  pluginLoadPathRealPaths: Array<string | null>;
+  pluginRealPath: string | null;
+}): Record<string, unknown> {
+  const distinctRealPaths = Array.from(new Set(
+    [opts.installSourceRealPath, opts.installPathRealPath, ...opts.pluginLoadPathRealPaths, opts.pluginRealPath]
+      .filter((value): value is string => typeof value === "string" && value.length > 0),
+  ));
+
+  return {
+    distinctDevclawRealPaths: distinctRealPaths,
+    distinctDevclawRealPathCount: distinctRealPaths.length,
+    installSourceMatchesInstalledPath: opts.installSourceRealPath !== null && opts.installSourceRealPath === opts.installPathRealPath,
+    installSourceMatchesLivePlugin: opts.installSourceRealPath !== null && opts.installSourceRealPath === opts.pluginRealPath,
+    installedPathMatchesLivePlugin: opts.installPathRealPath !== null && opts.installPathRealPath === opts.pluginRealPath,
+    pluginLoadPathsContainLivePlugin: opts.pluginRealPath !== null && opts.pluginLoadPathRealPaths.includes(opts.pluginRealPath),
+    pluginLoadPathsContainInstallSource: opts.installSourceRealPath !== null && opts.pluginLoadPathRealPaths.includes(opts.installSourceRealPath),
+    duplicateSourceRisk:
+      opts.installSourceRealPath !== null
+      && opts.pluginLoadPathRealPaths.some((realPath) => realPath !== null && realPath !== opts.installSourceRealPath),
+  };
+}
+
 async function getGitSnapshot(repoPath: string, runCommand: RunCommand): Promise<Record<string, unknown>> {
   const commands: Array<[string, string[]]> = [
     ["branch", ["git", "branch", "--show-current"]],
@@ -169,6 +194,12 @@ export async function executeCompletion(opts: {
   const openclawConfigPluginLoadPathRealPaths = await Promise.all(
     (openclawConfigPluginLoadPaths ?? []).map((pathValue) => tryRealpath(pathValue)),
   );
+  const pluginSourceConfigSummary = summarizePluginSourceConfig({
+    installSourceRealPath: openclawConfigInstallSourceRealPath,
+    installPathRealPath: openclawConfigInstallPathRealPath,
+    pluginLoadPathRealPaths: openclawConfigPluginLoadPathRealPaths,
+    pluginRealPath: typeof pluginSnapshot.realRepoPath === "string" ? pluginSnapshot.realRepoPath : null,
+  });
   const branchDecisionContext = {
     repoBranch: typeof repoSnapshot.branch === "string" ? repoSnapshot.branch : null,
     repoWorkTree: typeof repoSnapshot.workTree === "string" ? repoSnapshot.workTree : null,
@@ -184,9 +215,8 @@ export async function executeCompletion(opts: {
     openclawConfigInstallSourceRealPath,
     openclawConfigInstallPath,
     openclawConfigInstallPathRealPath,
-    duplicateSourceRisk:
-      openclawConfigInstallSourceRealPath !== null
-      && openclawConfigPluginLoadPathRealPaths.some((realPath) => realPath !== null && realPath !== openclawConfigInstallSourceRealPath),
+    pluginSourceConfigSummary,
+    duplicateSourceRisk: pluginSourceConfigSummary.duplicateSourceRisk,
   };
 
   // Execute pre-notification actions
@@ -238,6 +268,15 @@ export async function executeCompletion(opts: {
               Array.isArray(branchDecisionContext.openclawConfigPluginLoadPaths) && branchDecisionContext.openclawConfigPluginLoadPaths.includes(branchDecisionContext.pluginWorkTree) ? "plugin worktree is present in plugins.load.paths" : "plugin worktree is missing from plugins.load.paths",
               Array.isArray(branchDecisionContext.openclawConfigPluginLoadPathRealPaths) && branchDecisionContext.openclawConfigPluginLoadPathRealPaths.includes(branchDecisionContext.pluginRealPath) ? "plugin realpath is present in plugins.load.paths realpaths" : "plugin realpath is missing from plugins.load.paths realpaths",
               branchDecisionContext.duplicateSourceRisk ? "duplicate source risk detected because plugins.load.paths contains a different realpath than the configured install source" : "no duplicate source risk detected from plugin config paths",
+            ],
+            duplicateSourceDecision: branchDecisionContext.duplicateSourceRisk
+              ? "live install evidence is ambiguous because multiple DevClaw realpaths are configured"
+              : "live install evidence is singular or unresolved from config",
+            branchSelectionCandidatesInPriorityOrder: [
+              { source: "configured_repo_branch", value: branchDecisionContext.repoBranch, matchesSourceBranch: branchDecisionContext.repoBranch !== null && sourceBranch != null && branchDecisionContext.repoBranch === sourceBranch },
+              { source: "configured_repo_head_branches", value: branchDecisionContext.repoHeadBranches, matchesSourceBranch: sourceBranch != null && branchDecisionContext.repoHeadBranches.includes(sourceBranch) },
+              { source: "live_plugin_branch", value: branchDecisionContext.pluginBranch, matchesSourceBranch: branchDecisionContext.pluginBranch !== null && sourceBranch != null && branchDecisionContext.pluginBranch === sourceBranch },
+              { source: "live_plugin_head_branches", value: branchDecisionContext.pluginHeadBranches, matchesSourceBranch: sourceBranch != null && branchDecisionContext.pluginHeadBranches.includes(sourceBranch) },
             ],
             decisionPath: prStatus.url
               ? "provider returned PR status directly during DETECT_PR action"

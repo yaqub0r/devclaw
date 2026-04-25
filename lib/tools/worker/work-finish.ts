@@ -83,6 +83,31 @@ async function tryRealpath(pathValue: unknown): Promise<string | null> {
   }
 }
 
+function summarizePluginSourceConfig(opts: {
+  installSourceRealPath: string | null;
+  installPathRealPath: string | null;
+  pluginLoadPathRealPaths: Array<string | null>;
+  pluginRealPath: string | null;
+}): Record<string, unknown> {
+  const distinctRealPaths = Array.from(new Set(
+    [opts.installSourceRealPath, opts.installPathRealPath, ...opts.pluginLoadPathRealPaths, opts.pluginRealPath]
+      .filter((value): value is string => typeof value === "string" && value.length > 0),
+  ));
+
+  return {
+    distinctDevclawRealPaths: distinctRealPaths,
+    distinctDevclawRealPathCount: distinctRealPaths.length,
+    installSourceMatchesInstalledPath: opts.installSourceRealPath !== null && opts.installSourceRealPath === opts.installPathRealPath,
+    installSourceMatchesLivePlugin: opts.installSourceRealPath !== null && opts.installSourceRealPath === opts.pluginRealPath,
+    installedPathMatchesLivePlugin: opts.installPathRealPath !== null && opts.installPathRealPath === opts.pluginRealPath,
+    pluginLoadPathsContainLivePlugin: opts.pluginRealPath !== null && opts.pluginLoadPathRealPaths.includes(opts.pluginRealPath),
+    pluginLoadPathsContainInstallSource: opts.installSourceRealPath !== null && opts.pluginLoadPathRealPaths.includes(opts.installSourceRealPath),
+    duplicateSourceRisk:
+      opts.installSourceRealPath !== null
+      && opts.pluginLoadPathRealPaths.some((realPath) => realPath !== null && realPath !== opts.installSourceRealPath),
+  };
+}
+
 function buildBranchResolutionDiagnostic(opts: {
   repoPath: string;
   pluginSourceRoot: string;
@@ -104,6 +129,20 @@ function buildBranchResolutionDiagnostic(opts: {
     : [];
   const repoRealPath = typeof opts.repoSnapshot.realRepoPath === "string" ? opts.repoSnapshot.realRepoPath : null;
   const pluginRealPath = typeof opts.pluginSnapshot.realRepoPath === "string" ? opts.pluginSnapshot.realRepoPath : null;
+  const preferredBranchSource =
+    repoBranch !== null && prSourceBranch !== null && repoBranch === prSourceBranch
+      ? "configured_repo_branch"
+      : repoHeadBranches.includes(prSourceBranch ?? "")
+        ? "configured_repo_head_branches"
+        : pluginBranch !== null && prSourceBranch !== null && pluginBranch === prSourceBranch
+          ? "live_plugin_branch"
+          : pluginHeadBranches.includes(prSourceBranch ?? "")
+            ? "live_plugin_head_branches"
+            : repoBranch !== null
+              ? "configured_repo_branch_fallback"
+              : pluginBranch !== null
+                ? "live_plugin_branch_fallback"
+                : "no_branch_match";
 
   return {
     repoBranch,
@@ -130,20 +169,13 @@ function buildBranchResolutionDiagnostic(opts: {
     pluginBranchMatchesPrSourceBranch: pluginBranch !== null && prSourceBranch !== null && pluginBranch === prSourceBranch,
     repoHeadPointsAtPrSourceBranch: prSourceBranch !== null && repoHeadBranches.includes(prSourceBranch),
     pluginHeadPointsAtPrSourceBranch: prSourceBranch !== null && pluginHeadBranches.includes(prSourceBranch),
-    preferredBranchSource:
-      repoBranch !== null && prSourceBranch !== null && repoBranch === prSourceBranch
-        ? "configured_repo_branch"
-        : repoHeadBranches.includes(prSourceBranch ?? "")
-          ? "configured_repo_head_branches"
-          : pluginBranch !== null && prSourceBranch !== null && pluginBranch === prSourceBranch
-            ? "live_plugin_branch"
-            : pluginHeadBranches.includes(prSourceBranch ?? "")
-              ? "live_plugin_head_branches"
-              : repoBranch !== null
-                ? "configured_repo_branch_fallback"
-                : pluginBranch !== null
-                  ? "live_plugin_branch_fallback"
-                  : "no_branch_match",
+    preferredBranchSource,
+    branchSourceCandidatesInPriorityOrder: [
+      { source: "configured_repo_branch", value: repoBranch, matchesPrSourceBranch: repoBranch !== null && prSourceBranch !== null && repoBranch === prSourceBranch },
+      { source: "configured_repo_head_branches", value: repoHeadBranches, matchesPrSourceBranch: prSourceBranch !== null && repoHeadBranches.includes(prSourceBranch) },
+      { source: "live_plugin_branch", value: pluginBranch, matchesPrSourceBranch: pluginBranch !== null && prSourceBranch !== null && pluginBranch === prSourceBranch },
+      { source: "live_plugin_head_branches", value: pluginHeadBranches, matchesPrSourceBranch: prSourceBranch !== null && pluginHeadBranches.includes(prSourceBranch) },
+    ],
   };
 }
 
@@ -514,6 +546,12 @@ export function createWorkFinishTool(ctx: PluginContext) {
       const openclawConfigPluginLoadPathRealPaths = await Promise.all(
         (openclawConfigPluginLoadPaths ?? []).map((pathValue) => tryRealpath(pathValue)),
       );
+      const pluginSourceConfigSummary = summarizePluginSourceConfig({
+        installSourceRealPath: openclawConfigInstallSourceRealPath,
+        installPathRealPath: openclawConfigInstallPathRealPath,
+        pluginLoadPathRealPaths: openclawConfigPluginLoadPathRealPaths,
+        pluginRealPath: typeof pluginSnapshot.realRepoPath === "string" ? pluginSnapshot.realRepoPath : null,
+      });
       const context = {
         channelId,
         role,
@@ -529,9 +567,8 @@ export function createWorkFinishTool(ctx: PluginContext) {
         openclawConfigInstallSourceRealPath,
         openclawConfigInstallPath,
         openclawConfigInstallPathRealPath,
-        duplicateSourceRisk:
-          openclawConfigInstallSourceRealPath !== null
-          && openclawConfigPluginLoadPathRealPaths.some((realPath) => realPath !== null && realPath !== openclawConfigInstallSourceRealPath),
+        duplicateSourceRisk: pluginSourceConfigSummary.duplicateSourceRisk,
+        pluginSourceConfigSummary,
         repoSnapshot,
         pluginSnapshot,
         branchResolution: initialBranchResolution,
@@ -561,6 +598,16 @@ export function createWorkFinishTool(ctx: PluginContext) {
           context.duplicateSourceRisk
             ? "plugin config points at more than one distinct realpath, so install evidence is ambiguous until duplicate source is cleared"
             : "plugin config realpaths are singular or unresolved, so duplicate source risk is not evident from config alone",
+        branchSelectionDecision:
+          initialBranchResolution.preferredBranchSource === "configured_repo_branch"
+            ? "configured repo branch would be trusted first if it matches PR source branch"
+            : initialBranchResolution.preferredBranchSource === "configured_repo_head_branches"
+              ? "configured repo detached-HEAD candidates would be trusted before live plugin branch"
+              : initialBranchResolution.preferredBranchSource === "live_plugin_branch"
+                ? "live plugin branch currently looks more trustworthy than configured repo branch for PR matching"
+                : initialBranchResolution.preferredBranchSource === "live_plugin_head_branches"
+                  ? "live plugin detached-HEAD candidates currently look more trustworthy than configured repo branch for PR matching"
+                  : "no PR-aware branch match exists yet, so fallback branch selection would be ambiguous",
       }).catch(() => {});
 
       // For developers marking work as done, validate that a PR exists
