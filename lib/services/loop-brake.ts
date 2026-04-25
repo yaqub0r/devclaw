@@ -18,6 +18,7 @@ function buildEventAuditExcerpt(entry: AuditEntry): Record<string, unknown> {
   return {
     ts: typeof entry.ts === "string" ? entry.ts : null,
     event: typeof entry.event === "string" ? entry.event : null,
+    decisionPath: asString(entry.decisionPath) ?? null,
     stage: asString(entry.stage) ?? null,
     result: asString(entry.result) ?? null,
     from: asString(entry.from) ?? null,
