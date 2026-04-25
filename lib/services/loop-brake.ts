@@ -14,6 +14,28 @@ type AuditEntry = Record<string, unknown> & {
   issue?: number;
 };
 
+function buildEventAuditExcerpt(entry: AuditEntry): Record<string, unknown> {
+  return {
+    ts: typeof entry.ts === "string" ? entry.ts : null,
+    event: typeof entry.event === "string" ? entry.event : null,
+    stage: asString(entry.stage) ?? null,
+    result: asString(entry.result) ?? null,
+    from: asString(entry.from) ?? null,
+    to: asString(entry.to) ?? null,
+    reason: asString(entry.reason) ?? null,
+    loopBrakeReason: asString(entry.loopBrakeReason) ?? null,
+    healthRequeueLoopReason: asString(entry.healthRequeueLoopReason) ?? null,
+    orphanReason: asString(entry.orphanReason) ?? null,
+    transitionReasonCategory: asString(entry.transitionReasonCategory) ?? null,
+    refiningDecisionPath: asString(entry.refiningDecisionPath) ?? null,
+    healthDecisionCategory: asString(entry.healthDecisionCategory) ?? null,
+    branchResolutionPreferredSource: asString(entry.branchResolutionPreferredSource) ?? asString(entry.preferredBranchSource) ?? null,
+    duplicateSourceRisk: typeof entry.duplicateSourceRisk === "boolean" ? entry.duplicateSourceRisk : null,
+    issueId: typeof entry.issueId === "number" ? entry.issueId : null,
+    issue: typeof entry.issue === "number" ? entry.issue : null,
+  };
+}
+
 export type LoopBrakeDecision = {
   blocked: boolean;
   threshold: number;
@@ -47,6 +69,7 @@ export type LoopBrakeDecision = {
     rawHealthDecisionSummary?: string;
     rawBranchWinnerSummary?: string;
     rawDuplicateSourceDecision?: string;
+    rawAuditExcerpt?: Record<string, unknown>;
   }>;
   reasonHistogram: Record<string, number>;
   sourceHistogram: Record<string, number>;
@@ -190,6 +213,7 @@ function toLoopEvent(entry: AuditEntry): LoopBrakeDecision["events"][number] | n
       rawLaneMismatchCategory: asString(entry.laneMismatchCategory),
       rawDuplicateSourceRisk: typeof entry.duplicateSourceRisk === "boolean" ? entry.duplicateSourceRisk : null,
       rawCanRequeueIssue: typeof entry.canRequeueIssue === "boolean" ? entry.canRequeueIssue : null,
+      rawAuditExcerpt: buildEventAuditExcerpt(entry),
     };
   }
 
@@ -230,6 +254,7 @@ function toLoopEvent(entry: AuditEntry): LoopBrakeDecision["events"][number] | n
       rawLaneMismatchCategory: asString(entry.laneMismatchCategory),
       rawDuplicateSourceRisk: typeof entry.duplicateSourceRisk === "boolean" ? entry.duplicateSourceRisk : null,
       rawCanRequeueIssue: typeof entry.canRequeueIssue === "boolean" ? entry.canRequeueIssue : null,
+      rawAuditExcerpt: buildEventAuditExcerpt(entry),
     };
   }
 
@@ -268,6 +293,7 @@ function toLoopEvent(entry: AuditEntry): LoopBrakeDecision["events"][number] | n
         rawLaneMismatchCategory: asString(entry.laneMismatchCategory),
         rawDuplicateSourceRisk: typeof entry.duplicateSourceRisk === "boolean" ? entry.duplicateSourceRisk : null,
         rawCanRequeueIssue: typeof entry.canRequeueIssue === "boolean" ? entry.canRequeueIssue : null,
+        rawAuditExcerpt: buildEventAuditExcerpt(entry),
       };
     }
   }

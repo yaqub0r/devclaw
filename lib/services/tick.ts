@@ -194,6 +194,7 @@ export async function projectTick(opts: {
         rawHealthDecisionSummary: event.rawHealthDecisionSummary ?? null,
         rawBranchWinnerSummary: event.rawBranchWinnerSummary ?? null,
         rawDuplicateSourceDecision: event.rawDuplicateSourceDecision ?? null,
+        rawAuditExcerpt: event.rawAuditExcerpt ?? null,
         decisionPath: event.decisionPath ?? null,
       })),
       countedBecause: loopBrake.events.length > 0
@@ -264,6 +265,7 @@ export async function projectTick(opts: {
           rawHealthDecisionSummary: event.rawHealthDecisionSummary ?? null,
           rawBranchWinnerSummary: event.rawBranchWinnerSummary ?? null,
           rawDuplicateSourceDecision: event.rawDuplicateSourceDecision ?? null,
+          rawAuditExcerpt: event.rawAuditExcerpt ?? null,
           decisionPath: event.decisionPath ?? null,
         })),
         countedBecause: `loop brake threshold ${loopBrake.threshold} was met by ${loopBrake.events.length} events that matched non-progress counting rules inside the retry window`,
