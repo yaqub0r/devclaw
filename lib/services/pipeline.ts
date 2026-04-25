@@ -351,6 +351,17 @@ export async function executeCompletion(opts: {
             ],
             duplicateSourceCompetingRealPaths: branchDecisionContext.pluginSourceConfigSummary.conflictingDevclawRealPaths,
             duplicateSourceWinningRealPathGuess: branchDecisionContext.pluginSourceConfigSummary.likelyWinningLiveRealPath,
+            liveSourceSingularitySummary: branchDecisionContext.pluginSourceConfigSummary.duplicateSourceRisk
+              ? `duplicate-source risk remains because config resolves DevClaw to ${branchDecisionContext.pluginSourceConfigSummary.distinctDevclawRealPathCount} distinct realpaths`
+              : `config currently resolves DevClaw to ${branchDecisionContext.pluginSourceConfigSummary.distinctDevclawRealPathCount} singular realpath set(s) with no competing load path outside install source`,
+            branchWinnerComparedToLaneSummary:
+              sourceBranch == null
+                ? "no PR source branch was available, so any branch winner would still be a fallback comparison against the configured lane and live plugin lane"
+                : branchDecisionContext.pluginBranch == null
+                  ? `PR source branch ${sourceBranch} was available but live plugin branch was unavailable, so comparison is limited to configured repo candidates`
+                  : branchDecisionContext.pluginBranch === sourceBranch
+                    ? `PR source branch ${sourceBranch} matches the live plugin branch, so branch inference agrees with the active lane`
+                    : `PR source branch ${sourceBranch} differs from live plugin branch ${branchDecisionContext.pluginBranch}, so branch inference points away from the active lane`,
             laneMismatchCategory:
               branchDecisionContext.repoRealPath !== null && branchDecisionContext.pluginRealPath !== null && branchDecisionContext.repoRealPath !== branchDecisionContext.pluginRealPath
                 ? "repo_plugin_realpath_mismatch"

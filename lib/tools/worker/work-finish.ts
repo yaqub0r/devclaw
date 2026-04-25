@@ -198,11 +198,19 @@ function buildBranchResolutionDiagnostic(opts: {
     : preferredBranchSource.startsWith("live_plugin")
       ? "live_plugin"
       : "none";
+  const branchWinnerMatchesRepoBranch = branchWinner !== null && repoBranch !== null && branchWinner === repoBranch;
+  const branchWinnerMatchesPluginBranch = branchWinner !== null && pluginBranch !== null && branchWinner === pluginBranch;
+  const branchWinnerMatchesRepoWorkTreeBasename = branchWinner !== null && repoWorkTreeBasename !== null && branchWinner === repoWorkTreeBasename;
+  const branchWinnerMatchesPluginWorkTreeBasename = branchWinner !== null && pluginWorkTreeBasename !== null && branchWinner === pluginWorkTreeBasename;
+  const branchWinnerMatchesConfiguredRepoPathBasename = branchWinner !== null && configuredRepoPathBasename !== null && branchWinner === configuredRepoPathBasename;
+  const branchWinnerMatchesPluginSourceRootBasename = branchWinner !== null && pluginSourceRootBasename !== null && branchWinner === pluginSourceRootBasename;
   const branchWinnerLooksSuspicious = Boolean(
     (configuredRepoPathBasename && repoBranch && configuredRepoPathBasename !== repoBranch)
     || (pluginSourceRootBasename && pluginBranch && pluginSourceRootBasename !== pluginBranch)
     || (branchWinnerSourceKind === "configured_repo" && repoBranch && pluginBranch && repoBranch !== pluginBranch)
     || (branchWinnerSourceKind === "configured_repo" && repoRealPath !== null && pluginRealPath !== null && repoRealPath !== pluginRealPath)
+    || (branchWinner !== null && pluginBranch !== null && branchWinner !== pluginBranch)
+    || (branchWinner !== null && pluginWorkTreeBasename !== null && branchWinner !== pluginWorkTreeBasename)
     || preferredBranchUsedFallback,
   );
   const branchWinnerSuspicionReasons = [
@@ -218,10 +226,26 @@ function buildBranchResolutionDiagnostic(opts: {
     branchWinnerSourceKind === "configured_repo" && repoRealPath !== null && pluginRealPath !== null && repoRealPath !== pluginRealPath
       ? `configured repo realpath ${repoRealPath} differs from live plugin realpath ${pluginRealPath} even though configured repo won branch selection`
       : null,
+    branchWinner !== null && pluginBranch !== null && branchWinner !== pluginBranch
+      ? `branch winner ${branchWinner} differs from live plugin branch ${pluginBranch}`
+      : null,
+    branchWinner !== null && pluginWorkTreeBasename !== null && branchWinner !== pluginWorkTreeBasename
+      ? `branch winner ${branchWinner} differs from live plugin worktree basename ${pluginWorkTreeBasename}`
+      : null,
     preferredBranchUsedFallback
       ? `branch winner ${preferredBranchSource} relied on fallback selection because no PR-aware match was available`
       : null,
   ].filter((value): value is string => Boolean(value));
+
+  const branchWinnerComparedToLaneSummary =
+    branchWinner === null
+      ? "no branch winner was available to compare against the configured lane or live plugin lane"
+      : [
+          branchWinnerMatchesRepoBranch ? `winner matches configured repo branch ${repoBranch}` : repoBranch ? `winner differs from configured repo branch ${repoBranch}` : "configured repo branch unavailable",
+          branchWinnerMatchesPluginBranch ? `winner matches live plugin branch ${pluginBranch}` : pluginBranch ? `winner differs from live plugin branch ${pluginBranch}` : "live plugin branch unavailable",
+          branchWinnerMatchesConfiguredRepoPathBasename ? `winner matches configured repo path basename ${configuredRepoPathBasename}` : configuredRepoPathBasename ? `winner differs from configured repo path basename ${configuredRepoPathBasename}` : "configured repo path basename unavailable",
+          branchWinnerMatchesPluginSourceRootBasename ? `winner matches live plugin source basename ${pluginSourceRootBasename}` : pluginSourceRootBasename ? `winner differs from live plugin source basename ${pluginSourceRootBasename}` : "live plugin source basename unavailable",
+        ].join("; ");
 
   return {
     repoBranch,
@@ -261,8 +285,15 @@ function buildBranchResolutionDiagnostic(opts: {
     preferredBranchConfidence,
     branchWinner,
     branchWinnerSourceKind,
+    branchWinnerMatchesRepoBranch,
+    branchWinnerMatchesPluginBranch,
+    branchWinnerMatchesRepoWorkTreeBasename,
+    branchWinnerMatchesPluginWorkTreeBasename,
+    branchWinnerMatchesConfiguredRepoPathBasename,
+    branchWinnerMatchesPluginSourceRootBasename,
     branchWinnerLooksSuspicious,
     branchWinnerSuspicionReasons,
+    branchWinnerComparedToLaneSummary,
     preferredBranchEvidence:
       preferredBranchSource === "configured_repo_branch"
         ? "configured repo branch directly matched PR source branch"
