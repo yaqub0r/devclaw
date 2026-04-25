@@ -8,7 +8,8 @@
  * Architect workflow: Researching → Done (done, closes issue), Researching → Refining (blocked).
  */
 import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
 import type { ToolContext } from "../../types.js";
 import type { PluginContext, RunCommand } from "../../context.js";
 import { getRoleWorker, resolveRepoPath, findSlotByIssue } from "../../projects/index.js";
@@ -30,6 +31,40 @@ async function getCurrentBranch(repoPath: string, runCommand: RunCommand): Promi
   return result.stdout.trim();
 }
 
+async function getGitSnapshot(repoPath: string, runCommand: RunCommand): Promise<Record<string, unknown>> {
+  const commands: Array<[string, string[]]> = [
+    ["branch", ["git", "branch", "--show-current"]],
+    ["head", ["git", "rev-parse", "HEAD"]],
+    ["gitDir", ["git", "rev-parse", "--absolute-git-dir"]],
+    ["workTree", ["git", "rev-parse", "--show-toplevel"]],
+  ];
+
+  const snapshot: Record<string, unknown> = { repoPath };
+  for (const [key, argv] of commands) {
+    try {
+      const result = await runCommand(argv, { timeoutMs: 5_000, cwd: repoPath });
+      snapshot[key] = result.stdout.trim() || null;
+    } catch (err) {
+      snapshot[`${key}Error`] = (err as Error).message ?? String(err);
+    }
+  }
+  return snapshot;
+}
+
+function getPluginSourceRoot(): string {
+  return dirname(dirname(dirname(dirname(fileURLToPath(import.meta.url)))));
+}
+
+async function recordWorkFinishDiagnostic(
+  workspaceDir: string,
+  stage: string,
+  data: Record<string, unknown>,
+): Promise<void> {
+  await auditLog(workspaceDir, "loop_diagnostic", {
+    stage,
+    ...data,
+  });
+}
 
 /**
  * Check if this work_finish is completing a conflict resolution cycle.
@@ -83,9 +118,26 @@ async function validatePrExistsForDeveloper(
   runCommand: RunCommand,
   workspaceDir: string,
   projectSlug: string,
+  context: Record<string, unknown> = {},
 ): Promise<void> {
   try {
+    const repoSnapshot = await getGitSnapshot(repoPath, runCommand);
+    const pluginSourceRoot = getPluginSourceRoot();
+    const pluginSnapshot = await getGitSnapshot(pluginSourceRoot, runCommand);
     const prStatus = await provider.getPrStatus(issueId);
+
+    await recordWorkFinishDiagnostic(workspaceDir, "work_finish_pr_validation", {
+      project: projectSlug,
+      issueId,
+      ...context,
+      repoSnapshot,
+      pluginSourceRoot,
+      pluginSnapshot,
+      prUrl: prStatus.url ?? null,
+      prState: prStatus.state,
+      prSourceBranch: prStatus.sourceBranch ?? null,
+      prMergeable: prStatus.mergeable ?? null,
+    }).catch(() => {});
 
     // url is null when getPrStatus found no open or merged PR for this issue.
     // This covers both "no PR ever created" and "PR was closed without merging".
@@ -97,6 +149,16 @@ async function validatePrExistsForDeveloper(
       } catch {
         // Fall back to generic placeholder
       }
+
+      await recordWorkFinishDiagnostic(workspaceDir, "work_finish_pr_missing", {
+        project: projectSlug,
+        issueId,
+        ...context,
+        repoSnapshot,
+        pluginSourceRoot,
+        pluginSnapshot,
+        detectedBranch: branchName,
+      }).catch(() => {});
 
       throw new Error(
         `Cannot mark work_finish(done) without an open PR.\n\n` +
@@ -129,6 +191,19 @@ async function validatePrExistsForDeveloper(
     // rebase but before pushing, causing infinite dispatch loops (#482).
     const isConflictCycle = await isConflictResolutionCycle(workspaceDir, issueId);
 
+    await recordWorkFinishDiagnostic(workspaceDir, "work_finish_conflict_cycle_check", {
+      project: projectSlug,
+      issueId,
+      ...context,
+      isConflictCycle,
+      prUrl: prStatus.url ?? null,
+      prSourceBranch: prStatus.sourceBranch ?? null,
+      prMergeable: prStatus.mergeable ?? null,
+      repoSnapshot,
+      pluginSourceRoot,
+      pluginSnapshot,
+    }).catch(() => {});
+
     if (isConflictCycle && prStatus.mergeable === false) {
       await auditLog(workspaceDir, "work_finish_rejected", {
         project: projectSlug,
@@ -138,6 +213,18 @@ async function validatePrExistsForDeveloper(
       });
 
       const branchName = prStatus.sourceBranch || "your-branch";
+      await recordWorkFinishDiagnostic(workspaceDir, "work_finish_conflict_rejected", {
+        project: projectSlug,
+        issueId,
+        ...context,
+        prUrl: prStatus.url ?? null,
+        prSourceBranch: prStatus.sourceBranch ?? null,
+        detectedBranch: branchName,
+        prMergeable: prStatus.mergeable ?? null,
+        repoSnapshot,
+        pluginSourceRoot,
+        pluginSnapshot,
+      }).catch(() => {});
       throw new Error(
         `Cannot complete work_finish(done) while PR still shows merge conflicts.\n\n` +
         `✗ PR status: CONFLICTING\n` +
@@ -157,6 +244,17 @@ async function validatePrExistsForDeveloper(
     }
 
     if (isConflictCycle) {
+      await recordWorkFinishDiagnostic(workspaceDir, "work_finish_conflict_verified", {
+        project: projectSlug,
+        issueId,
+        ...context,
+        prUrl: prStatus.url ?? null,
+        prSourceBranch: prStatus.sourceBranch ?? null,
+        prMergeable: prStatus.mergeable ?? null,
+        repoSnapshot,
+        pluginSourceRoot,
+        pluginSnapshot,
+      }).catch(() => {});
       await auditLog(workspaceDir, "conflict_resolution_verified", {
         project: projectSlug,
         issue: issueId,
@@ -170,6 +268,12 @@ async function validatePrExistsForDeveloper(
     if (err instanceof Error && (err.message.startsWith("Cannot mark work_finish(done)") || err.message.startsWith("Cannot complete work_finish(done)"))) {
       throw err;
     }
+    await recordWorkFinishDiagnostic(workspaceDir, "work_finish_pr_validation_warning", {
+      project: projectSlug,
+      issueId,
+      ...context,
+      error: err instanceof Error ? err.message : String(err),
+    }).catch(() => {});
     console.warn(`PR validation warning for issue #${issueId}:`, err);
   }
 }
@@ -254,10 +358,26 @@ export function createWorkFinishTool(ctx: PluginContext) {
 
       const repoPath = resolveRepoPath(project.repo);
       const pluginConfig = ctx.pluginConfig;
+      const pluginSourceRoot = getPluginSourceRoot();
+      const context = {
+        channelId,
+        role,
+        result,
+        slotLevel,
+        slotIndex,
+        configuredRepoPath: repoPath,
+        pluginSourceRoot,
+      };
+
+      await recordWorkFinishDiagnostic(workspaceDir, "work_finish_execute_start", {
+        project: project.slug,
+        issueId,
+        ...context,
+      }).catch(() => {});
 
       // For developers marking work as done, validate that a PR exists
       if (role === "developer" && result === "done") {
-        await validatePrExistsForDeveloper(issueId, repoPath, provider, ctx.runCommand, workspaceDir, project.slug);
+        await validatePrExistsForDeveloper(issueId, repoPath, provider, ctx.runCommand, workspaceDir, project.slug, context);
       }
 
       const completion = await executeCompletion({

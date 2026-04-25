@@ -23,6 +23,7 @@ import {
   type Role,
 } from "../workflow/index.js";
 import { detectRoleLevelFromLabels, detectStepRouting, findNextIssueForRole } from "./queue-scan.js";
+import { evaluateLoopBrake, getLoopBrakeHoldLabel, recordLoopBrakeHalt } from "./loop-brake.js";
 
 // ---------------------------------------------------------------------------
 // projectTick
@@ -146,6 +147,41 @@ export async function projectTick(opts: {
     if (!next) continue;
 
     const { issue, label: currentLabel } = next;
+    const holdLabel = getLoopBrakeHoldLabel(workflow);
+    const loopBrake = await evaluateLoopBrake(workspaceDir, issue.iid);
+    if (holdLabel && loopBrake.blocked) {
+      const reason = `retry ceiling reached after ${loopBrake.events.length} recent non-progress loop events`;
+      await provider.transitionLabel(issue.iid, currentLabel, holdLabel);
+      await provider.addComment(
+        issue.iid,
+        [
+          "## Loop brake triggered",
+          "",
+          `Automatic redispatch has been halted for this issue after ${loopBrake.events.length} recent non-progress loop events within the retry window.`,
+          "",
+          `- from queue: \`${currentLabel}\``,
+          `- moved to hold: \`${holdLabel}\``,
+          `- threshold: ${loopBrake.threshold}`,
+          `- recent reasons: ${loopBrake.events.map((event) => event.reason).join(", ")}`,
+          "",
+          "Operator action is required to re-queue this issue.",
+        ].join("\n"),
+      );
+      await recordLoopBrakeHalt({
+        workspaceDir,
+        project: project.name,
+        issueId: issue.iid,
+        issueTitle: issue.title,
+        from: currentLabel,
+        to: holdLabel,
+        reason,
+        threshold: loopBrake.threshold,
+        events: loopBrake.events,
+      });
+      skipped.push({ role, reason: `Loop brake: #${issue.iid} moved to ${holdLabel}` });
+      continue;
+    }
+
     const targetLabel = getActiveLabel(workflow, role);
 
     // Step routing: check for review:human / review:skip / test:skip labels
