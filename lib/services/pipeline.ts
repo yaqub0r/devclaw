@@ -521,7 +521,9 @@ export async function executeCompletion(opts: {
       repoBranchMatchesSourceBranch: branchDecisionContext.repoBranch !== null && sourceBranch != null && branchDecisionContext.repoBranch === sourceBranch,
       pluginBranchMatchesSourceBranch: branchDecisionContext.pluginBranch !== null && sourceBranch != null && branchDecisionContext.pluginBranch === sourceBranch,
     },
+    branchResolutionDecision: branchDecisionContext.branchResolutionDecision ?? null,
     branchResolutionPreferredSource: branchDecisionContext.preferredBranchSource ?? null,
+    branchResolutionPreferredEvidence: branchDecisionContext.preferredBranchEvidence ?? null,
     preferredBranchConfidence: branchDecisionContext.preferredBranchConfidence ?? null,
     branchSelectionWinnerSummary: branchDecisionContext.branchSelectionWinnerSummary ?? null,
     branchWinnerDecisionSummary: branchDecisionContext.branchWinnerDecisionSummary ?? null,
@@ -541,6 +543,8 @@ export async function executeCompletion(opts: {
     duplicateSourceWinningRealPathGuess: branchDecisionContext.pluginSourceConfigSummary.likelyWinningLiveRealPath ?? null,
     duplicateSourceCompetingRealPaths: branchDecisionContext.pluginSourceConfigSummary.conflictingDevclawRealPaths,
     branchSourceCandidateDecisionTable: branchDecisionContext.branchSourceCandidateDecisionTable,
+    branchSourceCandidatesInPriorityOrder: branchDecisionContext.branchSourceCandidatesInPriorityOrder ?? null,
+    laneMismatchSummary: branchDecisionContext.branchMismatchSummary ?? null,
     laneMismatchCategory:
       branchDecisionContext.repoRealPath !== null && branchDecisionContext.pluginRealPath !== null && branchDecisionContext.repoRealPath !== branchDecisionContext.pluginRealPath
         ? "repo_plugin_realpath_mismatch"
@@ -566,6 +570,11 @@ export async function executeCompletion(opts: {
     prValidationBranchWinnerDecisionSummary: prValidationSummary?.branchWinnerDecisionSummary ?? null,
     prValidationBranchSelectionWinnerSummary: prValidationSummary?.branchSelectionWinnerSummary ?? null,
     prValidationBranchWinnerComparedToLaneSummary: prValidationSummary?.branchWinnerComparedToLaneSummary ?? null,
+    prValidationBranchResolutionPreferredSource: prValidationSummary?.preferredBranchSource ?? null,
+    prValidationPreferredBranchConfidence: prValidationSummary?.preferredBranchConfidence ?? null,
+    prValidationBranchSourceCandidateDecisionTable: prValidationSummary?.branchSourceCandidateDecisionTable ?? null,
+    prValidationBranchSourceCandidatesInPriorityOrder: prValidationSummary?.branchSourceCandidatesInPriorityOrder ?? null,
+    prValidationLaneMismatchSummary: prValidationSummary?.branchMismatchSummary ?? null,
 
   }).catch(() => {});
 
@@ -670,7 +679,9 @@ export async function executeCompletion(opts: {
       repoBranchMatchesSourceBranch: branchDecisionContext.repoBranch !== null && sourceBranch != null && branchDecisionContext.repoBranch === sourceBranch,
       pluginBranchMatchesSourceBranch: branchDecisionContext.pluginBranch !== null && sourceBranch != null && branchDecisionContext.pluginBranch === sourceBranch,
     },
+    branchResolutionDecision: branchDecisionContext.branchResolutionDecision ?? null,
     branchResolutionPreferredSource: branchDecisionContext.preferredBranchSource ?? null,
+    branchResolutionPreferredEvidence: branchDecisionContext.preferredBranchEvidence ?? null,
     preferredBranchConfidence: branchDecisionContext.preferredBranchConfidence ?? null,
     branchSelectionWinnerSummary: branchDecisionContext.branchSelectionWinnerSummary ?? null,
     branchWinnerDecisionSummary: branchDecisionContext.branchWinnerDecisionSummary ?? null,
@@ -690,6 +701,8 @@ export async function executeCompletion(opts: {
     duplicateSourceWinningRealPathGuess: branchDecisionContext.pluginSourceConfigSummary.likelyWinningLiveRealPath ?? null,
     duplicateSourceCompetingRealPaths: branchDecisionContext.pluginSourceConfigSummary.conflictingDevclawRealPaths,
     branchSourceCandidateDecisionTable: branchDecisionContext.branchSourceCandidateDecisionTable,
+    branchSourceCandidatesInPriorityOrder: branchDecisionContext.branchSourceCandidatesInPriorityOrder ?? null,
+    laneMismatchSummary: branchDecisionContext.branchMismatchSummary ?? null,
     laneMismatchCategory:
       branchDecisionContext.repoRealPath !== null && branchDecisionContext.pluginRealPath !== null && branchDecisionContext.repoRealPath !== branchDecisionContext.pluginRealPath
         ? "repo_plugin_realpath_mismatch"
@@ -715,6 +728,11 @@ export async function executeCompletion(opts: {
     prValidationBranchWinnerDecisionSummary: prValidationSummary?.branchWinnerDecisionSummary ?? null,
     prValidationBranchSelectionWinnerSummary: prValidationSummary?.branchSelectionWinnerSummary ?? null,
     prValidationBranchWinnerComparedToLaneSummary: prValidationSummary?.branchWinnerComparedToLaneSummary ?? null,
+    prValidationBranchResolutionPreferredSource: prValidationSummary?.preferredBranchSource ?? null,
+    prValidationPreferredBranchConfidence: prValidationSummary?.preferredBranchConfidence ?? null,
+    prValidationBranchSourceCandidateDecisionTable: prValidationSummary?.branchSourceCandidateDecisionTable ?? null,
+    prValidationBranchSourceCandidatesInPriorityOrder: prValidationSummary?.branchSourceCandidatesInPriorityOrder ?? null,
+    prValidationLaneMismatchSummary: prValidationSummary?.branchMismatchSummary ?? null,
 
   }).catch(() => {});
 

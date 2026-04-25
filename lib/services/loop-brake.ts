@@ -37,6 +37,7 @@ function buildEventAuditExcerpt(entry: AuditEntry): Record<string, unknown> {
     prValidationDecision: asString(entry.prValidationDecision) ?? null,
     prValidationLookupOutcome: asString(entry.prValidationLookupOutcome) ?? null,
     branchResolutionPreferredSource: asString(entry.branchResolutionPreferredSource) ?? asString(entry.preferredBranchSource) ?? null,
+    branchResolutionPreferredEvidence: asString(entry.branchResolutionPreferredEvidence) ?? null,
     preferredBranchConfidence: asString(entry.preferredBranchConfidence) ?? null,
     branchSelectionWinnerSummary: asString(entry.branchSelectionWinnerSummary) ?? null,
     branchWinnerDecisionSummary: asString(entry.branchWinnerDecisionSummary) ?? null,
@@ -46,8 +47,10 @@ function buildEventAuditExcerpt(entry: AuditEntry): Record<string, unknown> {
     duplicateSourceDecision: asString(entry.duplicateSourceDecision) ?? null,
     duplicateSourceWinningRealPathGuess: asString(entry.duplicateSourceWinningRealPathGuess) ?? null,
     duplicateSourceCompetingRealPaths: Array.isArray(entry.duplicateSourceCompetingRealPaths) ? entry.duplicateSourceCompetingRealPaths : null,
+    laneMismatchSummary: asString(entry.laneMismatchSummary) ?? null,
     laneMismatchCategory: asString(entry.laneMismatchCategory) ?? null,
     branchSourceCandidateDecisionTable: Array.isArray(entry.branchSourceCandidateDecisionTable) ? entry.branchSourceCandidateDecisionTable : null,
+    branchSourceCandidatesInPriorityOrder: Array.isArray(entry.branchSourceCandidatesInPriorityOrder) ? entry.branchSourceCandidatesInPriorityOrder : null,
     repoSnapshot: isRecord(entry.repoSnapshot) ? entry.repoSnapshot : null,
     pluginSnapshot: isRecord(entry.pluginSnapshot) ? entry.pluginSnapshot : null,
     canRequeueIssue: typeof entry.canRequeueIssue === "boolean" ? entry.canRequeueIssue : null,
@@ -120,7 +123,9 @@ export type LoopBrakeDecision = {
     rawBranchWinnerSummary?: string;
     rawDuplicateSourceDecision?: string;
     rawPreferredBranchSource?: string;
+    rawBranchResolutionPreferredEvidence?: string;
     rawPreferredBranchConfidence?: string;
+    rawLaneMismatchSummary?: string;
     rawLaneMismatchCategory?: string;
     rawDuplicateSourceRisk?: boolean | null;
     rawCanRequeueIssue?: boolean | null;
@@ -357,7 +362,9 @@ function toLoopEvent(entry: AuditEntry): LoopBrakeDecision["events"][number] | n
       rawBranchWinnerSummary: asString(entry.branchSelectionWinnerSummary) ?? asString(entry.branchWinnerDecisionSummary),
       rawDuplicateSourceDecision: asString(entry.duplicateSourceDecision),
       rawPreferredBranchSource: asString(entry.branchResolutionPreferredSource) ?? asString(entry.preferredBranchSource),
+      rawBranchResolutionPreferredEvidence: asString(entry.branchResolutionPreferredEvidence),
       rawPreferredBranchConfidence: asString(entry.preferredBranchConfidence),
+      rawLaneMismatchSummary: asString(entry.laneMismatchSummary),
       rawLaneMismatchCategory: asString(entry.laneMismatchCategory),
       rawDuplicateSourceRisk: typeof entry.duplicateSourceRisk === "boolean" ? entry.duplicateSourceRisk : null,
       rawCanRequeueIssue: typeof entry.canRequeueIssue === "boolean" ? entry.canRequeueIssue : null,
@@ -406,7 +413,9 @@ function toLoopEvent(entry: AuditEntry): LoopBrakeDecision["events"][number] | n
       rawBranchWinnerSummary: asString(entry.branchSelectionWinnerSummary) ?? asString(entry.branchWinnerDecisionSummary),
       rawDuplicateSourceDecision: asString(entry.duplicateSourceDecision),
       rawPreferredBranchSource: asString(entry.branchResolutionPreferredSource) ?? asString(entry.preferredBranchSource),
+      rawBranchResolutionPreferredEvidence: asString(entry.branchResolutionPreferredEvidence),
       rawPreferredBranchConfidence: asString(entry.preferredBranchConfidence),
+      rawLaneMismatchSummary: asString(entry.laneMismatchSummary),
       rawLaneMismatchCategory: asString(entry.laneMismatchCategory),
       rawDuplicateSourceRisk: typeof entry.duplicateSourceRisk === "boolean" ? entry.duplicateSourceRisk : null,
       rawCanRequeueIssue: typeof entry.canRequeueIssue === "boolean" ? entry.canRequeueIssue : null,
