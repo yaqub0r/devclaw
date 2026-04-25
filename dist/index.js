@@ -27471,7 +27471,8 @@ async function executeCompletion(opts) {
     pluginConfig,
     runtime,
     workflow = DEFAULT_WORKFLOW,
-    createdTasks
+    createdTasks,
+    prValidationSummary = null
   } = opts;
   const key = `${role}:${result}`;
   const rule = getCompletionRule(workflow, role, result);
@@ -27731,7 +27732,13 @@ async function executeCompletion(opts) {
     laneMismatchCategory: branchDecisionContext.repoRealPath !== null && branchDecisionContext.pluginRealPath !== null && branchDecisionContext.repoRealPath !== branchDecisionContext.pluginRealPath ? "repo_plugin_realpath_mismatch" : branchDecisionContext.repoBranch !== null && branchDecisionContext.pluginBranch !== null && branchDecisionContext.repoBranch !== branchDecisionContext.pluginBranch ? "repo_plugin_branch_mismatch" : "lane_aligned_or_unresolved",
     transitionReasonCategory: transitionedTo === "Refining" ? `work_finish_${result}` : transitionedTo === "To Review" ? "developer_done_to_review" : transitionedTo === "To Improve" ? "tester_fail_to_improve" : transitionedTo === "Done" ? `${role}_${result}_to_done` : `${role}_${result}_transition`,
     refiningDecisionPath: transitionedTo === "Refining" ? `completion rule ${key} routes directly to Refining because role=${role} result=${result} is defined as a human-intervention hold transition` : null,
-    decisionPath: `completion rule ${key} selected workflow transition ${rule.from} -> ${transitionedTo}`
+    decisionPath: `completion rule ${key} selected workflow transition ${rule.from} -> ${transitionedTo}`,
+    prValidationSummary,
+    prValidationLookupOutcome: prValidationSummary?.lookupOutcome ?? null,
+    prValidationDecision: prValidationSummary?.branchResolutionDecision ?? null,
+    prValidationBranchWinnerDecisionSummary: prValidationSummary?.branchWinnerDecisionSummary ?? null,
+    prValidationBranchSelectionWinnerSummary: prValidationSummary?.branchSelectionWinnerSummary ?? null,
+    prValidationBranchWinnerComparedToLaneSummary: prValidationSummary?.branchWinnerComparedToLaneSummary ?? null
   }).catch(() => {
   });
   try {
@@ -27776,7 +27783,13 @@ async function executeCompletion(opts) {
       errorName: err instanceof Error ? err.name : null,
       transitionReasonCategory: transitionedTo === "Refining" ? `work_finish_${result}` : transitionedTo === "To Review" ? "developer_done_to_review" : transitionedTo === "To Improve" ? "tester_fail_to_improve" : transitionedTo === "Done" ? `${role}_${result}_to_done` : `${role}_${result}_transition`,
       refiningDecisionPath: transitionedTo === "Refining" ? `completion rule ${key} would have routed to Refining because role=${role} result=${result} is a hold transition, but provider.transitionLabel failed` : null,
-      decisionPath: `completion rule ${key} attempted workflow transition ${rule.from} -> ${transitionedTo}, but provider.transitionLabel threw before the transition could be recorded as complete`
+      decisionPath: `completion rule ${key} attempted workflow transition ${rule.from} -> ${transitionedTo}, but provider.transitionLabel threw before the transition could be recorded as complete`,
+      prValidationSummary,
+      prValidationLookupOutcome: prValidationSummary?.lookupOutcome ?? null,
+      prValidationDecision: prValidationSummary?.branchResolutionDecision ?? null,
+      prValidationBranchWinnerDecisionSummary: prValidationSummary?.branchWinnerDecisionSummary ?? null,
+      prValidationBranchSelectionWinnerSummary: prValidationSummary?.branchSelectionWinnerSummary ?? null,
+      prValidationBranchWinnerComparedToLaneSummary: prValidationSummary?.branchWinnerComparedToLaneSummary ?? null
     }).catch(() => {
     });
     throw err;
@@ -27818,7 +27831,13 @@ async function executeCompletion(opts) {
     laneMismatchCategory: branchDecisionContext.repoRealPath !== null && branchDecisionContext.pluginRealPath !== null && branchDecisionContext.repoRealPath !== branchDecisionContext.pluginRealPath ? "repo_plugin_realpath_mismatch" : branchDecisionContext.repoBranch !== null && branchDecisionContext.pluginBranch !== null && branchDecisionContext.repoBranch !== branchDecisionContext.pluginBranch ? "repo_plugin_branch_mismatch" : "lane_aligned_or_unresolved",
     transitionReasonCategory: transitionedTo === "Refining" ? `work_finish_${result}` : transitionedTo === "To Review" ? "developer_done_to_review" : transitionedTo === "To Improve" ? "tester_fail_to_improve" : transitionedTo === "Done" ? `${role}_${result}_to_done` : `${role}_${result}_transition`,
     refiningDecisionPath: transitionedTo === "Refining" ? `completion rule ${key} completed a direct hold transition into Refining because role=${role} result=${result} requires human intervention` : null,
-    decisionPath: `completion rule ${key} completed workflow transition ${rule.from} -> ${transitionedTo}`
+    decisionPath: `completion rule ${key} completed workflow transition ${rule.from} -> ${transitionedTo}`,
+    prValidationSummary,
+    prValidationLookupOutcome: prValidationSummary?.lookupOutcome ?? null,
+    prValidationDecision: prValidationSummary?.branchResolutionDecision ?? null,
+    prValidationBranchWinnerDecisionSummary: prValidationSummary?.branchWinnerDecisionSummary ?? null,
+    prValidationBranchSelectionWinnerSummary: prValidationSummary?.branchSelectionWinnerSummary ?? null,
+    prValidationBranchWinnerComparedToLaneSummary: prValidationSummary?.branchWinnerComparedToLaneSummary ?? null
   }).catch(() => {
   });
   for (const action of rule.actions) {
@@ -28215,6 +28234,19 @@ async function validatePrExistsForDeveloper(issueId, repoPath, provider, runComm
       pluginSnapshot,
       prSourceBranch: prStatus.sourceBranch ?? null
     });
+    const validationSummary = {
+      lookupOutcome: "pr_found",
+      prUrl: prStatus.url ?? null,
+      prState: prStatus.state ?? null,
+      prSourceBranch: prStatus.sourceBranch ?? null,
+      prMergeable: typeof prStatus.mergeable === "boolean" ? prStatus.mergeable : null,
+      isConflictCycle: null,
+      branchResolution,
+      branchResolutionDecision: branchResolution.repoBranchMatchesPrSourceBranch === true ? "repo branch matches PR source branch" : branchResolution.repoHeadPointsAtPrSourceBranch === true ? "repo HEAD points at PR source branch even though branch --show-current did not match" : branchResolution.pluginBranchMatchesPrSourceBranch === true ? "plugin branch matches PR source branch but configured repo branch does not" : branchResolution.pluginHeadPointsAtPrSourceBranch === true ? "plugin HEAD points at PR source branch even though branch --show-current did not match" : "neither configured repo branch nor plugin branch matches PR source branch",
+      branchWinnerDecisionSummary: typeof branchResolution.branchWinnerDecisionSummary === "string" ? branchResolution.branchWinnerDecisionSummary : null,
+      branchSelectionWinnerSummary: typeof branchResolution.branchSelectionWinnerSummary === "string" ? branchResolution.branchSelectionWinnerSummary : null,
+      branchWinnerComparedToLaneSummary: typeof branchResolution.branchWinnerComparedToLaneSummary === "string" ? branchResolution.branchWinnerComparedToLaneSummary : null
+    };
     await recordWorkFinishDiagnostic(workspaceDir, "work_finish_pr_validation", {
       project: projectSlug,
       issueId,
@@ -28258,6 +28290,7 @@ async function validatePrExistsForDeveloper(issueId, repoPath, provider, runComm
         })
       }).catch(() => {
       });
+      validationSummary.lookupOutcome = "pr_missing";
       throw new Error(
         `Cannot mark work_finish(done) without an open PR.
 
@@ -28277,6 +28310,7 @@ Then call work_finish again.`
     } catch {
     }
     const isConflictCycle = await isConflictResolutionCycle(workspaceDir, issueId);
+    validationSummary.isConflictCycle = isConflictCycle;
     await recordWorkFinishDiagnostic(workspaceDir, "work_finish_conflict_cycle_check", {
       project: projectSlug,
       issueId,
@@ -28300,6 +28334,7 @@ Then call work_finish again.`
         prUrl: prStatus.url
       });
       const branchName = prStatus.sourceBranch || "your-branch";
+      validationSummary.lookupOutcome = "conflict_cycle_rejected";
       await recordWorkFinishDiagnostic(workspaceDir, "work_finish_conflict_rejected", {
         project: projectSlug,
         issueId,
@@ -28338,6 +28373,7 @@ Once the PR shows as mergeable on GitHub, call work_finish again.`
       );
     }
     if (isConflictCycle) {
+      validationSummary.lookupOutcome = "conflict_cycle_verified";
       await recordWorkFinishDiagnostic(workspaceDir, "work_finish_conflict_verified", {
         project: projectSlug,
         issueId,
@@ -28358,6 +28394,7 @@ Once the PR shows as mergeable on GitHub, call work_finish again.`
         mergeable: prStatus.mergeable
       });
     }
+    return validationSummary;
   } catch (err) {
     if (err instanceof Error && (err.message.startsWith("Cannot mark work_finish(done)") || err.message.startsWith("Cannot complete work_finish(done)"))) {
       throw err;
@@ -28370,6 +28407,19 @@ Once the PR shows as mergeable on GitHub, call work_finish again.`
     }).catch(() => {
     });
     console.warn(`PR validation warning for issue #${issueId}:`, err);
+    return {
+      lookupOutcome: "validation_warning",
+      prUrl: null,
+      prState: null,
+      prSourceBranch: null,
+      prMergeable: null,
+      isConflictCycle: null,
+      branchResolution: {},
+      branchResolutionDecision: err instanceof Error ? err.message : String(err),
+      branchWinnerDecisionSummary: null,
+      branchSelectionWinnerSummary: null,
+      branchWinnerComparedToLaneSummary: null
+    };
   }
 }
 function createWorkFinishTool(ctx) {
@@ -28540,9 +28590,10 @@ function createWorkFinishTool(ctx) {
         laneMismatchSummary: initialBranchResolution.branchMismatchSummary
       }).catch(() => {
       });
+      let prValidationSummary = null;
       try {
         if (role === "developer" && result === "done") {
-          await validatePrExistsForDeveloper(issueId, repoPath, provider, ctx.runCommand, workspaceDir, project.slug, context);
+          prValidationSummary = await validatePrExistsForDeveloper(issueId, repoPath, provider, ctx.runCommand, workspaceDir, project.slug, context);
         }
         const completion = await executeCompletion({
           workspaceDir,
@@ -28562,6 +28613,7 @@ function createWorkFinishTool(ctx) {
           runtime: ctx.runtime,
           workflow,
           createdTasks,
+          prValidationSummary,
           runCommand: ctx.runCommand
         });
         await log(workspaceDir, "work_finish", {
@@ -28589,6 +28641,11 @@ function createWorkFinishTool(ctx) {
           summary: summary ?? null,
           prUrl: prUrl ?? null,
           createdTaskIds: createdTasks?.map((task) => task.id) ?? [],
+          prValidationSummary,
+          prValidationLookupOutcome: prValidationSummary?.lookupOutcome ?? null,
+          prValidationBranchResolutionDecision: prValidationSummary?.branchResolutionDecision ?? null,
+          prValidationBranchWinnerDecisionSummary: prValidationSummary?.branchWinnerDecisionSummary ?? null,
+          prValidationBranchWinnerComparedToLaneSummary: prValidationSummary?.branchWinnerComparedToLaneSummary ?? null,
           error: err.message ?? String(err),
           errorName: err instanceof Error ? err.name : null,
           decisionPath: role === "developer" && result === "done" ? "work_finish failed during developer done handling, after start-time branch/worktree/plugin-source diagnostics were recorded" : "work_finish failed after start-time branch/worktree/plugin-source diagnostics were recorded"

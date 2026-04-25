@@ -172,6 +172,20 @@ export async function executeCompletion(opts: {
   workflow?: WorkflowConfig;
   /** Tasks created during this work session (e.g. architect implementation tasks) */
   createdTasks?: Array<{ id: number; title: string; url: string }>;
+  /** PR validation summary captured by work_finish before transition logic */
+  prValidationSummary?: {
+    lookupOutcome: string;
+    prUrl: string | null;
+    prState: string | null;
+    prSourceBranch: string | null;
+    prMergeable: boolean | null;
+    isConflictCycle: boolean | null;
+    branchResolution: Record<string, unknown>;
+    branchResolutionDecision: string;
+    branchWinnerDecisionSummary: string | null;
+    branchSelectionWinnerSummary: string | null;
+    branchWinnerComparedToLaneSummary: string | null;
+  } | null;
   /** Level of the completing worker */
   level?: string;
   /** Slot index within the level's array */
@@ -184,6 +198,7 @@ export async function executeCompletion(opts: {
     repoPath, projectName, channels, pluginConfig, runtime,
     workflow = DEFAULT_WORKFLOW,
     createdTasks,
+    prValidationSummary = null,
   } = opts;
 
   const key = `${role}:${result}`;
@@ -545,6 +560,13 @@ export async function executeCompletion(opts: {
       ? `completion rule ${key} routes directly to Refining because role=${role} result=${result} is defined as a human-intervention hold transition`
       : null,
     decisionPath: `completion rule ${key} selected workflow transition ${rule.from} -> ${transitionedTo}`,
+    prValidationSummary,
+    prValidationLookupOutcome: prValidationSummary?.lookupOutcome ?? null,
+    prValidationDecision: prValidationSummary?.branchResolutionDecision ?? null,
+    prValidationBranchWinnerDecisionSummary: prValidationSummary?.branchWinnerDecisionSummary ?? null,
+    prValidationBranchSelectionWinnerSummary: prValidationSummary?.branchSelectionWinnerSummary ?? null,
+    prValidationBranchWinnerComparedToLaneSummary: prValidationSummary?.branchWinnerComparedToLaneSummary ?? null,
+
   }).catch(() => {});
 
   try {
@@ -614,6 +636,13 @@ export async function executeCompletion(opts: {
         ? `completion rule ${key} would have routed to Refining because role=${role} result=${result} is a hold transition, but provider.transitionLabel failed`
         : null,
       decisionPath: `completion rule ${key} attempted workflow transition ${rule.from} -> ${transitionedTo}, but provider.transitionLabel threw before the transition could be recorded as complete`,
+      prValidationSummary,
+      prValidationLookupOutcome: prValidationSummary?.lookupOutcome ?? null,
+      prValidationDecision: prValidationSummary?.branchResolutionDecision ?? null,
+      prValidationBranchWinnerDecisionSummary: prValidationSummary?.branchWinnerDecisionSummary ?? null,
+      prValidationBranchSelectionWinnerSummary: prValidationSummary?.branchSelectionWinnerSummary ?? null,
+      prValidationBranchWinnerComparedToLaneSummary: prValidationSummary?.branchWinnerComparedToLaneSummary ?? null,
+
     }).catch(() => {});
     throw err;
   }
@@ -680,6 +709,13 @@ export async function executeCompletion(opts: {
       ? `completion rule ${key} completed a direct hold transition into Refining because role=${role} result=${result} requires human intervention`
       : null,
     decisionPath: `completion rule ${key} completed workflow transition ${rule.from} -> ${transitionedTo}`,
+    prValidationSummary,
+    prValidationLookupOutcome: prValidationSummary?.lookupOutcome ?? null,
+    prValidationDecision: prValidationSummary?.branchResolutionDecision ?? null,
+    prValidationBranchWinnerDecisionSummary: prValidationSummary?.branchWinnerDecisionSummary ?? null,
+    prValidationBranchSelectionWinnerSummary: prValidationSummary?.branchSelectionWinnerSummary ?? null,
+    prValidationBranchWinnerComparedToLaneSummary: prValidationSummary?.branchWinnerComparedToLaneSummary ?? null,
+
   }).catch(() => {});
 
   // Execute post-transition actions
