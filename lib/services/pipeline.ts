@@ -561,9 +561,12 @@ export async function executeCompletion(opts: {
     branchResolutionPreferredSource: branchDecisionContext.preferredBranchSource ?? null,
     branchResolutionPreferredEvidence: branchDecisionContext.preferredBranchEvidence ?? null,
     preferredBranchConfidence: branchDecisionContext.preferredBranchConfidence ?? null,
+    branchSelectionDecision: branchDecisionContext.branchResolutionDecision ?? null,
     branchSelectionWinnerSummary: branchDecisionContext.branchSelectionWinnerSummary ?? null,
     branchWinnerDecisionSummary: branchDecisionContext.branchWinnerDecisionSummary ?? null,
     branchWinnerComparedToLaneSummary: branchDecisionContext.branchWinnerComparedToLaneSummary ?? null,
+    headCommitComparisonCategory: branchDecisionContext.headCommitComparisonCategory ?? null,
+    headCommitDecisionSummary: branchDecisionContext.headCommitDecisionSummary ?? null,
     openclawConfigInstallSourcePath: branchDecisionContext.openclawConfigInstallSourcePath ?? null,
     openclawConfigInstallSourceRealPath: branchDecisionContext.openclawConfigInstallSourceRealPath ?? null,
     openclawConfigInstallPath: branchDecisionContext.openclawConfigInstallPath ?? null,
@@ -621,7 +624,15 @@ export async function executeCompletion(opts: {
     duplicateSourceCompetingRealPaths: branchDecisionContext.pluginSourceConfigSummary.conflictingDevclawRealPaths,
     branchSourceCandidateDecisionTable: branchDecisionContext.branchSourceCandidateDecisionTable,
     branchSourceCandidateDiagnostics: branchDecisionContext.branchSourceCandidateDiagnostics ?? null,
+    branchSelectionCandidateSnapshot: branchDecisionContext.branchSourceCandidatesInPriorityOrder ?? null,
+    branchSelectionCandidateDecisionTable: branchDecisionContext.branchSourceCandidateDiagnostics ?? null,
     branchSourceCandidatesInPriorityOrder: branchDecisionContext.branchSourceCandidatesInPriorityOrder ?? null,
+    laneMismatchDecision:
+      branchDecisionContext.repoAndPluginSameRealPath === true
+        ? branchDecisionContext.repoAndPluginSameBranch === true
+          ? "configured repo path and live plugin appear to be the same lane during transition planning"
+          : "configured repo path and live plugin share a realpath but report different branches during transition planning"
+        : "configured repo path and live plugin resolve to different realpaths during transition planning",
     laneMismatchSummary: branchDecisionContext.branchMismatchSummary ?? null,
     laneMismatchCategory:
       branchDecisionContext.repoRealPath !== null && branchDecisionContext.pluginRealPath !== null && branchDecisionContext.repoRealPath !== branchDecisionContext.pluginRealPath
@@ -702,9 +713,12 @@ export async function executeCompletion(opts: {
       },
       branchResolutionPreferredSource: branchDecisionContext.preferredBranchSource ?? null,
       preferredBranchConfidence: branchDecisionContext.preferredBranchConfidence ?? null,
+      branchSelectionDecision: branchDecisionContext.branchResolutionDecision ?? null,
       branchSelectionWinnerSummary: branchDecisionContext.branchSelectionWinnerSummary ?? null,
       branchWinnerDecisionSummary: branchDecisionContext.branchWinnerDecisionSummary ?? null,
       branchWinnerComparedToLaneSummary: branchDecisionContext.branchWinnerComparedToLaneSummary ?? null,
+      headCommitComparisonCategory: branchDecisionContext.headCommitComparisonCategory ?? null,
+      headCommitDecisionSummary: branchDecisionContext.headCommitDecisionSummary ?? null,
       liveSourceDecision:
         branchDecisionContext.openclawConfigInstallSourceRealPath && branchDecisionContext.pluginRealPath
           ? branchDecisionContext.openclawConfigInstallSourceRealPath === branchDecisionContext.pluginRealPath
@@ -721,6 +735,14 @@ export async function executeCompletion(opts: {
       duplicateSourceCompetingRealPaths: branchDecisionContext.pluginSourceConfigSummary.conflictingDevclawRealPaths,
       branchSourceCandidateDecisionTable: branchDecisionContext.branchSourceCandidateDecisionTable,
       branchSourceCandidateDiagnostics: branchDecisionContext.branchSourceCandidateDiagnostics ?? null,
+      branchSelectionCandidateSnapshot: branchDecisionContext.branchSourceCandidatesInPriorityOrder ?? null,
+      branchSelectionCandidateDecisionTable: branchDecisionContext.branchSourceCandidateDiagnostics ?? null,
+      laneMismatchDecision:
+        branchDecisionContext.repoAndPluginSameRealPath === true
+          ? branchDecisionContext.repoAndPluginSameBranch === true
+            ? "configured repo path and live plugin appear to be the same lane while transition failure was recorded"
+            : "configured repo path and live plugin share a realpath but report different branches while transition failure was recorded"
+          : "configured repo path and live plugin resolve to different realpaths while transition failure was recorded",
       laneMismatchCategory:
         branchDecisionContext.repoRealPath !== null && branchDecisionContext.pluginRealPath !== null && branchDecisionContext.repoRealPath !== branchDecisionContext.pluginRealPath
           ? "repo_plugin_realpath_mismatch"
@@ -794,9 +816,12 @@ export async function executeCompletion(opts: {
     branchResolutionPreferredSource: branchDecisionContext.preferredBranchSource ?? null,
     branchResolutionPreferredEvidence: branchDecisionContext.preferredBranchEvidence ?? null,
     preferredBranchConfidence: branchDecisionContext.preferredBranchConfidence ?? null,
+    branchSelectionDecision: branchDecisionContext.branchResolutionDecision ?? null,
     branchSelectionWinnerSummary: branchDecisionContext.branchSelectionWinnerSummary ?? null,
     branchWinnerDecisionSummary: branchDecisionContext.branchWinnerDecisionSummary ?? null,
     branchWinnerComparedToLaneSummary: branchDecisionContext.branchWinnerComparedToLaneSummary ?? null,
+    headCommitComparisonCategory: branchDecisionContext.headCommitComparisonCategory ?? null,
+    headCommitDecisionSummary: branchDecisionContext.headCommitDecisionSummary ?? null,
     openclawConfigInstallSourcePath: branchDecisionContext.openclawConfigInstallSourcePath ?? null,
     openclawConfigInstallSourceRealPath: branchDecisionContext.openclawConfigInstallSourceRealPath ?? null,
     openclawConfigInstallPath: branchDecisionContext.openclawConfigInstallPath ?? null,
@@ -854,7 +879,15 @@ export async function executeCompletion(opts: {
     duplicateSourceCompetingRealPaths: branchDecisionContext.pluginSourceConfigSummary.conflictingDevclawRealPaths,
     branchSourceCandidateDecisionTable: branchDecisionContext.branchSourceCandidateDecisionTable,
     branchSourceCandidateDiagnostics: branchDecisionContext.branchSourceCandidateDiagnostics ?? null,
+    branchSelectionCandidateSnapshot: branchDecisionContext.branchSourceCandidatesInPriorityOrder ?? null,
+    branchSelectionCandidateDecisionTable: branchDecisionContext.branchSourceCandidateDiagnostics ?? null,
     branchSourceCandidatesInPriorityOrder: branchDecisionContext.branchSourceCandidatesInPriorityOrder ?? null,
+    laneMismatchDecision:
+      branchDecisionContext.repoAndPluginSameRealPath === true
+        ? branchDecisionContext.repoAndPluginSameBranch === true
+          ? "configured repo path and live plugin appear to be the same lane after transition completion"
+          : "configured repo path and live plugin share a realpath but report different branches after transition completion"
+        : "configured repo path and live plugin resolve to different realpaths after transition completion",
     laneMismatchSummary: branchDecisionContext.branchMismatchSummary ?? null,
     laneMismatchCategory:
       branchDecisionContext.repoRealPath !== null && branchDecisionContext.pluginRealPath !== null && branchDecisionContext.repoRealPath !== branchDecisionContext.pluginRealPath
