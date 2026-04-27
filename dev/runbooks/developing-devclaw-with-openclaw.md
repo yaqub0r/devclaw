@@ -1,54 +1,85 @@
 # Developing DevClaw with OpenClaw
 
-This guide covers the generic workflow for developing DevClaw while running DevClaw through OpenClaw.
+This runbook is the local-first operator policy for working on DevClaw while DevClaw is your active orchestrator.
+It lives under `/dev` because these rules are first-class local operating docs and must be preserved on `devclaw-local-current`.
 
-It is intentionally environment-agnostic. If your machine or fork has local policy, branch names, or operator habits layered on top, keep those in local-only docs and link back here.
-This runbook lives under `dev/runbooks/` because it is self-hosting and developer-facing guidance, not release-user documentation.
+## Local-first branch policy
 
-## What this guide is for
+Treat these branch roles as the working contract:
 
-Use this when you are:
+- `devclaw-local-current`: local truth and day-to-day working lane
+- `devclaw-local-stable`: local fallback lane when `devclaw-local-current` is too noisy or risky
+- `issue/*`: local implementation branches for scoped work
+- `pr/*`: export branches prepared for upstream review
 
-- editing DevClaw source while DevClaw is your active orchestrator
-- switching the live plugin source between branches or worktrees
-- validating that a branch change actually became the runtime source
-- avoiding duplicate plugin-source loads during local development
+Upstream `main` is a reference point and export target. It is not the normal day-to-day base for local work.
 
-## Core idea
+## Operating model
+
+1. Keep local docs and operator runbooks on `devclaw-local-current`.
+2. Start implementation from `devclaw-local-current` into an `issue/*` branch when you need isolated task work.
+3. Land validated work back onto `devclaw-local-current` so local truth stays complete.
+4. When work needs to go upstream, export it onto a matching `pr/*` branch.
+5. Preserve the `/dev/` documentation changes on `devclaw-local-current` even when the upstream export omits local-only material.
+
+## Export policy
+
+Use `pr/*` for upstream-facing export branches, not `contrib/*`.
+
+Typical flow:
+
+1. implement and validate locally
+2. land the accepted result on `devclaw-local-current`
+3. create or refresh the corresponding `pr/*` branch for upstream review
+4. push the `pr/*` branch to the fork remote
+
+Upstream review material should be prepared from `pr/*`, while `devclaw-local-current` remains the complete local operating branch.
+
+## Traceability rule
+
+When exporting work upstream, keep matching exported commits on `devclaw-local-current`.
+
+That means:
+
+- the code or doc change sent upstream should also exist on `devclaw-local-current`
+- if the export needs cleanup, splitting, or local-doc omission, keep a clearly corresponding commit history or note the mapping in the handoff
+- do not treat the `pr/*` branch as the only canonical copy of the work
+
+The point of the export is to publish local truth, not replace it.
+
+## PR handoff policy
+
+The agent should not open the upstream PR itself.
+
+Instead, as part of the operator handoff, the agent should prepare:
+
+- the compare or diff URL for the `pr/*` branch against upstream `main`
+- the proposed PR title
+- the proposed PR body
+
+This handoff gives the operator a ready-to-submit upstream PR package while keeping the actual PR opening step under operator control.
+
+## Live-source safety checks
 
 A branch does not become live because you checked it out.
-
 A branch becomes live when OpenClaw is loading the DevClaw plugin from that checkout or worktree.
 
-That means branch switching for DevClaw development is really a **plugin source switch** followed by a **runtime verification** step.
+Before trusting a branch switch:
 
-## Recommended branch roles
+```bash
+openclaw plugins inspect devclaw
+openclaw gateway status
+git -C <live-source-root> rev-parse --abbrev-ref HEAD
+git -C <live-source-root> rev-parse HEAD
+```
 
-These are roles, not mandatory branch names:
+Use these checks to confirm:
 
-- **clean integration branch**: the branch that tracks the normal upstream line
-- **working branch**: a feature or fix branch carrying in-progress changes
-- **fallback branch**: an optional known-good branch you can switch back to quickly
-- **local docs branch**: an optional branch for operator runbooks that are not meant for upstream
+- which path is actually live
+- which branch that path is on
+- which exact commit is running
 
-Use names that fit your repo. The workflow matters more than the naming.
-
-## Safe live-switch procedure
-
-When changing the live DevClaw source during development:
-
-1. Choose the target checkout or worktree.
-2. Build that target source tree.
-3. Confirm the built artifact exists.
-4. Make sure only one DevClaw plugin source is active.
-5. Point OpenClaw at the intended source path.
-6. Restart the gateway.
-7. Verify the loaded plugin path.
-8. Verify the exact live git commit.
-
-## Build before switching
-
-Before switching live, verify the target source tree has a built artifact:
+## Build before switching live
 
 ```bash
 test -f <target-source-root>/dist/index.js && echo built || echo missing-dist
@@ -56,154 +87,11 @@ test -f <target-source-root>/dist/index.js && echo built || echo missing-dist
 
 If `dist/index.js` is missing, build first and do not switch the live source yet.
 
-## Verify the live source path
+## Duplicate-source warning
 
-The source of truth is the live plugin inspection output, not memory and not the checkout you happen to be editing.
+Do not trust a switch if DevClaw may be loading from more than one source, for example:
 
-```bash
-openclaw plugins inspect devclaw
-openclaw gateway status
-```
+- `~/.openclaw/extensions/devclaw`
+- a path or worktree entry in `plugins.load.paths[]`
 
-Use `openclaw plugins inspect devclaw` to answer:
-
-- what path is actually live
-- which plugin version is loaded
-
-Important distinction:
-
-- `inspect` tells you **what path is live**
-- git tells you **what commit that path contains**
-
-## Verify the exact live commit
-
-Once you know the live source path, resolve that path back to the checkout or worktree root and verify the commit directly:
-
-```bash
-openclaw plugins inspect devclaw
-git -C <live-source-root> rev-parse HEAD
-```
-
-Do not assume that the installed extension directory or your current shell checkout is the live commit.
-
-## Stronger proof for linked local installs
-
-If you are using a linked local install and want stronger proof that the live plugin really comes from the intended worktree, verify both the install path target and the branch name:
-
-```bash
-openclaw plugins inspect devclaw
-readlink -f ~/.openclaw/extensions/devclaw
-git -C <intended-worktree> rev-parse --abbrev-ref HEAD
-git -C <intended-worktree> rev-parse HEAD
-```
-
-This gives you four checks:
-
-- the live plugin id and loaded source
-- the real filesystem target behind the installed extension path
-- the branch name of the intended worktree
-- the exact commit of that worktree
-
-For example, if you intend to run from a `devclaw-local-stable` worktree, these checks should agree on both the path and the branch identity before you treat the switch as complete.
-
-## Avoid duplicate plugin-source collisions
-
-A common failure mode is loading DevClaw from more than one place at once, for example:
-
-- an installed copy under `~/.openclaw/extensions/devclaw`
-- and a path/worktree load via `plugins.load.paths[]`
-
-If both are in play, the gateway may load a different source than the one you intended.
-
-If startup logs mention duplicate plugin ids or the runtime path does not match your expected worktree, stop and clean up the duplicate before trusting the switch.
-
-## When a live switch failed
-
-Treat the switch as failed if any of the following happen:
-
-- `openclaw plugins inspect devclaw` reports the wrong source path
-- the plugin is missing after restart
-- startup logs show duplicate plugin warnings
-- the target source tree has no `dist/index.js`
-- the gateway is still loading an older installed copy
-
-In that case:
-
-1. verify the target build artifact exists
-2. inspect the live plugin path again
-3. remove or disable competing DevClaw plugin sources
-4. restart and verify again
-
-## Generic smoke test for a running environment
-
-Use this when you want to verify a local DevClaw install in an already-running environment without creating new projects or tasks.
-
-## Tracker routing verification for fork-based installs
-
-If your local checkout has both a fork and an upstream remote, do not trust ambient GitHub CLI repo inference.
-
-Before relying on issue-creation flows, verify both the configured tracker target and the checkout's ambient `gh` target:
-
-```bash
-python3 - <<'PY'
-import json
-p=json.load(open('devclaw/projects.json'))['projects']['devclaw']
-print(p['repoRemote'])
-PY
-git -C <repo-or-worktree> remote -v
-gh repo view --json nameWithOwner --jq .nameWithOwner
-```
-
-Expected safety rule:
-
-- DevClaw issue/task tooling must route to the repository configured in `projects.json`
-- it must not drift to the repo that `gh` happens to infer from the checkout context
-
-When validating a fix for tracker-routing bugs, record both:
-
-- a pre-change proof showing config target versus ambient `gh` target
-- a post-change proof showing issue/task creation calls explicitly target the configured repo
-
-Read-only checks:
-
-```bash
-openclaw plugins inspect devclaw
-openclaw plugins list
-openclaw gateway status
-openclaw agent --agent <agent-id> --message 'Call project_status with channelId "<channel-id>" and reply with the result only.' --json
-openclaw agent --agent <agent-id> --message 'Call tasks_status and reply with the result only.' --json
-openclaw agent --agent <agent-id> --message 'Call channel_list and reply with the result only.' --json
-```
-
-What this verifies:
-
-- the plugin is loaded
-- the gateway is healthy
-- the live agent can read local project state
-- the live agent can read tracker-backed task state
-- channel bindings are visible
-
-Expected result note:
-
-- in an unbound DM or admin session, `project_status` and `tasks_status` may correctly return `No project found` for that channel
-- treat that as a passing result for this smoke test unless you were specifically testing a known project-bound chat
-
-Avoid using project-creating or task-creating commands for smoke tests in a shared live environment unless you also have an explicit cleanup plan.
-
-## Keep generic guidance separate from local policy
-
-Generic repo docs should cover:
-
-- the branch/worktree switching model
-- build and verification steps
-- duplicate-source failure modes
-- how to reason about live source versus checked-out source
-
-Local-only docs should cover:
-
-- branch names used on one machine or fork
-- preferred fallback lanes
-- machine-specific paths
-- personal or operator-specific workflow habits
-
-That separation keeps the main docs useful in any environment while still allowing strong local runbooks.
+If the runtime path is wrong or duplicate plugin ids appear in logs, clean that up before continuing.
