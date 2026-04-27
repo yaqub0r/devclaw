@@ -79,6 +79,25 @@ Use these checks to confirm:
 - which branch that path is on
 - which exact commit is running
 
+## Self-hosted install rule
+
+This runbook is mandatory for live self-hosted DevClaw installs and reloads. It is not optional guidance.
+
+When the task is to install or reload DevClaw into the live self-hosted environment, use the self-hosting document as the install procedure source of truth and follow it strictly, step by step.
+
+Do not improvise the install from memory.
+Do not substitute an isolated validation worktree for a real live self-hosted install when the task explicitly calls for live-environment validation.
+Do not branch into an ad hoc debug flow just because the install hits friction.
+
+If a change is prepared on `pr/*`, merge or carry that validated change back onto `devclaw-local-current` before treating it as the normal live operating branch.
+
+When friction appears, continue with the next documented runbook step.
+If the runbook says to clean up a collision, clean up the collision.
+If the runbook says to restart and verify again, restart and verify again.
+
+If the self-hosting document is missing, stale, or does not cover a required live-install step, stop and fix the documentation gap before proceeding.
+Do not invent a replacement procedure while the documentation gap is still open.
+
 ## Build before switching live
 
 ```bash
