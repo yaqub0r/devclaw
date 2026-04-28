@@ -21,17 +21,40 @@ Upstream `main` is a reference point and export target. It is not the normal day
 3. Land validated work back onto `devclaw-local-current` so local truth stays complete.
 4. When work needs to go upstream, export it onto a matching `pr/*` branch.
 5. Preserve the `/dev/` documentation changes on `devclaw-local-current` even when the upstream export omits local-only material.
+6. Push runbook and workflow changes to the Git remote that tracks `devclaw-local-current` so the policy is not left only in a local checkout or an unknown branch.
+
+## Mandatory compliance rule
+
+This runbook is required operating procedure, not optional guidance.
+
+Follow it without divergence.
+Any divergence from this runbook requires explicit human permission together with an unlock code.
+Without that explicit unlock, do not improvise, substitute a different flow, or quietly switch to a different branch or worktree strategy.
+
+If the runbook itself needs to change, update it on `devclaw-local-current` and push that update to the tracked Git remote before relying on the new rule.
 
 ## Export policy
 
 Use `pr/*` for upstream-facing export branches, not `contrib/*`.
 
+The required export branch naming convention is:
+
+- `pr/<issue-number>-<short-description>`
+
+Where:
+
+- `<issue-number>` is the local fix or feature issue being promoted toward DevClaw official
+- `<short-description>` is a short stable slug for the promoted change
+
 Typical flow:
 
 1. implement and validate locally
 2. land the accepted result on `devclaw-local-current`
-3. create or refresh the corresponding `pr/*` branch for upstream review
-4. push the `pr/*` branch to the fork remote
+3. open or update the local promotion issue that owns the full upstream-promotion workflow
+4. create or refresh the corresponding `pr/<issue-number>-<short-description>` branch for upstream review
+5. push the `pr/*` branch to the fork remote
+6. open the fork PR needed for human review and testing against `devclaw-local-current`
+7. after that review/test step, prepare the final compare/diff URL and PR body for DevClaw official
 
 Upstream review material should be prepared from `pr/*`, while `devclaw-local-current` remains the complete local operating branch.
 
@@ -47,9 +70,30 @@ That means:
 
 The point of the export is to publish local truth, not replace it.
 
+## Promotion issue requirement
+
+Do not promote code to DevClaw official without a local issue that covers the full promotion from start to finish.
+
+That issue is not just "prep". It owns the entire promotion workflow.
+
+The promotion issue should document:
+
+- the exact local issue or fix being promoted
+- the source branch or branches and exact commits
+- any prerequisite slices that must go upstream together
+- the target `pr/<issue-number>-<short-description>` branch name
+- the fork PR that will be opened against `devclaw-local-current` for human acceptance and testing
+- the compare or diff URL for the later DevClaw official PR
+- the proposed body for the later DevClaw official PR
+- any remaining human-only steps
+
+Use issue `#141` only as a rough shape reference, not as naming guidance. Avoid "start upstream promotion prep" style issue framing. The issue should describe the whole promotion, not just an initial prep stage.
+
+As much non-human work as possible should be completed under that issue before the human review step.
+
 ## PR handoff policy
 
-The agent should not open the upstream PR itself.
+The agent should not open the upstream DevClaw official PR itself.
 
 Instead, as part of the operator handoff, the agent should prepare:
 
@@ -57,7 +101,9 @@ Instead, as part of the operator handoff, the agent should prepare:
 - the proposed PR title
 - the proposed PR body
 
-This handoff gives the operator a ready-to-submit upstream PR package while keeping the actual PR opening step under operator control.
+Before that final upstream handoff, the agent should also have opened or refreshed the fork PR into `devclaw-local-current` so the human can review, merge, and test the change on the local-truth lane first.
+
+This handoff gives the operator a ready-to-submit upstream PR package while keeping the actual upstream PR opening step under operator control.
 
 ## Live-source safety checks
 
