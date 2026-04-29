@@ -36,6 +36,65 @@ export type CompletionOutput = {
   issueReopened?: boolean;
 };
 
+function getRefiningCommentPrefix(role: string): string {
+  switch (role) {
+    case "developer":
+      return "🔧 **DEVELOPER**";
+    case "tester":
+      return "🧪 **TESTER**";
+    case "reviewer":
+      return "👁️ **REVIEWER**";
+    case "architect":
+      return "🏗️ **ARCHITECT**";
+    default:
+      return "🎛️ **ORCHESTRATOR**";
+  }
+}
+
+export function buildRefiningHoldComment(opts: {
+  role: string;
+  result: string;
+  from: string;
+  to: string;
+  summary?: string;
+  source?: "worker" | "system";
+}): string {
+  const {
+    role,
+    result,
+    from,
+    to,
+    summary,
+    source = "worker",
+  } = opts;
+
+  const lines = [
+    `${getRefiningCommentPrefix(role)}: Refining hold reason`,
+    "",
+    `DevClaw is moving this issue from \`${from}\` to \`${to}\` because work cannot continue yet.`,
+    "",
+    "### Why this is on hold",
+    "",
+    `- ${summary?.trim() || "Work stopped without a summary, and operator follow-up is required before this issue can continue."}`,
+    "",
+    "### Transition details",
+    "",
+    `- from: \`${from}\``,
+    `- to: \`${to}\``,
+    `- category: \`work_finish_${result}\``,
+    `- source: \`${source}\``,
+    "",
+    "### Context",
+    "",
+    `- role: \`${role}\``,
+    `- result: \`${result}\``,
+    "",
+    "Please review this hold reason and update the issue before re-queueing it.",
+  ];
+
+  return lines.join("\n");
+}
+
 /**
  * Get completion rule for a role:result pair.
  * Uses workflow config when available.
@@ -206,6 +265,16 @@ export async function executeCompletion(opts: {
   // Then execute post-transition actions (close/reopen)
   // Finally deactivate worker (last — ensures label is set even if deactivation fails)
   const transitionedTo = rule.to as StateLabel;
+  if (transitionedTo === "Refining") {
+    await provider.addComment(issueId, buildRefiningHoldComment({
+      role,
+      result,
+      from: rule.from,
+      to: transitionedTo,
+      summary,
+      source: "worker",
+    }));
+  }
   await provider.transitionLabel(issueId, rule.from as StateLabel, transitionedTo);
 
   await recordLoopDiagnostic(workspaceDir, "work_finish_transition", {

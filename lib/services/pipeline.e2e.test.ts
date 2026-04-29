@@ -297,6 +297,17 @@ describe("E2E pipeline", () => {
       assert.strictEqual(output.labelTransition, "Reviewing → Refining");
       const issue = await h.provider.getIssue(25);
       assert.ok(issue.labels.includes("Refining"), `Labels: ${issue.labels}`);
+
+      const comments = h.provider.comments.get(25) ?? [];
+      assert.strictEqual(comments.length, 1);
+      assert.ok(comments[0]!.body.startsWith("👁️ **REVIEWER**: Refining hold reason"));
+      assert.ok(comments[0]!.body.includes("### Why this is on hold"));
+      assert.ok(comments[0]!.body.includes("- from: `Reviewing`"));
+      assert.ok(comments[0]!.body.includes("- to: `Refining`"));
+      assert.ok(comments[0]!.body.includes("- category: `work_finish_blocked`"));
+      assert.ok(comments[0]!.body.includes("- source: `worker`"));
+      assert.ok(comments[0]!.body.includes("- role: `reviewer`"));
+      assert.ok(comments[0]!.body.includes("- result: `blocked`"));
     });
   });
 
@@ -419,6 +430,21 @@ describe("E2E pipeline", () => {
 
       const issue = await h.provider.getIssue(50);
       assert.ok(issue.labels.includes("Refining"));
+
+      const comments = h.provider.comments.get(50) ?? [];
+      assert.strictEqual(comments.length, 1, "Should leave the canonical Refining hold reason");
+      const addCommentCall = h.provider.callsTo("addComment")[0];
+      const transitionCall = h.provider.callsTo("transitionLabel")[0];
+      assert.ok(addCommentCall && transitionCall, "Should record both comment and transition");
+      assert.ok(h.provider.calls.indexOf(addCommentCall) < h.provider.calls.indexOf(transitionCall), "Should comment before entering Refining");
+      assert.ok(comments[0]!.body.startsWith("🔧 **DEVELOPER**: Refining hold reason"));
+      assert.ok(comments[0]!.body.includes("DevClaw is moving this issue from `Doing` to `Refining` because work cannot continue yet."));
+      assert.ok(comments[0]!.body.includes("### Why this is on hold"));
+      assert.ok(comments[0]!.body.includes("- Need design decision"));
+      assert.ok(comments[0]!.body.includes("### Transition details"));
+      assert.ok(comments[0]!.body.includes("- category: `work_finish_blocked`"));
+      assert.ok(comments[0]!.body.includes("### Context"));
+      assert.ok(comments[0]!.body.includes("Please review this hold reason and update the issue before re-queueing it."));
     });
   });
 
