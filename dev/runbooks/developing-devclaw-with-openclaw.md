@@ -111,6 +111,28 @@ Before that final upstream handoff, the agent should also have opened or refresh
 
 This handoff gives the operator a ready-to-submit upstream PR package while keeping the actual upstream PR opening step under operator control.
 
+## Rollback policy for failed promotions
+
+If a promoted change fails real validation on `devclaw-local-current` or in the live self-hosted environment, treat that promotion as failed and send it back to development.
+
+Do not quietly leave a failed promotion presented as accepted or released.
+Do not keep stale release-tracking issues or stale export branches around as if they still represent valid release material.
+
+The required rollback flow is:
+
+1. record the failure on the development issue and on the promotion or release-tracking issue, with concrete evidence from the failed validation
+2. update or close the promotion or release-tracking issue so it no longer represents an active valid release
+3. move the development issue back into development or refinement as appropriate
+4. create a new `review/<issue-number>-<short-description>` rollback branch from `devclaw-local-current`
+5. revert the bad merge or bad commit on that rollback branch, rather than silently rewriting history on `devclaw-local-current`
+6. push the rollback `review/*` branch and open a fork PR into `devclaw-local-current`
+7. merge the rollback PR, then rebuild, reinstall, restart, and verify the live self-hosted environment from the reverted `devclaw-local-current`
+8. after the rollback is safely landed and verified, delete the stale `review/*` and `pr/*` branches that represented the failed promotion
+9. only then recreate fresh development, review, and export branches for the corrected fix if the work will continue
+
+Normal rollback should be done as a visible revert PR into `devclaw-local-current`.
+Do not force-reset, force-push, or rewrite local-truth history unless the operator explicitly authorizes that divergence with an unlock code.
+
 ## Live-source safety checks
 
 A branch does not become live because you checked it out.
