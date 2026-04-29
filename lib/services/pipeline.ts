@@ -236,6 +236,7 @@ export async function executeCompletion(opts: {
       channel: notifyTarget?.channel ?? "telegram",
       runtime,
       accountId: notifyTarget?.accountId,
+      runCommand: rc,
       messageThreadId: notifyTarget?.messageThreadId,
     },
   ).catch((err) => {
@@ -256,7 +257,7 @@ export async function executeCompletion(opts: {
         sourceBranch,
         mergedBy: "pipeline",
       },
-      { workspaceDir, config: notifyConfig, channelId: notifyTarget?.channelId, channel: notifyTarget?.channel ?? "telegram", runtime, accountId: notifyTarget?.accountId, messageThreadId: notifyTarget?.messageThreadId },
+      { workspaceDir, config: notifyConfig, channelId: notifyTarget?.channelId, channel: notifyTarget?.channel ?? "telegram", runtime, accountId: notifyTarget?.accountId, runCommand: rc, messageThreadId: notifyTarget?.messageThreadId },
     ).catch((err) => {
       auditLog(workspaceDir, "pipeline_warning", { step: "mergeNotify", issue: issueId, role, error: (err as Error).message ?? String(err) }).catch(() => {});
     });
@@ -311,6 +312,8 @@ export async function executeCompletion(opts: {
             channel: notifyTarget?.channel ?? "telegram",
             runtime,
             accountId: notifyTarget?.accountId,
+            runCommand: rc,
+            messageThreadId: notifyTarget?.messageThreadId,
           },
         ).catch((err) => {
           auditLog(workspaceDir, "pipeline_warning", { step: "issueCompleteNotify", issue: issueId, role, error: (err as Error).message ?? String(err) }).catch(() => {});
@@ -348,6 +351,7 @@ export async function executeCompletion(opts: {
           channel: notifyTarget?.channel ?? "telegram",
           runtime,
           accountId: notifyTarget?.accountId,
+          runCommand: rc,
           messageThreadId: notifyTarget?.messageThreadId,
         },
       ).catch((err) => {
