@@ -160,6 +160,8 @@ After the operator reports testing complete, the orchestrator should:
 
 After the operator opens the upstream DevClaw official PR, the orchestrator should keep tracking on the local promotion issue until that upstream PR is resolved.
 
+At that point, the orchestrator should also create or refresh a persistent watch, such as a daily cron job, for that specific upstream PR so it does not get forgotten while waiting on review or merge.
+
 That ongoing tracking should include:
 
 - the upstream PR URL
@@ -167,6 +169,15 @@ That ongoing tracking should include:
 - any linked upstream issue comments or references that matter to the promotion record
 - exact export-branch or commit changes if the `pr/*` branch is refreshed
 - whether any local-truth or live-install follow-up happened in response to upstream review
+- the identity of the active scheduled watch responsible for follow-up
+
+If the promotion enters demotion or rollback flow while a watch exists for that upstream PR, the orchestrator should explicitly review that watch.
+
+Depending on the situation, the orchestrator should:
+
+- remove the watch if the upstream PR is no longer the active release vehicle
+- refresh or retarget the watch if the promotion issue or upstream PR has changed
+- record that watch change on the local promotion or release-tracking issue
 
 When the upstream PR is fully resolved, the orchestrator should finish the release cleanup on the local side.
 
@@ -176,8 +187,9 @@ That cleanup should include, as applicable:
 - deleting no-longer-needed local packaging artifacts and temp directories
 - deleting no-longer-needed `pr/*` branches after the upstream resolution is complete
 - deleting any other release-only local artifacts that no longer serve an active tracking purpose
+- removing the scheduled watch that was tracking the resolved upstream PR
 
-Use a persistent scheduled follow-up, such as a daily cron job, so opened upstream PRs do not get forgotten while waiting on review or merge.
+Use a persistent scheduled follow-up, such as a daily cron job, for each active upstream PR watch, and remove that watch when it is no longer needed.
 
 This handoff gives the operator a ready-to-submit upstream PR package while keeping only the final upstream PR opening step under operator control, while also making the live-install follow-up explicit instead of implicit.
 
@@ -198,10 +210,11 @@ The required rollback flow is:
 6. push the rollback `review/*` branch and open a fork PR into `devclaw-local-current`
 7. merge the rollback PR, then rebuild, reinstall, restart, and verify the live self-hosted environment from the reverted `devclaw-local-current`
 8. after the rollback is safely landed and verified, clean up the old failed-release artifacts so they no longer look current or reusable
-9. that cleanup should include, as applicable, stale local branches, stale remote branches, stale local PR/export worktrees, and stale temp packaging directories tied to the failed promotion family
-10. only after that cleanup, delete or retire the stale `review/*` and `pr/*` release branches that represented the failed promotion
-11. only then recreate fresh development, review, and export branches for the corrected fix if the work will continue
-12. do not create a replacement `review/*` PR for that same family until step 7 has succeeded, unless the operator explicitly authorizes a different sequencing with an unlock code
+9. that cleanup should include, as applicable, stale local branches, stale remote branches, stale local PR/export worktrees, stale temp packaging directories tied to the failed promotion family, and any scheduled upstream-PR watch that is no longer valid for the demoted release vehicle
+10. if a scheduled watch is still needed because the promotion is being rerun under a new upstream PR or tracking issue, recreate or retarget the watch and record that change on the local promotion or release-tracking issue
+11. only after that cleanup, delete or retire the stale `review/*` and `pr/*` release branches that represented the failed promotion
+12. only then recreate fresh development, review, and export branches for the corrected fix if the work will continue
+13. do not create a replacement `review/*` PR for that same family until step 7 has succeeded, unless the operator explicitly authorizes a different sequencing with an unlock code
 
 Normal rollback should be done as a visible revert PR into `devclaw-local-current`.
 Do not force-reset, force-push, or rewrite local-truth history unless the operator explicitly authorizes that divergence with an unlock code.
