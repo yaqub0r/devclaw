@@ -10,6 +10,7 @@ Treat these branch roles as the working contract:
 - `devclaw-local-current`: local truth and day-to-day working lane
 - `devclaw-local-stable`: local fallback lane when `devclaw-local-current` is too noisy or risky
 - `issue/*`: local implementation branches for scoped work
+- `review/*`: local review branches opened against `devclaw-local-current`
 - `pr/*`: export branches prepared for upstream review
 
 Upstream `main` is a reference point and export target. It is not the normal day-to-day base for local work.
@@ -35,10 +36,11 @@ If the runbook itself needs to change, update it on `devclaw-local-current` and 
 
 ## Export policy
 
-Use `pr/*` for upstream-facing export branches, not `contrib/*`.
+Use `review/*` for local-review branches into `devclaw-local-current` and `pr/*` for upstream-facing export branches. Do not use `contrib/*`.
 
-The required export branch naming convention is:
+The required branch naming conventions are:
 
+- `review/<issue-number>-<short-description>`
 - `pr/<issue-number>-<short-description>`
 
 Where:
@@ -49,12 +51,15 @@ Where:
 Typical flow:
 
 1. implement and validate locally
-2. land the accepted result on `devclaw-local-current`
-3. open or update the local promotion issue that owns the full upstream-promotion workflow
-4. create or refresh the corresponding `pr/<issue-number>-<short-description>` branch for upstream review
-5. push the `pr/*` branch to the fork remote
-6. open the fork PR needed for human review and testing against `devclaw-local-current`
-7. after that review/test step, prepare the final compare/diff URL and PR body for DevClaw official
+2. open or update the local promotion issue that owns the full upstream-promotion workflow
+3. create or refresh `review/<issue-number>-<short-description>` from `devclaw-local-current`
+4. apply the exact accepted fix onto the `review/*` branch
+5. push the `review/*` branch to the fork remote
+6. open the fork PR from `review/*` into `devclaw-local-current` for human review, merge, and testing
+7. after the change is merged and validated on `devclaw-local-current`, create or refresh `pr/<issue-number>-<short-description>` from `upstream/main`
+8. apply the same upstreamable commit set onto the `pr/*` branch
+9. push the `pr/*` branch to the fork remote
+10. prepare the final compare/diff URL and PR body for DevClaw official
 
 Upstream review material should be prepared from `pr/*`, while `devclaw-local-current` remains the complete local operating branch.
 
@@ -81,6 +86,7 @@ The promotion issue should document:
 - the exact local issue or fix being promoted
 - the source branch or branches and exact commits
 - any prerequisite slices that must go upstream together
+- the target `review/<issue-number>-<short-description>` branch name
 - the target `pr/<issue-number>-<short-description>` branch name
 - the fork PR that will be opened against `devclaw-local-current` for human acceptance and testing
 - the compare or diff URL for the later DevClaw official PR
@@ -101,7 +107,7 @@ Instead, as part of the operator handoff, the agent should prepare:
 - the proposed PR title
 - the proposed PR body
 
-Before that final upstream handoff, the agent should also have opened or refreshed the fork PR into `devclaw-local-current` so the human can review, merge, and test the change on the local-truth lane first.
+Before that final upstream handoff, the agent should also have opened or refreshed the fork PR from `review/<issue-number>-<short-description>` into `devclaw-local-current` so the human can review, merge, and test the change on the local-truth lane first.
 
 This handoff gives the operator a ready-to-submit upstream PR package while keeping the actual upstream PR opening step under operator control.
 
