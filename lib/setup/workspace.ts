@@ -60,13 +60,7 @@ const MANAGED_BLOCKS = {
  *   - Runtime state (projects.json): create-only
  */
 export async function ensureDefaultFiles(workspacePath: string): Promise<void> {
-  const dataDir = path.join(workspacePath, DATA_DIR);
-  await fs.mkdir(dataDir, { recursive: true });
-
-  // Ensure directories exist
-  await fs.mkdir(path.join(dataDir, "projects"), { recursive: true });
-  await fs.mkdir(path.join(dataDir, "prompts"), { recursive: true });
-  await fs.mkdir(path.join(dataDir, "log"), { recursive: true });
+  await ensureWorkspaceDataFiles(workspacePath);
 
   // --- Workspace-root guidance files — manage tagged DevClaw blocks only ---
   for (const [fileName, config] of Object.entries(MANAGED_BLOCKS)) {
@@ -83,6 +77,20 @@ export async function ensureDefaultFiles(workspacePath: string): Promise<void> {
 
   // Remove BOOTSTRAP.md — one-time onboarding file, not needed after setup
   try { await fs.unlink(path.join(workspacePath, "BOOTSTRAP.md")); } catch { /* already gone */ }
+}
+
+/**
+ * Ensure DevClaw-owned data files exist without touching workspace-root guidance files.
+ * Safe for generic runtime code paths like project reads.
+ */
+export async function ensureWorkspaceDataFiles(workspacePath: string): Promise<void> {
+  const dataDir = path.join(workspacePath, DATA_DIR);
+  await fs.mkdir(dataDir, { recursive: true });
+
+  // Ensure directories exist
+  await fs.mkdir(path.join(dataDir, "projects"), { recursive: true });
+  await fs.mkdir(path.join(dataDir, "prompts"), { recursive: true });
+  await fs.mkdir(path.join(dataDir, "log"), { recursive: true });
 
   // devclaw/workflow.yaml — create-only (three-layer merge handles defaults for missing keys)
   const workflowPath = path.join(dataDir, "workflow.yaml");
@@ -219,28 +227,81 @@ function buildManagedBlock(sectionId: string, content: string): string {
   return `${start}\n${content.trimEnd()}\n${end}`;
 }
 
+function buildManagedNotice(sectionId: string, intro: string): string {
+  return [
+    `<!-- DEVCLAW:NOTICE:START ${sectionId} -->`,
+    intro,
+    `<!-- DEVCLAW:NOTICE:END ${sectionId} -->`,
+  ].join("\n");
+}
+
+function buildManagedSection(sectionId: string, content: string, intro: string): string {
+  return `${buildManagedNotice(sectionId, intro)}\n\n${buildManagedBlock(sectionId, content)}`;
+}
+
 function buildManagedFile(sectionId: string, content: string, intro: string): string {
-  return `${intro}\n\n${buildManagedBlock(sectionId, content)}\n`;
+  return `${buildManagedSection(sectionId, content, intro)}\n`;
+}
+
+function normalizeForManagedComparison(content: string): string {
+  return content
+    .replace(/^\uFEFF/, "")
+    .replace(/\r\n?/g, "\n")
+    .trim();
+}
+
+function isLegacyManagedFullFile(originalContent: string, template: string): boolean {
+  return normalizeForManagedComparison(originalContent) === normalizeForManagedComparison(template);
 }
 
 function upsertManagedContent(originalContent: string, sectionId: string, content: string, intro: string): string {
   const managedBlock = buildManagedBlock(sectionId, content);
+  const managedNotice = buildManagedNotice(sectionId, intro);
+  const managedSection = buildManagedSection(sectionId, content, intro);
   const blockPattern = new RegExp(
     `<!-- DEVCLAW:START ${escapeRegExp(sectionId)} -->[\\s\\S]*?<!-- DEVCLAW:END ${escapeRegExp(sectionId)} -->`,
     "m",
   );
+  const noticePattern = new RegExp(
+    `<!-- DEVCLAW:NOTICE:START ${escapeRegExp(sectionId)} -->[\\s\\S]*?<!-- DEVCLAW:NOTICE:END ${escapeRegExp(sectionId)} -->\\n*`,
+    "m",
+  );
 
-  if (!originalContent.trim()) {
+  if (!originalContent.trim() || isLegacyManagedFullFile(originalContent, content)) {
     return buildManagedFile(sectionId, content, intro);
   }
 
-  if (blockPattern.test(originalContent)) {
-    const updated = originalContent.replace(blockPattern, managedBlock);
-    return updated.endsWith("\n") ? updated : `${updated}\n`;
+  const hasNotice = noticePattern.test(originalContent);
+  const hasBlock = blockPattern.test(originalContent);
+
+  // Step 1: seed or refresh the explanatory notice independently from block insertion.
+  let nextContent = hasNotice
+    ? originalContent.replace(noticePattern, `${managedNotice}\n\n`)
+    : originalContent;
+
+  if (!hasNotice && hasBlock) {
+    const blockMatch = nextContent.match(blockPattern);
+    if (!blockMatch || typeof blockMatch.index !== "number") {
+      return nextContent.endsWith("\n") ? nextContent : `${nextContent}\n`;
+    }
+
+    const beforeBlock = nextContent.slice(0, blockMatch.index).replace(/\n+$/, "");
+    const afterBlock = nextContent.slice(blockMatch.index);
+    nextContent = beforeBlock
+      ? `${beforeBlock}\n\n${managedNotice}\n\n${afterBlock}`
+      : `${managedNotice}\n\n${afterBlock}`;
   }
 
-  const separator = originalContent.endsWith("\n") ? "\n" : "\n\n";
-  return `${originalContent}${separator}${managedBlock}\n`;
+  // Step 2: replace or append the managed block, preserving user-owned content.
+  if (hasBlock) {
+    nextContent = nextContent.replace(blockPattern, managedBlock);
+    return nextContent.endsWith("\n") ? nextContent : `${nextContent}\n`;
+  }
+
+  const baseContent = nextContent.replace(/\n+$/, "");
+  const separator = baseContent.endsWith("\n") ? "\n" : "\n\n";
+  const insertedContent = hasNotice ? managedBlock : managedSection;
+  return `${baseContent}${separator}${insertedContent}\n`;
 }
 
 async function upsertManagedBlock(filePath: string, sectionId: string, content: string, intro: string): Promise<void> {
