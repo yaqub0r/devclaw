@@ -117,6 +117,37 @@ This gives you four checks:
 
 For example, if you intend to run from a `devclaw-local-stable` worktree, these checks should agree on both the path and the branch identity before you treat the switch as complete.
 
+## Copied install versus linked install
+
+This distinction matters a lot during self-hosting.
+
+A local path install can exist in two very different states:
+
+- a **copied install**, where `~/.openclaw/extensions/devclaw` contains a copy of the plugin files
+- a **linked install**, where `~/.openclaw/extensions/devclaw` points back to your intended checkout or worktree
+
+If you only rebuild the source worktree, a copied install will keep running the old copied artifact. In that case, `openclaw plugins inspect devclaw` may still show the recorded source path you originally installed from, even though the live loaded code is coming from the copied install directory.
+
+That means:
+
+- rebuilding a worktree is **not** enough by itself to switch a copied install
+- restart alone is **not** enough if the installed files were copied earlier
+- for live branch or worktree development, you usually want a **linked** install
+
+Useful checks:
+
+```bash
+openclaw plugins inspect devclaw
+readlink -f ~/.openclaw/extensions/devclaw
+```
+
+Interpretation:
+
+- if the install path resolves to your intended worktree, you are running a linked install
+- if the install path stays under `~/.openclaw/extensions/devclaw`, treat it as a copied install until proven otherwise
+
+To refresh the live environment from a worktree after a copied install, reinstall the plugin from that worktree as a linked install, then restart the gateway and verify again.
+
 ## Avoid duplicate plugin-source collisions
 
 A common failure mode is loading DevClaw from more than one place at once, for example:
