@@ -6,9 +6,10 @@
  */
 import fs from "node:fs/promises";
 import path from "node:path";
+import { jsonResult } from "../../json-result.js";
 import type { ToolContext } from "../../types.js";
 import type { PluginContext } from "../../context.js";
-import { jsonResult, requireWorkspaceDir } from "../helpers.js";
+import { requireWorkspaceDir } from "../helpers.js";
 import { WORKFLOW_YAML_TEMPLATE } from "../../setup/templates.js";
 import { DATA_DIR } from "../../setup/migrate-layout.js";
 

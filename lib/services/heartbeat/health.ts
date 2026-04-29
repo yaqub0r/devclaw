@@ -45,6 +45,7 @@ import {
   getCurrentStateLabel,
   isOwnedByOrUnclaimed,
   isFeedbackState,
+  resolveNotifyChannel,
   type WorkflowConfig,
   type Role,
 } from "../../workflow/index.js";
@@ -467,6 +468,9 @@ export async function checkWorkerHealth(opts: {
               await deactivateSlot();
             } else {
               // Task arrived but worker stalled → nudge the session
+              const notifyTarget = issue
+                ? resolveNotifyChannel(issue.labels, project.channels)
+                : undefined;
               sendToAgent(sessionKey, NUDGE_MESSAGE, {
                 agentId: opts.agentId,
                 projectName: project.name,
@@ -476,6 +480,7 @@ export async function checkWorkerHealth(opts: {
                 slotIndex,
                 workspaceDir,
                 runCommand: opts.runCommand,
+                notifyTarget,
               });
               fix.nudgeSent = true;
             }

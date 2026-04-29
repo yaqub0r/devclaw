@@ -9,11 +9,12 @@
  * - A sub-agent finds a bug and needs to file a follow-up issue
  * - Breaking down an epic into smaller tasks
  */
+import { jsonResult } from "../../json-result.js";
 import type { PluginContext } from "../../context.js";
 import type { ToolContext } from "../../types.js";
 import { log as auditLog } from "../../audit.js";
 import { DEFAULT_WORKFLOW } from "../../workflow/index.js";
-import { jsonResult, requireWorkspaceDir, resolveChannelId, resolveProject, resolveProvider, autoAssignOwnerLabel, applyNotifyLabel } from "../helpers.js";
+import { requireWorkspaceDir, resolveChannelId, resolveProject, resolveProvider, autoAssignOwnerLabel, applyNotifyLabel } from "../helpers.js";
 
 /** Derive the initial state label from the workflow config. */
 const INITIAL_LABEL = DEFAULT_WORKFLOW.states[DEFAULT_WORKFLOW.initial].label;
@@ -30,6 +31,10 @@ export function createTaskCreateTool(ctx: PluginContext) {
         channelId: {
           type: "string",
           description: "YOUR chat/group ID — the numeric ID of the chat you are in right now (e.g. '-1003844794417'). Do NOT guess; use the ID of the conversation this message came from.",
+        },
+        messageThreadId: {
+          type: "number",
+          description: "Optional Telegram forum topic ID for this project (message_thread_id). When provided, resolves the topic-bound project within the chat.",
         },
         title: {
           type: "string",
@@ -53,6 +58,7 @@ export function createTaskCreateTool(ctx: PluginContext) {
 
     async execute(_id: string, params: Record<string, unknown>) {
       const channelId = resolveChannelId(toolCtx, params.channelId as string | undefined);
+      const messageThreadId = params.messageThreadId as number | undefined;
       const title = params.title as string;
       const description = (params.description as string) ?? "";
       const label = INITIAL_LABEL;
@@ -60,7 +66,13 @@ export function createTaskCreateTool(ctx: PluginContext) {
       const pickup = (params.pickup as boolean) ?? false;
       const workspaceDir = requireWorkspaceDir(toolCtx);
 
-      const { project } = await resolveProject(workspaceDir, channelId);
+      const channelType = (toolCtx.messageChannel as string | undefined) ?? "telegram";
+      const accountId = toolCtx.agentAccountId as string | undefined;
+      const { project } = await resolveProject(workspaceDir, channelId, {
+        channel: channelType,
+        accountId,
+        messageThreadId,
+      });
       const { provider, type: providerType } = await resolveProvider(project, ctx.runCommand);
 
       const issue = await provider.createIssue(title, description, label, assignees);
