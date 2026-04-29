@@ -10,6 +10,7 @@ import { runSetup } from "./index.js";
 import { getAllDefaultModels, getAllRoleIds, getLevelsForRole } from "../roles/index.js";
 import { readProjects, writeProjects, type Channel } from "../projects/index.js";
 import { log as auditLog } from "../audit.js";
+import { getBuildProvenance } from "../build-provenance.js";
 
 /**
  * Get the default workspace directory from the OpenClaw config.
@@ -99,6 +100,13 @@ export function registerCli(program: Command, ctx: PluginContext): void {
     });
 
   // Channel management commands
+  devclaw
+    .command("provenance")
+    .description("Show embedded live runtime build provenance")
+    .action(() => {
+      console.log(JSON.stringify(getBuildProvenance(), null, 2));
+    });
+
   const channel = devclaw
     .command("channel")
     .description("Manage project channels (register, deregister, list)");

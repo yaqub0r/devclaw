@@ -72,11 +72,23 @@ Use `openclaw plugins inspect devclaw` to answer:
 Important distinction:
 
 - `inspect` tells you **what path is live**
-- git tells you **what commit that path contains**
+- runtime provenance tells you **what embedded build is live**
+- git tells you **what commit a still-present source tree contains**
 
-## Verify the exact live commit
+## Verify the exact live build without the repo
 
-Once you know the live source path, resolve that path back to the checkout or worktree root and verify the commit directly:
+Use the embedded provenance first. It survives even if the linked source worktree is gone:
+
+```bash
+openclaw agent --agent <agent-id> --message 'Call config with action "provenance" and reply with the result only.' --json
+openclaw devclaw provenance
+```
+
+This reports the live package version, commit SHA, short SHA, branch, dirty flag, and build timestamp from the built artifact itself.
+
+## Verify the exact live commit from source path inspection
+
+If the source tree still exists, you can also resolve the live source path back to the checkout or worktree root and verify the commit directly:
 
 ```bash
 openclaw plugins inspect devclaw

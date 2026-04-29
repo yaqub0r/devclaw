@@ -39,6 +39,7 @@ import { registerCli } from "./lib/setup/cli.js";
 import { registerHeartbeatService } from "./lib/services/heartbeat/index.js";
 import { registerBootstrapHook } from "./lib/dispatch/bootstrap-hook.js";
 import { registerAttachmentHook } from "./lib/dispatch/attachment-hook.js";
+import { getBuildProvenance, formatBuildProvenanceSummary } from "./lib/build-provenance.js";
 
 const plugin = {
   id: "devclaw",
@@ -91,6 +92,7 @@ const plugin = {
 
   register(api: OpenClawPluginApi) {
     const ctx = createPluginContext(api);
+    const provenance = getBuildProvenance();
 
     // Worker lifecycle
     api.registerTool(createTaskStartTool(ctx), { names: ["task_start"] });
@@ -134,7 +136,7 @@ const plugin = {
     registerAttachmentHook(api, ctx);
 
     api.logger.info(
-      "DevClaw plugin registered (23 tools, 1 CLI command group, 1 service, 3 hooks)",
+      `DevClaw plugin registered (23 tools, 1 CLI command group, 1 service, 3 hooks) | build=${formatBuildProvenanceSummary(provenance)} | provenance=${JSON.stringify(provenance)}`,
     );
   },
 };

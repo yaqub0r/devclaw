@@ -551,7 +551,7 @@ List channels for a project or all projects. Shows channel type, ID, name, and e
 
 ### `config`
 
-Manage DevClaw workspace configuration. Supports three actions: reset config files to defaults, diff against defaults, and show version info.
+Manage DevClaw workspace configuration. Supports four actions: reset config files to defaults, diff against defaults, show version info, and inspect live build provenance.
 
 **Source:** [`lib/tools/admin/config.ts`](../lib/tools/admin/config.ts)
 
@@ -559,7 +559,7 @@ Manage DevClaw workspace configuration. Supports three actions: reset config fil
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `action` | `"reset"` \| `"diff"` \| `"version"` | Yes | Action to perform |
+| `action` | `"reset"` \| `"diff"` \| `"version"` \| `"provenance"` | Yes | Action to perform |
 | `scope` | `"prompts"` \| `"workflow"` \| `"all"` | No | Reset scope (only for `action: "reset"`) |
 
 **Actions:**
@@ -569,3 +569,4 @@ Manage DevClaw workspace configuration. Supports three actions: reset config fil
 | `reset` | Reset config files to package defaults. Creates `.bak` backups. Use `scope` to target: `prompts` (role prompts only), `workflow` (workflow.yaml only), `all` (everything). |
 | `diff` | Show differences between current `workflow.yaml` and the built-in default template. Helps identify customizations and see what changed in new versions. |
 | `version` | Show DevClaw package version and workspace tracked version. |
+| `provenance` | Show embedded live runtime build provenance: package version, commit SHA, short SHA, branch, dirty flag, build timestamp, and metadata source. |
