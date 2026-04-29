@@ -55,13 +55,30 @@ Typical flow:
 3. create or refresh `review/<issue-number>-<short-description>` from `devclaw-local-current`
 4. apply the exact accepted fix onto the `review/*` branch
 5. push the `review/*` branch to the fork remote
-6. open the fork PR from `review/*` into `devclaw-local-current` for human review, merge, and testing
-7. after the change is merged and validated on `devclaw-local-current`, create or refresh `pr/<issue-number>-<short-description>` from `upstream/main`
-8. apply the same upstreamable commit set onto the `pr/*` branch
-9. push the `pr/*` branch to the fork remote
-10. prepare the final compare/diff URL and PR body for DevClaw official
+6. autonomously open or refresh the fork PR from `review/*` into `devclaw-local-current`
+7. use that PR for local-truth review, merge, and testing on `devclaw-local-current`
+8. after the change is merged and validated on `devclaw-local-current`, create or refresh `pr/<issue-number>-<short-description>` from `upstream/main`
+9. apply the same upstreamable commit set onto the `pr/*` branch
+10. push the `pr/*` branch to the fork remote
+11. prepare the final compare/diff URL and PR body for DevClaw official
 
 Upstream review material should be prepared from `pr/*`, while `devclaw-local-current` remains the complete local operating branch.
+
+### Fresh-package rule for corrected reruns
+
+If a promotion family has already been merged, failed, gone stale, or otherwise stopped being a clean representation of the current fix, do **not** treat the old merged `review/*` branch or PR as reusable promotion state.
+
+Before creating a fresh review package for the same issue family:
+
+1. determine whether the previous `review/*` package for that family was already merged into `devclaw-local-current`
+2. if it was merged and the family is being rerun because the old result was wrong, incomplete, stale, or superseded, create a visible rollback or demotion PR first
+3. merge that rollback or demotion back into `devclaw-local-current`
+4. verify local truth is now in the intended pre-promotion state
+5. only then recreate fresh `review/*` and `pr/*` branches for the corrected fix
+
+Do **not** open or refresh a "new" `review/*` PR for a family whose prior promoted result is still present on `devclaw-local-current`, unless the operator explicitly says the new package should be treated as an additive follow-up rather than a replacement.
+
+In other words: if the old promoted code is what blocks the new review from being meaningful, demote the old code first.
 
 ## Traceability rule
 
@@ -99,7 +116,15 @@ As much non-human work as possible should be completed under that issue before t
 
 ## PR handoff policy
 
-The agent should not open the upstream DevClaw official PR itself.
+The agent should autonomously create or refresh local-truth fork PRs into `devclaw-local-current` whenever the runbook calls for a `review/*` promotion step.
+
+That means the agent should, without waiting for a separate human prompt:
+
+- push the `review/*` branch
+- open or refresh the fork PR from `review/*` into `devclaw-local-current`
+- record the PR URL and exact branch heads on the owning promotion issue
+
+The agent should **not** open the upstream DevClaw official PR itself.
 
 Instead, as part of the operator handoff, the agent should prepare:
 
@@ -107,9 +132,21 @@ Instead, as part of the operator handoff, the agent should prepare:
 - the proposed PR title
 - the proposed PR body
 
-Before that final upstream handoff, the agent should also have opened or refreshed the fork PR from `review/<issue-number>-<short-description>` into `devclaw-local-current` so the human can review, merge, and test the change on the local-truth lane first.
+So the rule is:
 
-This handoff gives the operator a ready-to-submit upstream PR package while keeping the actual upstream PR opening step under operator control.
+- `review/*` PRs into `devclaw-local-current` should be done autonomously
+- upstream official PR opening remains human-controlled
+
+After the relevant PR steps have succeeded, the orchestrator should not stop silently at "package prepared" or "PR merged".
+
+The orchestrator should:
+
+- inform the operator of the concrete result
+- include the relevant PR URLs, merge or success status, and the exact branch or commit that is now considered local truth
+- state whether `devclaw-local-current` is now the validated lane to install from
+- explicitly offer to install or reload `devclaw-local-current` into the live self-hosted environment
+
+This handoff gives the operator a ready-to-submit upstream PR package while keeping only the final upstream PR opening step under operator control, while also making the live-install follow-up explicit instead of implicit.
 
 ## Rollback policy for failed promotions
 
@@ -129,6 +166,7 @@ The required rollback flow is:
 7. merge the rollback PR, then rebuild, reinstall, restart, and verify the live self-hosted environment from the reverted `devclaw-local-current`
 8. after the rollback is safely landed and verified, delete the stale `review/*` and `pr/*` branches that represented the failed promotion
 9. only then recreate fresh development, review, and export branches for the corrected fix if the work will continue
+10. do not create a replacement `review/*` PR for that same family until step 7 has succeeded, unless the operator explicitly authorizes a different sequencing with an unlock code
 
 Normal rollback should be done as a visible revert PR into `devclaw-local-current`.
 Do not force-reset, force-push, or rewrite local-truth history unless the operator explicitly authorizes that divergence with an unlock code.
