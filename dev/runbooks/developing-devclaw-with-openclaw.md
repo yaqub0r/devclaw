@@ -107,7 +107,8 @@ The promotion issue should document:
 - the target `pr/<issue-number>-<short-description>` branch name
 - the fork PR that will be opened against `devclaw-local-current` for human acceptance and testing
 - the compare or diff URL for the later DevClaw official PR
-- the proposed body for the later DevClaw official PR
+- after the operator reports testing is complete, the proposed title and body for the later DevClaw official PR
+- the upstream DevClaw issue link that the later PR should close or reference
 - any remaining human-only steps
 
 Use issue `#141` only as a rough shape reference, not as naming guidance. Avoid "start upstream promotion prep" style issue framing. The issue should describe the whole promotion, not just an initial prep stage.
@@ -129,8 +130,16 @@ The agent should **not** open the upstream DevClaw official PR itself.
 Instead, as part of the operator handoff, the agent should prepare:
 
 - the compare or diff URL for the `pr/*` branch against upstream `main`
-- the proposed PR title
-- the proposed PR body
+- after the operator confirms testing is complete, the proposed PR title
+- after the operator confirms testing is complete, the proposed PR body
+
+Before writing that final upstream PR title/body into the promotion issue, the orchestrator should:
+
+- check whether the fix already corresponds to an existing issue on `laurentenhoor/devclaw`
+- if an existing upstream issue exists, reference it in the proposed PR body and add or refresh an issue comment when the fix handoff should be visible there
+- if no upstream issue exists, open a new issue on `laurentenhoor/devclaw` that describes the problem as a discrete standalone record, without assuming the reader already knows the history
+- after opening that new issue, add a follow-up issue comment pointing to the prepared fix branch or compare URL when appropriate
+- include the resulting upstream issue link in the proposed PR body
 
 So the rule is:
 
@@ -139,12 +148,15 @@ So the rule is:
 
 After the relevant PR steps have succeeded, the orchestrator should not stop silently at "package prepared" or "PR merged".
 
-The orchestrator should:
+Before the operator reports testing complete, the orchestrator should limit the promotion issue handoff to branch heads, PR URLs, validation evidence, and the compare URL. Do not write the final upstream PR title/body yet.
+
+After the operator reports testing complete, the orchestrator should:
 
 - inform the operator of the concrete result
 - include the relevant PR URLs, merge or success status, and the exact branch or commit that is now considered local truth
 - state whether `devclaw-local-current` is now the validated lane to install from
 - explicitly offer to install or reload `devclaw-local-current` into the live self-hosted environment
+- then complete the upstream issue linkage step and write the final proposed upstream PR title/body into the promotion issue
 
 This handoff gives the operator a ready-to-submit upstream PR package while keeping only the final upstream PR opening step under operator control, while also making the live-install follow-up explicit instead of implicit.
 
@@ -164,9 +176,11 @@ The required rollback flow is:
 5. revert the bad merge or bad commit on that rollback branch, rather than silently rewriting history on `devclaw-local-current`
 6. push the rollback `review/*` branch and open a fork PR into `devclaw-local-current`
 7. merge the rollback PR, then rebuild, reinstall, restart, and verify the live self-hosted environment from the reverted `devclaw-local-current`
-8. after the rollback is safely landed and verified, delete the stale `review/*` and `pr/*` branches that represented the failed promotion
-9. only then recreate fresh development, review, and export branches for the corrected fix if the work will continue
-10. do not create a replacement `review/*` PR for that same family until step 7 has succeeded, unless the operator explicitly authorizes a different sequencing with an unlock code
+8. after the rollback is safely landed and verified, clean up the old failed-release artifacts so they no longer look current or reusable
+9. that cleanup should include, as applicable, stale local branches, stale remote branches, stale local PR/export worktrees, and stale temp packaging directories tied to the failed promotion family
+10. only after that cleanup, delete or retire the stale `review/*` and `pr/*` release branches that represented the failed promotion
+11. only then recreate fresh development, review, and export branches for the corrected fix if the work will continue
+12. do not create a replacement `review/*` PR for that same family until step 7 has succeeded, unless the operator explicitly authorizes a different sequencing with an unlock code
 
 Normal rollback should be done as a visible revert PR into `devclaw-local-current`.
 Do not force-reset, force-push, or rewrite local-truth history unless the operator explicitly authorizes that divergence with an unlock code.
