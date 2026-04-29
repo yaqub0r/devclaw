@@ -352,6 +352,30 @@ describe("E2E pipeline", () => {
       assert.strictEqual(closeCalls.length, 1);
       assert.strictEqual(closeCalls[0].args.issueId, 30);
     });
+
+    it("should use CLI fallback for completion notifications and preserve Telegram topic routing", async () => {
+      h.project.channels[0]!.messageThreadId = 176;
+
+      await executeCompletion({
+        workspaceDir: h.workspaceDir,
+        projectSlug: h.project.slug,
+        channels: h.project.channels,
+        role: "tester",
+        result: "pass",
+        issueId: 30,
+        summary: "All tests pass",
+        provider: h.provider,
+        repoPath: "/tmp/test-repo",
+        projectName: "test-project",
+        runCommand: h.runCommand,
+      });
+
+      const notifyCalls = h.commands.commands.filter(
+        (c) => c.argv[0] === "openclaw" && c.argv[1] === "message" && c.argv[2] === "send",
+      );
+      assert.ok(notifyCalls.length >= 2, "Expected workerComplete and issueComplete CLI fallback notifications");
+      assert.ok(notifyCalls.every((c) => c.argv.includes("--thread-id") && c.argv.includes("176")));
+    });
   });
 
   // =========================================================================
@@ -445,6 +469,30 @@ describe("E2E pipeline", () => {
       assert.ok(comments[0]!.body.includes("- category: `work_finish_blocked`"));
       assert.ok(comments[0]!.body.includes("### Context"));
       assert.ok(comments[0]!.body.includes("Please review this hold reason and update the issue before re-queueing it."));
+    });
+
+    it("should use CLI fallback for Refining notifications and preserve Telegram topic routing", async () => {
+      h.project.channels[0]!.messageThreadId = 176;
+
+      await executeCompletion({
+        workspaceDir: h.workspaceDir,
+        projectSlug: h.project.slug,
+        channels: h.project.channels,
+        role: "developer",
+        result: "blocked",
+        issueId: 50,
+        summary: "Need design decision",
+        provider: h.provider,
+        repoPath: "/tmp/test-repo",
+        projectName: "test-project",
+        runCommand: h.runCommand,
+      });
+
+      const notifyCalls = h.commands.commands.filter(
+        (c) => c.argv[0] === "openclaw" && c.argv[1] === "message" && c.argv[2] === "send",
+      );
+      assert.ok(notifyCalls.length >= 1, "Expected CLI fallback notification call");
+      assert.ok(notifyCalls.some((c) => c.argv.includes("--thread-id") && c.argv.includes("176")));
     });
   });
 
