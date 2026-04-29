@@ -158,6 +158,27 @@ After the operator reports testing complete, the orchestrator should:
 - explicitly offer to install or reload `devclaw-local-current` into the live self-hosted environment
 - then complete the upstream issue linkage step and write the final proposed upstream PR title/body into the promotion issue
 
+After the operator opens the upstream DevClaw official PR, the orchestrator should keep tracking on the local promotion issue until that upstream PR is resolved.
+
+That ongoing tracking should include:
+
+- the upstream PR URL
+- significant state changes such as opened, review feedback received, update pushed, approved, merged, or closed
+- any linked upstream issue comments or references that matter to the promotion record
+- exact export-branch or commit changes if the `pr/*` branch is refreshed
+- whether any local-truth or live-install follow-up happened in response to upstream review
+
+When the upstream PR is fully resolved, the orchestrator should finish the release cleanup on the local side.
+
+That cleanup should include, as applicable:
+
+- closing or otherwise completing the local promotion issue
+- deleting no-longer-needed local packaging artifacts and temp directories
+- deleting no-longer-needed `pr/*` branches after the upstream resolution is complete
+- deleting any other release-only local artifacts that no longer serve an active tracking purpose
+
+Use a persistent scheduled follow-up, such as a daily cron job, so opened upstream PRs do not get forgotten while waiting on review or merge.
+
 This handoff gives the operator a ready-to-submit upstream PR package while keeping only the final upstream PR opening step under operator control, while also making the live-install follow-up explicit instead of implicit.
 
 ## Rollback policy for failed promotions
