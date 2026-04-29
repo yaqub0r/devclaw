@@ -5,6 +5,7 @@
  * - reset: Reset config files to package defaults (with .bak backups)
  * - diff: Show differences between current workflow.yaml and package default
  * - version: Show current and workspace DevClaw versions
+ * - provenance: Show embedded live runtime build provenance
  */
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -15,6 +16,7 @@ import { writeAllDefaults, backupAndWrite, fileExists } from "../../setup/worksp
 import { WORKFLOW_YAML_TEMPLATE, DEFAULT_ROLE_INSTRUCTIONS } from "../../setup/templates.js";
 import { DATA_DIR } from "../../setup/migrate-layout.js";
 import { getCurrentVersion, readVersionFile } from "../../setup/version.js";
+import { getBuildProvenance, formatBuildProvenanceSummary } from "../../build-provenance.js";
 
 export function createConfigTool(ctx: PluginContext) {
   return (toolCtx: ToolContext) => ({
@@ -27,19 +29,21 @@ Actions:
   Scope: --prompts (prompts only), --workflow (workflow.yaml only), --all (everything).
 - **diff**: Show differences between current workflow.yaml and the package default template.
 - **version**: Show DevClaw package version and workspace tracked version.
+- **provenance**: Show embedded live runtime build provenance.
 
 Examples:
   config({ action: "reset", scope: "workflow" })
   config({ action: "reset", scope: "all" })
   config({ action: "diff" })
-  config({ action: "version" })`,
+  config({ action: "version" })
+  config({ action: "provenance" })`,
     parameters: {
       type: "object",
       required: ["action"],
       properties: {
         action: {
           type: "string",
-          enum: ["reset", "diff", "version"],
+          enum: ["reset", "diff", "version", "provenance"],
           description: "Config action to perform.",
         },
         scope: {
@@ -62,6 +66,8 @@ Examples:
           return await handleDiff(workspacePath);
         case "version":
           return await handleVersion(workspacePath);
+        case "provenance":
+          return handleProvenance();
         default:
           throw new Error(`Unknown config action: ${action}`);
       }
@@ -174,5 +180,24 @@ async function handleVersion(workspacePath: string) {
       : workspaceVersion
         ? `DevClaw v${packageVersion} (workspace tracked: v${workspaceVersion}) — version mismatch.`
         : `DevClaw v${packageVersion} — workspace version not yet tracked.`,
+  });
+}
+
+function handleProvenance() {
+  const provenance = getBuildProvenance();
+
+  return jsonResult({
+    success: true,
+    action: "provenance",
+    packageVersion: provenance.packageVersion,
+    provenance,
+    summary:
+      `Live runtime provenance: ${formatBuildProvenanceSummary(provenance)}\n` +
+      `commit=${provenance.commitSha ?? "unknown"}\n` +
+      `short=${provenance.shortCommitSha ?? "unknown"}\n` +
+      `branch=${provenance.branch ?? "unknown"}\n` +
+      `dirty=${provenance.dirty === null ? "unknown" : provenance.dirty ? "true" : "false"}\n` +
+      `built=${provenance.buildTimestamp ?? "unknown"}\n` +
+      `source=${provenance.source}`,
   });
 }
