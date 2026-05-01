@@ -115,6 +115,62 @@ Use issue `#141` only as a rough shape reference, not as naming guidance. Avoid 
 
 As much non-human work as possible should be completed under that issue before the human review step.
 
+For local promotion tracking, prefer a title shaped like `UP: #<local-issue> <topic>`.
+For those `UP:` issues, the issue itself becomes the authoritative post-review execution checklist. Once human review starts or completes, the agent must be able to continue the remaining export and handoff work directly from the issue body without re-deriving the lane state from memory or from scattered comments.
+
+### `UP:` issue contract
+
+A `UP:` issue must stay current as a durable lane record. At minimum it must carry, in one obvious checklist or status block:
+
+- the current promotion phase
+- the local issue being promoted
+- the current `review/*` branch name
+- the current local-review PR URL and state
+- any rollback or demotion PR URL and state if a correction happened
+- whether `devclaw-local-current` currently contains the promoted package
+- the target `pr/*` export branch name
+- whether the `pr/*` branch exists yet
+- the compare or diff URL, or an explicit note that it is not ready yet
+- the upstream issue linkage status
+- whether the final upstream PR title/body is still gated on testing or is now allowed to be written
+- any active blocker or human-only next step
+- the explicit close gates that remain before the `UP:` issue can be completed
+
+After local review passes, do **not** treat the `UP:` issue as effectively done. The issue remains the active working checklist until the export branch, compare URL, upstream issue linkage, and operator handoff package are actually prepared and recorded.
+
+### `UP:` visible state labels
+
+Use exactly one primary `up:*` label at a time on each active `UP:` issue:
+
+- `up:local-review` for the local `review/*` branch and PR stage
+- `up:human-test` while waiting on human or live-environment validation
+- `up:rollback` while rollback, demotion, or correction is in progress
+- `up:export-prep` while preparing or refreshing the `pr/*` export branch and package
+- `up:handoff-ready` when the compare URL, upstream issue linkage, and proposed operator package are ready
+- `up:watching-upstream` after the human has opened the upstream PR and the local issue is tracking it
+- `up:done` only after the upstream lane is resolved and cleanup is complete
+
+Optional helper labels may be added alongside the one primary label:
+
+- `up:blocked`
+- `up:needs-human`
+
+These `up:*` labels are promotion-lane markers. They do **not** replace the normal DevClaw workflow state labels such as `Planning`, `To Do`, `Doing`, `Refining`, or `Done`.
+
+### `UP:` close and reopen rules
+
+A `UP:` issue must **not** close merely because local review passed or local testing passed.
+
+It can close only when all of the following are true:
+
+- the final active phase is `up:done`
+- the export branch and compare URL have been prepared and recorded, or the issue records why no export is needed
+- upstream issue linkage status is recorded
+- the operator handoff package is recorded, including any allowed final PR title/body
+- any active upstream watch has been resolved or intentionally retired
+- release-only cleanup is recorded as complete
+
+If a `UP:` issue was closed too early and must re-enter the lane, first clear terminal workflow state such as `Done` before re-queueing or otherwise resuming active work. Reopening the issue text alone is not enough if terminal workflow labels still block the lane.
 ## PR handoff policy
 
 The agent should autonomously create or refresh local-truth fork PRs into `devclaw-local-current` whenever the runbook calls for a `review/*` promotion step.
@@ -149,6 +205,8 @@ So the rule is:
 After the relevant PR steps have succeeded, the orchestrator should not stop silently at "package prepared" or "PR merged".
 
 Before the operator reports testing complete, the orchestrator should limit the promotion issue handoff to branch heads, PR URLs, validation evidence, and the compare URL. Do not write the final upstream PR title/body yet.
+
+During that stage, the owning `UP:` issue should normally be labeled `up:human-test` or `up:export-prep`, and the issue body should be updated immediately when the lane moves between review, rollback, export prep, handoff-ready, or upstream-watching phases.
 
 After the operator reports testing complete, the orchestrator should:
 
@@ -203,7 +261,7 @@ Do not keep stale release-tracking issues or stale export branches around as if 
 The required rollback flow is:
 
 1. record the failure on the development issue and on the promotion or release-tracking issue, with concrete evidence from the failed validation
-2. update or close the promotion or release-tracking issue so it no longer represents an active valid release
+2. update the promotion or release-tracking issue so it clearly records that the old package is no longer a valid release candidate, and move its primary `up:*` label to `up:rollback` while the correction is in progress. Do not close the issue if export or handoff follow-up still remains for the corrected lane
 3. move the development issue back into development or refinement as appropriate
 4. create a new `review/<issue-number>-<short-description>` rollback branch from `devclaw-local-current`
 5. revert the bad merge or bad commit on that rollback branch, rather than silently rewriting history on `devclaw-local-current`

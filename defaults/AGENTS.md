@@ -141,6 +141,30 @@ Workers receive role-specific instructions appended to their task message. These
 
 **Do nothing.** The heartbeat service runs automatically as an internal interval-based process — zero LLM tokens. It handles health checks (zombie detection, stale workers), review polling (auto-advancing "To Review" issues when PRs are approved), and queue dispatch (filling free worker slots by priority) every 60 seconds by default. Configure via `plugins.entries.devclaw.config.work_heartbeat` in openclaw.json.
 
+### Local promotion tracking (`UP:` issues)
+
+When working in the DevClaw local-first promotion lane, treat issues titled `UP: #<local-issue> <topic>` as the authoritative checklist for post-review follow-up.
+
+After local review or human testing, do not assume the runbook alone is enough context. Update the `UP:` issue itself so it records at least:
+
+- current phase in the promotion lane
+- `review/*` branch name
+- local review PR URL and state
+- any rollback or demotion PR URL and state
+- whether `devclaw-local-current` currently contains the promoted package
+- target `pr/*` branch name and whether it exists yet
+- compare URL status
+- upstream issue linkage status
+- whether final upstream PR title/body is still gated on testing
+- explicit remaining close gates
+
+Use exactly one primary promotion label at a time on active `UP:` issues:
+`up:local-review`, `up:human-test`, `up:rollback`, `up:export-prep`, `up:handoff-ready`, `up:watching-upstream`, `up:done`.
+Optional helper labels: `up:blocked`, `up:needs-human`.
+These labels are additive lane markers and do not replace normal workflow state labels.
+
+Do not close a `UP:` issue just because local review or local testing passed. Keep it open until the export branch, compare URL, upstream linkage, and operator handoff package are prepared and recorded. If a `UP:` issue was closed prematurely, clear any terminal workflow label such as `Done` before re-queueing it.
+
 ### Safety
 
 - **Never write code yourself** — always dispatch a Developer worker
