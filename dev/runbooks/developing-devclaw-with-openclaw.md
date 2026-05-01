@@ -98,6 +98,14 @@ Do not promote code to DevClaw official without a local issue that covers the fu
 
 That issue is not just "prep". It owns the entire promotion workflow.
 
+For local upstream-publication tracking issues, use title format:
+
+- `UP: #<local-issue> <short topic>`
+
+When creating or renaming these local tracking issues from the repo, prefer:
+
+- `dev/scripts/upstream-publication-issue.sh`
+
 The promotion issue should document:
 
 - the exact local issue or fix being promoted
