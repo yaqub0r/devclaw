@@ -129,7 +129,7 @@ describe("loadRoleInstructions", () => {
 });
 
 describe("loadOrchestratorInstructions", () => {
-  it("should layer workspace and project orchestrator instructions in order", async () => {
+  it("should prefer project orchestrator instructions over workspace defaults", async () => {
     const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "devclaw-test-"));
     await fs.mkdir(path.join(tmpDir, "devclaw", "prompts"), { recursive: true });
     await fs.mkdir(path.join(tmpDir, "devclaw", "projects", "my-project", "prompts"), { recursive: true });
@@ -137,12 +137,23 @@ describe("loadOrchestratorInstructions", () => {
     await fs.writeFile(path.join(tmpDir, "devclaw", "projects", "my-project", "prompts", "orchestrator.md"), "Project orchestrator prompt");
 
     const result = await loadOrchestratorInstructions(tmpDir, "my-project");
-    assert.strictEqual(result, "Workspace orchestrator prompt\n\nProject orchestrator prompt");
+    assert.strictEqual(result, "Project orchestrator prompt");
 
     await fs.rm(tmpDir, { recursive: true });
   });
 
-  it("should return layered sources when requested", async () => {
+  it("should fall back to workspace orchestrator instructions when no project override exists", async () => {
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "devclaw-test-"));
+    await fs.mkdir(path.join(tmpDir, "devclaw", "prompts"), { recursive: true });
+    await fs.writeFile(path.join(tmpDir, "devclaw", "prompts", "orchestrator.md"), "Workspace orchestrator prompt");
+
+    const result = await loadOrchestratorInstructions(tmpDir, "missing-project");
+    assert.strictEqual(result, "Workspace orchestrator prompt");
+
+    await fs.rm(tmpDir, { recursive: true });
+  });
+
+  it("should return the winning source when requested", async () => {
     const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "devclaw-test-"));
     await fs.mkdir(path.join(tmpDir, "devclaw", "prompts"), { recursive: true });
     await fs.mkdir(path.join(tmpDir, "devclaw", "projects", "my-project", "prompts"), { recursive: true });
@@ -152,8 +163,8 @@ describe("loadOrchestratorInstructions", () => {
     await fs.writeFile(projectPath, "Project orchestrator prompt");
 
     const result = await loadOrchestratorInstructions(tmpDir, "my-project", { withSource: true });
-    assert.strictEqual(result.content, "Workspace orchestrator prompt\n\nProject orchestrator prompt");
-    assert.deepStrictEqual(result.sources, [workspacePath, projectPath]);
+    assert.strictEqual(result.content, "Project orchestrator prompt");
+    assert.strictEqual(result.source, projectPath);
 
     await fs.rm(tmpDir, { recursive: true });
   });

@@ -5,9 +5,9 @@
  *   1. agent:bootstrap (internal hook) for worker sessions, replacing the
  *      orchestrator's AGENTS.md with role-specific instructions so workers see
  *      their own prompt on every turn.
- *   2. agent:bootstrap handling for main/orchestrator sessions, injecting live
- *      workspace and project-specific orchestrator prompt layers as a separate
- *      bootstrap file instead of piggybacking on AGENTS.md.
+ *   2. agent:bootstrap handling for main/orchestrator sessions, injecting one
+ *      resolved orchestrator prompt as a separate bootstrap file instead of
+ *      piggybacking on AGENTS.md.
  *   3. Prompt loaders used by bootstrap and dispatch fallback paths.
  */
 import fs from "node:fs/promises";
@@ -34,17 +34,12 @@ export function parseDevClawSessionKey(
   return null;
 }
 
-export type PromptInstructionsResult = {
+export type PromptSourceResult = {
   content: string;
   source: string | null;
 };
 
-export type LayeredPromptInstructionsResult = {
-  content: string;
-  sources: string[];
-};
-
-export type RoleInstructionsResult = PromptInstructionsResult;
+export type RoleInstructionsResult = PromptSourceResult;
 
 async function loadPromptInstructions(
   workspaceDir: string,
@@ -117,13 +112,15 @@ export async function loadRoleInstructions(
 
 /**
  * Load orchestrator-specific instructions from workspace.
- * Resolution order inside the orchestrator session:
- *   1. AGENTS.md / runtime baseline (outside this loader)
- *   2. devclaw/prompts/orchestrator.md
- *   3. devclaw/projects/<project>/prompts/orchestrator.md
- *   4. package default
+ * Resolution order for the dedicated orchestrator bootstrap file:
+ *   1. devclaw/projects/<project>/prompts/orchestrator.md
+ *   2. projects/roles/<project>/orchestrator.md
+ *   3. devclaw/prompts/orchestrator.md
+ *   4. projects/roles/default/orchestrator.md
+ *   5. package default
  *
- * The returned content is meant for a dedicated bootstrap file so it remains
+ * AGENTS.md remains the baseline bootstrap context outside this loader. The
+ * returned content is injected as a separate bootstrap file so it remains
  * independently loadable even when AGENTS.md is truncated by bootstrap limits.
  */
 export async function loadOrchestratorInstructions(
@@ -134,56 +131,17 @@ export async function loadOrchestratorInstructions(
   workspaceDir: string,
   projectName: string | undefined,
   opts: { withSource: true },
-): Promise<LayeredPromptInstructionsResult>;
+): Promise<PromptSourceResult>;
 export async function loadOrchestratorInstructions(
   workspaceDir: string,
   projectName?: string,
   opts?: { withSource: true },
-): Promise<string | LayeredPromptInstructionsResult> {
-  const dataDir = path.join(workspaceDir, DATA_DIR);
-  const layers: string[] = [];
-  const sources: string[] = [];
-
-  const workspaceCandidates = [
-    path.join(dataDir, "prompts", "orchestrator.md"),
-    path.join(workspaceDir, "projects", "roles", "default", "orchestrator.md"),
-  ];
-  for (const filePath of workspaceCandidates) {
-    try {
-      const content = await fs.readFile(filePath, "utf-8");
-      layers.push(content.trim());
-      sources.push(filePath);
-      break;
-    } catch {
-      /* not found, try next */
-    }
-  }
-
-  if (projectName) {
-    const projectCandidates = [
-      path.join(dataDir, "projects", projectName, "prompts", "orchestrator.md"),
-      path.join(workspaceDir, "projects", "roles", projectName, "orchestrator.md"),
-    ];
-    for (const filePath of projectCandidates) {
-      try {
-        const content = await fs.readFile(filePath, "utf-8");
-        layers.push(content.trim());
-        sources.push(filePath);
-        break;
-      } catch {
-        /* not found, try next */
-      }
-    }
-  }
-
-  if (layers.length === 0 && DEFAULT_ORCHESTRATOR_PROMPT.trim()) {
-    layers.push(DEFAULT_ORCHESTRATOR_PROMPT.trim());
-    sources.push("package-default");
-  }
-
-  const content = layers.filter(Boolean).join("\n\n");
-  if (opts?.withSource) return { content, sources };
-  return content;
+): Promise<string | PromptSourceResult> {
+  return loadPromptInstructions(workspaceDir, "orchestrator", {
+    projectName,
+    withSource: opts?.withSource,
+    includePackageDefault: DEFAULT_ORCHESTRATOR_PROMPT.trim(),
+  }) as Promise<string | PromptSourceResult>;
 }
 
 async function resolveProjectNameForBootstrap(
@@ -227,9 +185,8 @@ async function resolveProjectNameForBootstrap(
  *
  * Orchestrator precedence inside bootstrap context:
  *   1. existing AGENTS.md/runtime baseline
- *   2. DEVCLAW_ORCHESTRATOR_PROMPT.md (workspace orchestrator prompt layer)
- *   3. DEVCLAW_ORCHESTRATOR_PROMPT.md (project orchestrator prompt layer)
- *   4. issue/task/chat-specific context (outside this hook)
+ *   2. DEVCLAW_ORCHESTRATOR_PROMPT.md from the resolved orchestrator prompt source
+ *   3. issue/task/chat-specific context (outside this hook)
  */
 export function registerBootstrapHook(api: OpenClawPluginApi, ctx: PluginContext): void {
   api.registerHook(
@@ -276,7 +233,7 @@ export function registerBootstrapHook(api: OpenClawPluginApi, ctx: PluginContext
 
       if (!parsed) {
         const projectName = await resolveProjectNameForBootstrap(workspaceDir, context);
-        const { content, sources } = await loadOrchestratorInstructions(workspaceDir, projectName, { withSource: true });
+        const { content, source } = await loadOrchestratorInstructions(workspaceDir, projectName, { withSource: true });
         if (!content.trim()) return;
 
         const promptFileName = "DEVCLAW_ORCHESTRATOR_PROMPT.md";
@@ -293,7 +250,7 @@ export function registerBootstrapHook(api: OpenClawPluginApi, ctx: PluginContext
         if (!existingPromptEntry) bootstrapFiles.push(promptEntry);
 
         ctx.logger.info(
-          `agent:bootstrap: injected orchestrator prompt file${projectName ? ` for "${projectName}"` : ""} from ${sources.join(" -> ")}`,
+          `agent:bootstrap: injected orchestrator prompt file${projectName ? ` for "${projectName}"` : ""} from ${source}`,
         );
         return;
       }
