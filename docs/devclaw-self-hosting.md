@@ -45,6 +45,26 @@ When changing the live DevClaw source during development:
 7. Verify the loaded plugin path.
 8. Verify the exact live git commit.
 
+## Single-source rule
+
+For routine self-hosted DevClaw development, treat **one active local plugin source** as the rule.
+
+Do not leave DevClaw simultaneously discoverable from multiple local sources unless you are intentionally debugging loader behavior.
+
+In practice, that means you should pick one of these models and keep the others out of the live path:
+
+- **linked path install from the intended checkout or worktree**
+- **copied install under `~/.openclaw/extensions/devclaw`**
+- **explicit `plugins.load.paths[]` source path**
+
+Unsafe or confusing combinations include:
+
+- a copied install plus an active `plugins.load.paths[]` entry for DevClaw
+- more than one DevClaw worktree listed in `plugins.load.paths[]`
+- `plugins.load.paths[]` still pointing at a worktree you plan to delete
+
+If you are not intentionally testing plugin loading behavior, reduce the setup to one clear live source before trusting any runtime result.
+
 ## Build before switching
 
 Before switching live, verify the target source tree has a built artifact:
@@ -159,6 +179,33 @@ If both are in play, the gateway may load a different source than the one you in
 
 If startup logs mention duplicate plugin ids or the runtime path does not match your expected worktree, stop and clean up the duplicate before trusting the switch.
 
+### Pre-delete rule for worktrees
+
+Before deleting any DevClaw worktree that has ever been used as a live source, first remove or update any matching references in live OpenClaw config.
+
+Check at least:
+
+- `plugins.load.paths[]`
+- any recorded install metadata that still points at that worktree
+- any local notes or scripts that still treat that worktree as the live source
+
+Do not delete the worktree first and plan to clean config up later. That leaves you with exactly the stale-path failure mode where plugin inspection and gateway status become harder to trust.
+
+### Recovery when config points at a deleted worktree
+
+If `openclaw plugins inspect devclaw` or `openclaw gateway status` fails because config still points at a deleted worktree:
+
+1. open `~/.openclaw/openclaw.json`
+2. inspect `plugins.load.paths[]`
+3. remove the deleted worktree path or replace it with the intended live source
+4. inspect any recorded DevClaw install metadata and update it if it still points at the deleted worktree
+5. restart the gateway
+6. rerun:
+   - `openclaw gateway status`
+   - `openclaw plugins inspect devclaw`
+   - embedded provenance check
+7. only after those checks agree again, trust any branch, path, or commit conclusion
+
 ## When a live switch failed
 
 Treat the switch as failed if any of the following happen:
@@ -174,7 +221,8 @@ In that case:
 1. verify the target build artifact exists
 2. inspect the live plugin path again
 3. remove or disable competing DevClaw plugin sources
-4. restart and verify again
+4. if config references a deleted worktree, fix `plugins.load.paths[]` before continuing
+5. restart and verify again
 
 ## Generic smoke test for a running environment
 
