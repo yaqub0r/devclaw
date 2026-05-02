@@ -234,6 +234,92 @@ describe("E2E bootstrap — agent:bootstrap hook (AGENTS.md stripping)", () => {
     assert.strictEqual(result.files["DEVCLAW_ORCHESTRATOR_PROMPT.md"]?.missing, false);
   });
 
+  it("should resolve topic-bound projects for orchestrator prompt injection", async () => {
+    h = await createTestHarness({
+      projectName: "root-project",
+      channelId: "-1003581929219",
+      extraProjects: {
+        devclaw: {
+          slug: "devclaw",
+          name: "devclaw",
+          repo: "/tmp/devclaw",
+          groupName: "DevClaw Topic",
+          deployUrl: "",
+          baseBranch: "main",
+          deployBranch: "main",
+          channels: [{
+            channelId: "-1003581929219",
+            channel: "telegram",
+            messageThreadId: 183,
+            name: "topic",
+            events: ["*"],
+          }],
+          provider: "github",
+          workers: {
+            developer: { levels: {} },
+            tester: { levels: {} },
+            architect: { levels: {} },
+            reviewer: { levels: {} },
+          },
+        },
+      },
+    });
+
+    await h.writePrompt("orchestrator", "Workspace orchestrator prompt");
+    await h.writePrompt("orchestrator", "Root project prompt", "root-project");
+    await h.writePrompt("orchestrator", "DevClaw topic prompt", "devclaw");
+
+    const result = await h.simulateBootstrap("agent:main:orchestrator", { messageThreadId: 183 });
+    assert.strictEqual(
+      result.files["DEVCLAW_ORCHESTRATOR_PROMPT.md"]?.content,
+      "Workspace orchestrator prompt\n\nDevClaw topic prompt",
+    );
+    assert.ok(!result.files["DEVCLAW_ORCHESTRATOR_PROMPT.md"]?.content.includes("Root project prompt"));
+  });
+
+  it("should fall back to chat-level project when no topic-specific binding matches", async () => {
+    h = await createTestHarness({
+      projectName: "root-project",
+      channelId: "-1003581929219",
+      extraProjects: {
+        devclaw: {
+          slug: "devclaw",
+          name: "devclaw",
+          repo: "/tmp/devclaw",
+          groupName: "DevClaw Topic",
+          deployUrl: "",
+          baseBranch: "main",
+          deployBranch: "main",
+          channels: [{
+            channelId: "-1003581929219",
+            channel: "telegram",
+            messageThreadId: 183,
+            name: "topic",
+            events: ["*"],
+          }],
+          provider: "github",
+          workers: {
+            developer: { levels: {} },
+            tester: { levels: {} },
+            architect: { levels: {} },
+            reviewer: { levels: {} },
+          },
+        },
+      },
+    });
+
+    await h.writePrompt("orchestrator", "Workspace orchestrator prompt");
+    await h.writePrompt("orchestrator", "Root project prompt", "root-project");
+    await h.writePrompt("orchestrator", "DevClaw topic prompt", "devclaw");
+
+    const result = await h.simulateBootstrap("agent:main:orchestrator", { messageThreadId: 999 });
+    assert.strictEqual(
+      result.files["DEVCLAW_ORCHESTRATOR_PROMPT.md"]?.content,
+      "Workspace orchestrator prompt\n\nRoot project prompt",
+    );
+    assert.ok(!result.files["DEVCLAW_ORCHESTRATOR_PROMPT.md"]?.content.includes("DevClaw topic prompt"));
+  });
+
   it("should NOT strip AGENTS.md for unknown roles", async () => {
     h = await createTestHarness({ projectName: "custom-app" });
 
