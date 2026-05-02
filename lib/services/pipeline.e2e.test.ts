@@ -341,6 +341,58 @@ describe("E2E pipeline", () => {
       assert.strictEqual(closeCalls.length, 1);
       assert.strictEqual(closeCalls[0].args.issueId, 30);
     });
+
+    it("should use CLI fallback for completion notifications and preserve Telegram topic routing", async () => {
+      h.project.channels[0]!.messageThreadId = 176;
+
+      await executeCompletion({
+        workspaceDir: h.workspaceDir,
+        projectSlug: h.project.slug,
+        channels: h.project.channels,
+        role: "tester",
+        result: "pass",
+        issueId: 30,
+        summary: "All tests pass",
+        provider: h.provider,
+        repoPath: "/tmp/test-repo",
+        projectName: "test-project",
+        runCommand: h.runCommand,
+      });
+
+      const notifyCalls = h.commands.commands.filter(
+        (c) => c.argv[0] === "openclaw" && c.argv[1] === "message" && c.argv[2] === "send",
+      );
+      assert.strictEqual(notifyCalls.length, 1, "Expected workerComplete CLI fallback notification");
+      assert.ok(notifyCalls[0]!.argv.includes("--thread-id") && notifyCalls[0]!.argv.includes("176"));
+    });
+
+    it("should await completion notification fallback delivery before returning", async () => {
+      h.project.channels[0]!.messageThreadId = 176;
+      const delayedRunCommand = async (argv: string[], opts: any) => {
+        if (argv[0] === "openclaw" && argv[1] === "message" && argv[2] === "send") {
+          await new Promise((resolve) => setTimeout(resolve, 25));
+        }
+        return h.runCommand(argv, opts);
+      };
+
+      const startedAt = Date.now();
+      await executeCompletion({
+        workspaceDir: h.workspaceDir,
+        projectSlug: h.project.slug,
+        channels: h.project.channels,
+        role: "tester",
+        result: "pass",
+        issueId: 30,
+        summary: "All tests pass",
+        provider: h.provider,
+        repoPath: "/tmp/test-repo",
+        projectName: "test-project",
+        runCommand: delayedRunCommand,
+      });
+      const elapsedMs = Date.now() - startedAt;
+
+      assert.ok(elapsedMs >= 25, `Expected executeCompletion to await fallback send, got ${elapsedMs}ms`);
+    });
   });
 
   // =========================================================================
@@ -419,6 +471,59 @@ describe("E2E pipeline", () => {
 
       const issue = await h.provider.getIssue(50);
       assert.ok(issue.labels.includes("Refining"));
+    });
+
+
+    it("should use CLI fallback for Refining notifications and preserve Telegram topic routing", async () => {
+      h.project.channels[0]!.messageThreadId = 176;
+
+      await executeCompletion({
+        workspaceDir: h.workspaceDir,
+        projectSlug: h.project.slug,
+        channels: h.project.channels,
+        role: "developer",
+        result: "blocked",
+        issueId: 50,
+        summary: "Need design decision",
+        provider: h.provider,
+        repoPath: "/tmp/test-repo",
+        projectName: "test-project",
+        runCommand: h.runCommand,
+      });
+
+      const notifyCalls = h.commands.commands.filter(
+        (c) => c.argv[0] === "openclaw" && c.argv[1] === "message" && c.argv[2] === "send",
+      );
+      assert.strictEqual(notifyCalls.length, 1, "Expected workerComplete CLI fallback notification");
+      assert.ok(notifyCalls[0]!.argv.includes("--thread-id") && notifyCalls[0]!.argv.includes("176"));
+    });
+
+    it("should await Refining notification fallback delivery before returning", async () => {
+      h.project.channels[0]!.messageThreadId = 176;
+      const delayedRunCommand = async (argv: string[], opts: any) => {
+        if (argv[0] === "openclaw" && argv[1] === "message" && argv[2] === "send") {
+          await new Promise((resolve) => setTimeout(resolve, 25));
+        }
+        return h.runCommand(argv, opts);
+      };
+
+      const startedAt = Date.now();
+      await executeCompletion({
+        workspaceDir: h.workspaceDir,
+        projectSlug: h.project.slug,
+        channels: h.project.channels,
+        role: "developer",
+        result: "blocked",
+        issueId: 50,
+        summary: "Need design decision",
+        provider: h.provider,
+        repoPath: "/tmp/test-repo",
+        projectName: "test-project",
+        runCommand: delayedRunCommand,
+      });
+      const elapsedMs = Date.now() - startedAt;
+
+      assert.ok(elapsedMs >= 25, `Expected executeCompletion to await Refining fallback send, got ${elapsedMs}ms`);
     });
   });
 

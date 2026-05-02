@@ -154,51 +154,66 @@ export async function executeCompletion(opts: {
 
   // Send notification early (before deactivation and label transition which can fail)
   const notifyConfig = getNotificationConfig(pluginConfig);
-  notify(
-    {
-      type: "workerComplete",
-      project: projectName,
-      issueId,
-      issueUrl: issue.web_url,
-      role,
-      level: opts.level,
-      name: workerName,
-      result: result as "done" | "pass" | "fail" | "refine" | "blocked",
-      summary,
-      nextState,
-      prUrl,
-      createdTasks,
-    },
-    {
-      workspaceDir,
-      config: notifyConfig,
-      channelId: notifyTarget?.channelId,
-      channel: notifyTarget?.channel ?? "telegram",
-      runtime,
-      accountId: notifyTarget?.accountId,
-    },
-  ).catch((err) => {
-    auditLog(workspaceDir, "pipeline_warning", { step: "notify", issue: issueId, role, error: (err as Error).message ?? String(err) }).catch(() => {});
-  });
-
-  // Send merge notification when PR was merged during this completion
-  if (mergedPr) {
-    notify(
+  try {
+    await notify(
       {
-        type: "prMerged",
+        type: "workerComplete",
         project: projectName,
         issueId,
         issueUrl: issue.web_url,
-        issueTitle: issue.title,
+        role,
+        level: opts.level,
+        name: workerName,
+        result: result as "done" | "pass" | "fail" | "refine" | "blocked",
+        summary,
+        nextState,
         prUrl,
-        prTitle,
-        sourceBranch,
-        mergedBy: "pipeline",
+        createdTasks,
       },
-      { workspaceDir, config: notifyConfig, channelId: notifyTarget?.channelId, channel: notifyTarget?.channel ?? "telegram", runtime, accountId: notifyTarget?.accountId },
-    ).catch((err) => {
+      {
+        workspaceDir,
+        config: notifyConfig,
+        channelId: notifyTarget?.channelId,
+        channel: notifyTarget?.channel ?? "telegram",
+        runtime,
+        accountId: notifyTarget?.accountId,
+        runCommand: rc,
+        messageThreadId: notifyTarget?.messageThreadId,
+      },
+    );
+  } catch (err) {
+    auditLog(workspaceDir, "pipeline_warning", { step: "notify", issue: issueId, role, error: (err as Error).message ?? String(err) }).catch(() => {});
+  }
+
+  // Send merge notification when PR was merged during this completion
+  if (mergedPr) {
+    try {
+      await notify(
+        {
+          type: "prMerged",
+          project: projectName,
+          issueId,
+          issueUrl: issue.web_url,
+          issueTitle: issue.title,
+          prUrl,
+          prTitle,
+          sourceBranch,
+          mergedBy: "pipeline",
+        },
+        {
+          workspaceDir,
+          config: notifyConfig,
+          channelId: notifyTarget?.channelId,
+          channel: notifyTarget?.channel ?? "telegram",
+          runtime,
+          accountId: notifyTarget?.accountId,
+          runCommand: rc,
+          messageThreadId: notifyTarget?.messageThreadId,
+        },
+      );
+    } catch (err) {
       auditLog(workspaceDir, "pipeline_warning", { step: "mergeNotify", issue: issueId, role, error: (err as Error).message ?? String(err) }).catch(() => {});
-    });
+    }
   }
 
   // Transition label first (critical — if this fails, issue still has correct state)
@@ -228,27 +243,31 @@ export async function executeCompletion(opts: {
     const updated = await provider.getIssue(issueId);
     const routing = detectStepRouting(updated.labels, "review") as "human" | "agent" | null;
     if (routing === "human" || routing === "agent") {
-      notify(
-        {
-          type: "reviewNeeded",
-          project: projectName,
-          issueId,
-          issueUrl: updated.web_url,
-          issueTitle: updated.title,
-          routing,
-          prUrl,
-        },
-        {
-          workspaceDir,
-          config: notifyConfig,
-          channelId: notifyTarget?.channelId,
-          channel: notifyTarget?.channel ?? "telegram",
-          runtime,
-          accountId: notifyTarget?.accountId,
-        },
-      ).catch((err) => {
+      try {
+        await notify(
+          {
+            type: "reviewNeeded",
+            project: projectName,
+            issueId,
+            issueUrl: updated.web_url,
+            issueTitle: updated.title,
+            routing,
+            prUrl,
+          },
+          {
+            workspaceDir,
+            config: notifyConfig,
+            channelId: notifyTarget?.channelId,
+            channel: notifyTarget?.channel ?? "telegram",
+            runtime,
+            accountId: notifyTarget?.accountId,
+            runCommand: rc,
+            messageThreadId: notifyTarget?.messageThreadId,
+          },
+        );
+      } catch (err) {
         auditLog(workspaceDir, "pipeline_warning", { step: "reviewNotify", issue: issueId, role, error: (err as Error).message ?? String(err) }).catch(() => {});
-      });
+      }
     }
   }
 

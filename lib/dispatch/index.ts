@@ -272,6 +272,7 @@ export async function dispatchTask(
       runtime,
       accountId: notifyTarget?.accountId,
       runCommand: rc,
+      messageThreadId: notifyTarget?.messageThreadId,
     },
   ).catch((err) => {
     auditLog(workspaceDir, "dispatch_warning", {
