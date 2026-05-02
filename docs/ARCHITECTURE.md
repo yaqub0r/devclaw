@@ -548,7 +548,7 @@ Worker prompt precedence:
 
 Orchestrator prompt precedence inside the main session bootstrap content:
 1. `AGENTS.md` and runtime baseline
-2. `DEVCLAW_ORCHESTRATOR_PROMPT.md` containing one resolved prompt source
+2. `orchestrator.md` containing one resolved prompt source
    (`devclaw/projects/<project>/prompts/orchestrator.md`, else
    `devclaw/prompts/orchestrator.md`, else package default)
 3. current issue/chat/task context
@@ -768,8 +768,8 @@ See [CONFIGURATION.md](CONFIGURATION.md) for the full reference.
 | Workflow config (project) | `<workspace>/devclaw/projects/<project>/workflow.yaml` | Project-specific overrides |
 | Default role instructions | `<workspace>/devclaw/prompts/<role>.md` | Default `developer.md`, `tester.md`, `architect.md`, `reviewer.md` |
 | Project role instructions | `<workspace>/devclaw/projects/<project>/prompts/<role>.md` | Per-project role instruction overrides |
-| Default orchestrator prompt | `<workspace>/devclaw/prompts/orchestrator.md` | Used for `DEVCLAW_ORCHESTRATOR_PROMPT.md` when no project override exists |
-| Project orchestrator prompt override | `<workspace>/devclaw/projects/<project>/prompts/orchestrator.md` | Wins for `DEVCLAW_ORCHESTRATOR_PROMPT.md` when the current chat resolves to that project |
+| Default orchestrator prompt | `<workspace>/devclaw/prompts/orchestrator.md` | Used for `orchestrator.md` when no project override exists |
+| Project orchestrator prompt override | `<workspace>/devclaw/projects/<project>/prompts/orchestrator.md` | Wins for `orchestrator.md` when the current chat resolves to that project |
 | Audit log | `<workspace>/devclaw/log/audit.log` | NDJSON event log |
 | Session transcripts | `~/.openclaw/agents/<agent>/sessions/<uuid>.jsonl` | Conversation history per session |
 | Git repos | `~/git/<project>/` | Project source code |

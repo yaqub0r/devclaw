@@ -387,7 +387,7 @@ Each role in the `workers` record has a `WorkerState` object:
 
 Worker instructions are injected via the `agent:bootstrap` hook at session startup. The hook loads `devclaw/projects/<project>/prompts/<role>.md`, falling back to `devclaw/prompts/<role>.md`.
 
-The orchestrator session keeps its AGENTS.md baseline, then injects a dedicated `DEVCLAW_ORCHESTRATOR_PROMPT.md` bootstrap file from one resolved source: `devclaw/projects/<project>/prompts/orchestrator.md` when the current chat resolves to a project, otherwise `devclaw/prompts/orchestrator.md`, otherwise the package default. This keeps the live orchestrator prompt out of AGENTS.md so bootstrap truncation of AGENTS.md does not drop project-specific orchestration policy.
+The orchestrator session keeps its AGENTS.md baseline, then injects a dedicated `orchestrator.md` bootstrap file from one resolved source: `devclaw/projects/<project>/prompts/orchestrator.md` when the current chat resolves to a project, otherwise `devclaw/prompts/orchestrator.md`, otherwise the package default. This keeps the live orchestrator prompt out of AGENTS.md so bootstrap truncation of AGENTS.md does not drop project-specific orchestration policy.
 
 Edit these files to customize deployment steps, test commands, acceptance criteria, coding standards, and orchestration policy.
 

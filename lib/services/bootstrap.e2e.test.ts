@@ -228,10 +228,10 @@ describe("E2E bootstrap — agent:bootstrap hook (AGENTS.md stripping)", () => {
     assert.ok(!result.agentsMdContent.includes("Workspace orchestrator prompt"));
     assert.ok(!result.agentsMdContent.includes("Project orchestrator prompt"));
     assert.strictEqual(
-      result.files["DEVCLAW_ORCHESTRATOR_PROMPT.md"]?.content,
+      result.files["orchestrator.md"]?.content,
       "Project orchestrator prompt",
     );
-    assert.strictEqual(result.files["DEVCLAW_ORCHESTRATOR_PROMPT.md"]?.missing, false);
+    assert.strictEqual(result.files["orchestrator.md"]?.missing, false);
   });
 
   it("should resolve topic-bound projects for orchestrator prompt injection", async () => {
@@ -271,10 +271,10 @@ describe("E2E bootstrap — agent:bootstrap hook (AGENTS.md stripping)", () => {
 
     const result = await h.simulateBootstrap("agent:main:orchestrator", { messageThreadId: 183 });
     assert.strictEqual(
-      result.files["DEVCLAW_ORCHESTRATOR_PROMPT.md"]?.content,
+      result.files["orchestrator.md"]?.content,
       "DevClaw topic prompt",
     );
-    assert.ok(!result.files["DEVCLAW_ORCHESTRATOR_PROMPT.md"]?.content.includes("Root project prompt"));
+    assert.ok(!result.files["orchestrator.md"]?.content.includes("Root project prompt"));
   });
 
   it("should fall back to chat-level project when no topic-specific binding matches", async () => {
@@ -314,10 +314,10 @@ describe("E2E bootstrap — agent:bootstrap hook (AGENTS.md stripping)", () => {
 
     const result = await h.simulateBootstrap("agent:main:orchestrator", { messageThreadId: 999 });
     assert.strictEqual(
-      result.files["DEVCLAW_ORCHESTRATOR_PROMPT.md"]?.content,
+      result.files["orchestrator.md"]?.content,
       "Root project prompt",
     );
-    assert.ok(!result.files["DEVCLAW_ORCHESTRATOR_PROMPT.md"]?.content.includes("DevClaw topic prompt"));
+    assert.ok(!result.files["orchestrator.md"]?.content.includes("DevClaw topic prompt"));
   });
 
   it("should NOT strip AGENTS.md for unknown roles", async () => {
