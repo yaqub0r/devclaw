@@ -364,7 +364,7 @@ Each role in the `workers` record has a `WorkerState` object:
 │   │   ├── developer.md           ← Default developer instructions
 │   │   ├── tester.md              ← Default tester instructions
 │   │   ├── architect.md           ← Default architect instructions
-│   │   └── orchestrator.md        ← Default orchestrator overlay prompt
+│   │   └── orchestrator.md        ← Default orchestrator prompt fallback
 │   ├── projects/
 │   │   ├── my-webapp/
 │   │   │   ├── workflow.yaml      ← Project-specific config overrides
@@ -372,7 +372,7 @@ Each role in the `workers` record has a `WorkerState` object:
 │   │   │       ├── developer.md   ← Project-specific developer instructions
 │   │   │       ├── tester.md      ← Project-specific tester instructions
 │   │   │       ├── architect.md   ← Project-specific architect instructions
-│   │   │       └── orchestrator.md← Project-specific orchestrator overlay prompt
+│   │   │       └── orchestrator.md← Project-specific orchestrator prompt override
 │   │   └── another-project/
 │   │       └── prompts/
 │   │           ├── developer.md
@@ -387,7 +387,7 @@ Each role in the `workers` record has a `WorkerState` object:
 
 Worker instructions are injected via the `agent:bootstrap` hook at session startup. The hook loads `devclaw/projects/<project>/prompts/<role>.md`, falling back to `devclaw/prompts/<role>.md`.
 
-The orchestrator session keeps its AGENTS.md baseline, then injects a dedicated `DEVCLAW_ORCHESTRATOR_PROMPT.md` bootstrap file whose content comes from `devclaw/prompts/orchestrator.md`, then `devclaw/projects/<project>/prompts/orchestrator.md` when the current chat resolves to a project. This keeps the live orchestrator overlay out of AGENTS.md so bootstrap truncation of AGENTS.md does not drop project-specific orchestration policy.
+The orchestrator session keeps its AGENTS.md baseline, then injects a dedicated `DEVCLAW_ORCHESTRATOR_PROMPT.md` bootstrap file from one resolved source: `devclaw/projects/<project>/prompts/orchestrator.md` when the current chat resolves to a project, otherwise `devclaw/prompts/orchestrator.md`, otherwise the package default. This keeps the live orchestrator prompt out of AGENTS.md so bootstrap truncation of AGENTS.md does not drop project-specific orchestration policy.
 
 Edit these files to customize deployment steps, test commands, acceptance criteria, coding standards, and orchestration policy.
 

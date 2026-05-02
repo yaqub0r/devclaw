@@ -217,7 +217,7 @@ describe("E2E bootstrap — agent:bootstrap hook (AGENTS.md stripping)", () => {
     assert.match(result.agentsMdContent, /Developer/i);
   });
 
-  it("should inject orchestrator prompt layers as a dedicated bootstrap file for main sessions", async () => {
+  it("should inject the winning orchestrator prompt as a dedicated bootstrap file for main sessions", async () => {
     h = await createTestHarness();
     await h.writePrompt("orchestrator", "Workspace orchestrator prompt");
     await h.writePrompt("orchestrator", "Project orchestrator prompt", h.project.name);
@@ -229,7 +229,7 @@ describe("E2E bootstrap — agent:bootstrap hook (AGENTS.md stripping)", () => {
     assert.ok(!result.agentsMdContent.includes("Project orchestrator prompt"));
     assert.strictEqual(
       result.files["DEVCLAW_ORCHESTRATOR_PROMPT.md"]?.content,
-      "Workspace orchestrator prompt\n\nProject orchestrator prompt",
+      "Project orchestrator prompt",
     );
     assert.strictEqual(result.files["DEVCLAW_ORCHESTRATOR_PROMPT.md"]?.missing, false);
   });
@@ -272,7 +272,7 @@ describe("E2E bootstrap — agent:bootstrap hook (AGENTS.md stripping)", () => {
     const result = await h.simulateBootstrap("agent:main:orchestrator", { messageThreadId: 183 });
     assert.strictEqual(
       result.files["DEVCLAW_ORCHESTRATOR_PROMPT.md"]?.content,
-      "Workspace orchestrator prompt\n\nDevClaw topic prompt",
+      "DevClaw topic prompt",
     );
     assert.ok(!result.files["DEVCLAW_ORCHESTRATOR_PROMPT.md"]?.content.includes("Root project prompt"));
   });
@@ -315,7 +315,7 @@ describe("E2E bootstrap — agent:bootstrap hook (AGENTS.md stripping)", () => {
     const result = await h.simulateBootstrap("agent:main:orchestrator", { messageThreadId: 999 });
     assert.strictEqual(
       result.files["DEVCLAW_ORCHESTRATOR_PROMPT.md"]?.content,
-      "Workspace orchestrator prompt\n\nRoot project prompt",
+      "Root project prompt",
     );
     assert.ok(!result.files["DEVCLAW_ORCHESTRATOR_PROMPT.md"]?.content.includes("DevClaw topic prompt"));
   });
