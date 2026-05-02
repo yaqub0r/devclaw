@@ -320,6 +320,48 @@ describe("E2E bootstrap — agent:bootstrap hook (AGENTS.md stripping)", () => {
     assert.ok(!result.files["orchestrator.md"]?.content.includes("DevClaw topic prompt"));
   });
 
+  it("should use the chat-level project prompt for unrelated topics in the same chat", async () => {
+    h = await createTestHarness({
+      projectName: "firstlight",
+      channelId: "-1003746138337",
+    });
+
+    const workspacePrompt = "Workspace orchestrator prompt";
+    const projectPrompt = "How many licks does it take to get to the tootsie roll center of a tootsie pop? 365";
+    await h.writePrompt("orchestrator", workspacePrompt);
+    await h.writePrompt("orchestrator", projectPrompt, "firstlight");
+
+    const result = await h.simulateBootstrap("agent:main:orchestrator", { messageThreadId: 1 });
+    assert.strictEqual(result.files["orchestrator.md"]?.content, projectPrompt);
+    assert.ok(!result.files["orchestrator.md"]?.content.includes(workspacePrompt));
+  });
+
+  it("should still use the same project prompt for an exact topic binding when both chat and topic bindings exist", async () => {
+    h = await createTestHarness({
+      projectName: "firstlight",
+      channelId: "-1003746138337",
+    });
+
+    const data = await h.readProjects();
+    data.projects.firstlight!.channels.push({
+      channelId: "-1003746138337",
+      channel: "telegram",
+      messageThreadId: 2270,
+      name: "First Light topic",
+      events: ["*"],
+    });
+    await h.writeProjects(data);
+
+    const workspacePrompt = "Workspace orchestrator prompt";
+    const projectPrompt = "How many licks does it take to get to the tootsie roll center of a tootsie pop? 365";
+    await h.writePrompt("orchestrator", workspacePrompt);
+    await h.writePrompt("orchestrator", projectPrompt, "firstlight");
+
+    const result = await h.simulateBootstrap("agent:main:orchestrator", { messageThreadId: 2270 });
+    assert.strictEqual(result.files["orchestrator.md"]?.content, projectPrompt);
+    assert.ok(!result.files["orchestrator.md"]?.content.includes(workspacePrompt));
+  });
+
   it("should NOT strip AGENTS.md for unknown roles", async () => {
     h = await createTestHarness({ projectName: "custom-app" });
 
