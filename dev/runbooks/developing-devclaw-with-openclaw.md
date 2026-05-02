@@ -191,11 +191,12 @@ That means the agent should, without waiting for a separate human prompt:
 
 The agent should **not** open the upstream DevClaw official PR itself.
 
-Instead, as part of the operator handoff, the agent should prepare:
+Instead, as part of the operator handoff, the agent should prepare, in this order:
 
-- the compare or diff URL for the `pr/*` branch against upstream `main`
-- after the operator confirms testing is complete, the proposed PR title
-- after the operator confirms testing is complete, the proposed PR body
+- after the operator confirms testing is complete, complete the upstream issue linkage step first
+- only after the upstream issue exists, prepare and post the compare or diff URL for the `pr/*` branch against upstream `main`
+- only after the upstream issue exists, write the proposed PR title
+- only after the upstream issue exists, write the proposed PR body as pastable Markdown code
 
 Before writing that final upstream PR title/body into the promotion issue, the orchestrator should:
 
@@ -212,7 +213,7 @@ So the rule is:
 
 After the relevant PR steps have succeeded, the orchestrator should not stop silently at "package prepared" or "PR merged".
 
-Before the operator reports testing complete, the orchestrator should limit the promotion issue handoff to branch heads, PR URLs, validation evidence, and the compare URL. Do not write the final upstream PR title/body yet.
+Before the operator reports testing complete, the orchestrator should limit the promotion issue handoff to branch heads, PR URLs, and validation evidence. Do not post the compare or diff URL yet, and do not write the final upstream PR title/body yet.
 
 During that stage, the owning `UP:` issue should normally be labeled `up:human-test` or `up:export-prep`, and the issue body should be updated immediately when the lane moves between review, rollback, export prep, handoff-ready, or upstream-watching phases.
 
@@ -222,7 +223,11 @@ After the operator reports testing complete, the orchestrator should:
 - include the relevant PR URLs, merge or success status, and the exact branch or commit that is now considered local truth
 - state whether `devclaw-local-current` is now the validated lane to install from
 - explicitly offer to install or reload `devclaw-local-current` into the live self-hosted environment
-- then complete the upstream issue linkage step and write the final proposed upstream PR title/body into the promotion issue
+- then complete the upstream issue linkage step
+- only after the upstream issue exists, comment on the promotion issue with:
+  - the compare or diff URL
+  - the final proposed upstream PR title
+  - the final pastable upstream PR description as Markdown code
 
 After the operator opens the upstream DevClaw official PR, the orchestrator should keep tracking on the local promotion issue until that upstream PR is resolved.
 
