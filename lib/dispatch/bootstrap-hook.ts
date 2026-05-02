@@ -45,7 +45,7 @@ async function loadPromptInstructions(
   workspaceDir: string,
   promptName: string,
   opts?: { projectName?: string; withSource?: boolean; includePackageDefault?: string },
-): Promise<string | PromptInstructionsResult> {
+): Promise<string | PromptSourceResult> {
   const dataDir = path.join(workspaceDir, DATA_DIR);
   const candidates = [
     opts?.projectName
@@ -120,8 +120,8 @@ export async function loadRoleInstructions(
  *   5. package default
  *
  * AGENTS.md remains the baseline bootstrap context outside this loader. The
- * returned content is injected as a separate bootstrap file so it remains
- * independently loadable even when AGENTS.md is truncated by bootstrap limits.
+ * returned content is injected as a separate bootstrap file named
+ * orchestrator.md so operators see the real editable prompt name directly.
  */
 export async function loadOrchestratorInstructions(
   workspaceDir: string,
@@ -185,7 +185,7 @@ async function resolveProjectNameForBootstrap(
  *
  * Orchestrator precedence inside bootstrap context:
  *   1. existing AGENTS.md/runtime baseline
- *   2. DEVCLAW_ORCHESTRATOR_PROMPT.md from the resolved orchestrator prompt source
+ *   2. orchestrator.md from the resolved orchestrator prompt source
  *   3. issue/task/chat-specific context (outside this hook)
  */
 export function registerBootstrapHook(api: OpenClawPluginApi, ctx: PluginContext): void {
@@ -236,7 +236,7 @@ export function registerBootstrapHook(api: OpenClawPluginApi, ctx: PluginContext
         const { content, source } = await loadOrchestratorInstructions(workspaceDir, projectName, { withSource: true });
         if (!content.trim()) return;
 
-        const promptFileName = "DEVCLAW_ORCHESTRATOR_PROMPT.md";
+        const promptFileName = "orchestrator.md";
         const existingPromptEntry = bootstrapFiles.find((f) => f.name === promptFileName);
         const promptEntry = existingPromptEntry ?? {
           name: promptFileName,
