@@ -23,6 +23,8 @@ import type { PluginContext } from "../context.js";
 export type BootstrapResult = {
   /** Whether AGENTS.md was stripped from bootstrap files. */
   agentsMdStripped: boolean;
+  /** Final AGENTS.md content after bootstrap hook mutation. */
+  agentsMdContent: string;
 };
 
 // ---------------------------------------------------------------------------
@@ -170,7 +172,7 @@ export type TestHarness = {
    * Simulate the agent:bootstrap hook firing for a session key.
    * Tests that AGENTS.md is stripped from bootstrap files for DevClaw workers.
    */
-  simulateBootstrap(sessionKey: string): Promise<BootstrapResult>;
+  simulateBootstrap(sessionKey: string, context?: Record<string, unknown>): Promise<BootstrapResult>;
   /** Clean up temp directory. */
   cleanup(): Promise<void>;
 };
@@ -284,7 +286,7 @@ export async function createTestHarness(opts?: HarnessOptions): Promise<TestHarn
       await fs.mkdir(dir, { recursive: true });
       await fs.writeFile(path.join(dir, `${role}.md`), content, "utf-8");
     },
-    async simulateBootstrap(sessionKey: string) {
+    async simulateBootstrap(sessionKey: string, extraContext?: Record<string, unknown>) {
       // Capture the agent:bootstrap hook callback
       let internalHookCb: ((event: any) => Promise<void>) | null = null;
       const mockApi = {
@@ -320,12 +322,13 @@ export async function createTestHarness(opts?: HarnessOptions): Promise<TestHarn
       if (hookCb) {
         await hookCb({
           sessionKey,
-          context: { bootstrapFiles },
+          context: { workspaceDir, conversationId: channelId, channelId, channel: "telegram", bootstrapFiles, ...extraContext },
         });
       }
 
       return {
         agentsMdStripped: bootstrapFiles[0].missing === true && bootstrapFiles[0].content === "",
+        agentsMdContent: bootstrapFiles[0].content ?? "",
       };
     },
     async cleanup() {

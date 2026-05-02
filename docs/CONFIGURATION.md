@@ -363,14 +363,16 @@ Each role in the `workers` record has a `WorkerState` object:
 │   ├── prompts/
 │   │   ├── developer.md           ← Default developer instructions
 │   │   ├── tester.md              ← Default tester instructions
-│   │   └── architect.md           ← Default architect instructions
+│   │   ├── architect.md           ← Default architect instructions
+│   │   └── orchestrator.md        ← Default orchestrator overlay prompt
 │   ├── projects/
 │   │   ├── my-webapp/
 │   │   │   ├── workflow.yaml      ← Project-specific config overrides
 │   │   │   └── prompts/
 │   │   │       ├── developer.md   ← Project-specific developer instructions
 │   │   │       ├── tester.md      ← Project-specific tester instructions
-│   │   │       └── architect.md   ← Project-specific architect instructions
+│   │   │       ├── architect.md   ← Project-specific architect instructions
+│   │   │       └── orchestrator.md← Project-specific orchestrator overlay prompt
 │   │   └── another-project/
 │   │       └── prompts/
 │   │           ├── developer.md
@@ -381,11 +383,13 @@ Each role in the `workers` record has a `WorkerState` object:
 └── HEARTBEAT.md                   ← Heartbeat operation guide
 ```
 
-### Role instruction files
+### Prompt instruction files
 
-Role instructions are injected into worker sessions via the `agent:bootstrap` hook at session startup. The hook loads instructions from `devclaw/projects/<project>/prompts/<role>.md`, falling back to `devclaw/prompts/<role>.md`.
+Worker instructions are injected via the `agent:bootstrap` hook at session startup. The hook loads `devclaw/projects/<project>/prompts/<role>.md`, falling back to `devclaw/prompts/<role>.md`.
 
-Edit to customize: deployment steps, test commands, acceptance criteria, coding standards.
+The orchestrator session keeps its AGENTS.md baseline, then appends `devclaw/prompts/orchestrator.md`, then `devclaw/projects/<project>/prompts/orchestrator.md` when the current chat resolves to a project.
+
+Edit these files to customize deployment steps, test commands, acceptance criteria, coding standards, and orchestration policy.
 
 **Source:** [`lib/dispatch/bootstrap-hook.ts`](../lib/dispatch/bootstrap-hook.ts)
 
