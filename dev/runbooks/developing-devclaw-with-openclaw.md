@@ -231,6 +231,23 @@ After the operator reports testing complete, the orchestrator should:
 
 After the operator opens the upstream DevClaw official PR, the orchestrator should keep tracking on the local promotion issue until that upstream PR is resolved.
 
+Immediately after the operator reports that the upstream PR has been opened, the orchestrator should collapse the local release family so the active local surface stays small and obvious.
+
+That immediate post-open cleanup should, unless the operator says otherwise:
+
+- keep the local `UP:` issue open as the canonical tracker
+- keep the active `pr/*` export branch that backs the upstream PR
+- close any no-longer-needed local fork PRs that were only intermediate release vehicles
+- delete no-longer-needed local issue branches, review branches, rollback branches, and worktrees from the same release family
+- delete matching remote branches for those no-longer-needed local family artifacts when safe
+- record the cleanup on the `UP:` issue so the surviving local release surface is explicit
+
+The goal after upstream PR open is that the local release family should normally collapse to:
+
+- the `UP:` tracking issue
+- the retained `pr/*` release branch
+- the upstream issue / upstream PR links being watched
+
 At that point, the orchestrator should also create or refresh a persistent watch, such as a daily cron job, for that specific upstream PR so it does not get forgotten while waiting on review or merge.
 
 That ongoing tracking should include:
@@ -259,6 +276,8 @@ That cleanup should include, as applicable:
 - deleting no-longer-needed `pr/*` branches after the upstream resolution is complete
 - deleting any other release-only local artifacts that no longer serve an active tracking purpose
 - removing the scheduled watch that was tracking the resolved upstream PR
+
+Do not wait until final upstream resolution to collapse obviously redundant local family branches if the upstream PR has already been opened. Once the human reports the upstream PR is open, remove intermediate local family residue promptly unless there is a concrete reason to keep it.
 
 Use a persistent scheduled follow-up, such as a daily cron job, for each active upstream PR watch, and remove that watch when it is no longer needed.
 
