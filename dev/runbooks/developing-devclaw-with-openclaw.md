@@ -165,6 +165,33 @@ Optional helper labels may be added alongside the one primary label:
 
 These `up:*` labels are promotion-lane markers. They do **not** replace the normal DevClaw workflow state labels such as `Planning`, `To Do`, `Doing`, `Refining`, or `Done`.
 
+### `UP:` label progression by phase
+
+The owning orchestrator should update the primary `up:*` label immediately when the promotion lane changes phase. Do not leave a stale label behind just because the title or comments imply the newer state.
+
+Use this default progression unless the operator explicitly directs a different release sequence:
+
+1. **`UP:` tracker created, lane not yet in active review or live validation**
+   - primary label: none required yet, or `up:needs-human` if the next sequencing decision is waiting on the operator
+2. **local `review/*` branch and local-truth PR are the active release vehicle**
+   - primary label: `up:local-review`
+3. **issue branch or review branch has been moved into the live environment and the lane is paused for operator validation**
+   - primary label: `up:human-test`
+4. **rollback, demotion, correction, or revalidation after a bad promotion is active**
+   - primary label: `up:rollback`
+5. **local validation is accepted and the lane is now preparing or refreshing the `pr/*` export branch and package**
+   - primary label: `up:export-prep`
+6. **compare URL, upstream issue linkage, and pastable operator handoff package are ready**
+   - primary label: `up:handoff-ready`
+7. **human has opened the upstream PR and the local tracker is now following that upstream lane**
+   - primary label: `up:watching-upstream`
+8. **upstream lane resolved and local cleanup completed**
+   - primary label: `up:done`
+
+If the lane is waiting on a specific human decision, add `up:needs-human` alongside the primary phase label. If the lane cannot proceed because of a concrete blocker, add `up:blocked` alongside the primary phase label and record the blocker clearly in the issue body.
+
+For families that intentionally install an issue branch into the live environment before building the normal local `review/*` package, switch the label to `up:human-test` for that live-validation stop, then move it back into the normal progression once the operator approves continuing the release lane.
+
 ### `UP:` close and reopen rules
 
 A `UP:` issue must **not** close merely because local review passed or local testing passed.
