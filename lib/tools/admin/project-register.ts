@@ -43,10 +43,13 @@ This directory holds project-specific configuration that overrides the workspace
 
 To override default worker instructions, create \`prompts/<role>.md\`:
 
-Available roles: ${roles}
+Available worker roles: ${roles}
 
 Example: \`prompts/developer.md\` overrides the default developer instructions for this project only.
 Files here take priority over the workspace defaults in \`devclaw/prompts/\`.
+
+The orchestrator also supports a live project-specific override at \`prompts/orchestrator.md\`.
+That file is layered into the main orchestrator session after \`AGENTS.md\` and after the workspace-wide \`devclaw/prompts/orchestrator.md\`.
 
 ## Workflow Overrides
 

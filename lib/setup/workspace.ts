@@ -21,9 +21,8 @@ import {
   SOUL_MD_TEMPLATE,
   TOOLS_MD_TEMPLATE,
   WORKFLOW_YAML_TEMPLATE,
-  DEFAULT_ROLE_INSTRUCTIONS,
+  DEFAULT_PROMPT_INSTRUCTIONS,
 } from "./templates.js";
-import { getAllRoleIds } from "../roles/index.js";
 import { migrateWorkspaceLayout, DATA_DIR } from "./migrate-layout.js";
 import { writeVersionFile, detectUpgrade } from "./version.js";
 import { log as auditLog } from "../audit.js";
@@ -100,11 +99,10 @@ export async function ensureWorkspaceDataFiles(workspacePath: string): Promise<v
   const projectsJsonPath = path.join(dataDir, "projects.json");
   await writeIfMissing(projectsJsonPath, JSON.stringify({ projects: {} }, null, 2) + "\n");
 
-  // devclaw/prompts/ — create-only per role (user customizations are preserved)
-  for (const role of getAllRoleIds()) {
-    const rolePath = path.join(dataDir, "prompts", `${role}.md`);
-    const content = DEFAULT_ROLE_INSTRUCTIONS[role];
-    if (content) await writeIfMissing(rolePath, content);
+  // devclaw/prompts/ — create-only per prompt target (user customizations are preserved)
+  for (const [promptName, content] of Object.entries(DEFAULT_PROMPT_INSTRUCTIONS)) {
+    const promptPath = path.join(dataDir, "prompts", `${promptName}.md`);
+    if (content) await writeIfMissing(promptPath, content);
   }
 
   // Version tracking
@@ -147,9 +145,8 @@ export async function writeAllDefaults(workspacePath: string, force = false): Pr
     [path.join(dataDir, "workflow.yaml"), WORKFLOW_YAML_TEMPLATE],
   ];
 
-  for (const role of getAllRoleIds()) {
-    const content = DEFAULT_ROLE_INSTRUCTIONS[role];
-    if (content) files.push([path.join(dataDir, "prompts", `${role}.md`), content]);
+  for (const [promptName, content] of Object.entries(DEFAULT_PROMPT_INSTRUCTIONS)) {
+    if (content) files.push([path.join(dataDir, "prompts", `${promptName}.md`), content]);
   }
 
   for (const [filePath, content] of files) {

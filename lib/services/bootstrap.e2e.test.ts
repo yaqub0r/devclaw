@@ -215,11 +215,17 @@ describe("E2E bootstrap — agent:bootstrap hook (AGENTS.md stripping)", () => {
     assert.strictEqual(result.agentsMdStripped, true);
   });
 
-  it("should NOT strip AGENTS.md for non-DevClaw sessions", async () => {
+  it("should append orchestrator prompt layers for main sessions", async () => {
     h = await createTestHarness();
+    await h.writePrompt("orchestrator", "Workspace orchestrator prompt");
+    await h.writePrompt("orchestrator", "Project orchestrator prompt", h.project.name);
 
     const result = await h.simulateBootstrap("agent:main:orchestrator");
     assert.strictEqual(result.agentsMdStripped, false);
+    assert.match(result.agentsMdContent, /# Orchestrator instructions/);
+    assert.match(result.agentsMdContent, /Workspace orchestrator prompt/);
+    assert.match(result.agentsMdContent, /Project orchestrator prompt/);
+    assert.match(result.agentsMdContent, /Workspace orchestrator prompt[\s\S]*Project orchestrator prompt/);
   });
 
   it("should NOT strip AGENTS.md for unknown roles", async () => {
