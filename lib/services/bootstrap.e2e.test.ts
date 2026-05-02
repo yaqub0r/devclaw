@@ -206,16 +206,18 @@ describe("E2E bootstrap — agent:bootstrap hook (AGENTS.md stripping)", () => {
     if (h) await h.cleanup();
   });
 
-  it("should strip AGENTS.md for DevClaw worker sessions", async () => {
+  it("should replace AGENTS.md with worker instructions for DevClaw worker sessions", async () => {
     h = await createTestHarness({ projectName: "my-app" });
 
     const result = await h.simulateBootstrap(
       "agent:main:subagent:my-app-developer-medior-Ada",
     );
-    assert.strictEqual(result.agentsMdStripped, true);
+    assert.strictEqual(result.agentsMdStripped, false);
+    assert.ok(!result.agentsMdContent.includes("This content should be stripped."));
+    assert.match(result.agentsMdContent, /Developer/i);
   });
 
-  it("should append orchestrator prompt layers for main sessions", async () => {
+  it("should inject orchestrator prompt layers as a dedicated bootstrap file for main sessions", async () => {
     h = await createTestHarness();
     await h.writePrompt("orchestrator", "Workspace orchestrator prompt");
     await h.writePrompt("orchestrator", "Project orchestrator prompt", h.project.name);
@@ -223,9 +225,13 @@ describe("E2E bootstrap — agent:bootstrap hook (AGENTS.md stripping)", () => {
     const result = await h.simulateBootstrap("agent:main:orchestrator");
     assert.strictEqual(result.agentsMdStripped, false);
     assert.match(result.agentsMdContent, /# Orchestrator instructions/);
-    assert.match(result.agentsMdContent, /Workspace orchestrator prompt/);
-    assert.match(result.agentsMdContent, /Project orchestrator prompt/);
-    assert.match(result.agentsMdContent, /Workspace orchestrator prompt[\s\S]*Project orchestrator prompt/);
+    assert.ok(!result.agentsMdContent.includes("Workspace orchestrator prompt"));
+    assert.ok(!result.agentsMdContent.includes("Project orchestrator prompt"));
+    assert.strictEqual(
+      result.files["DEVCLAW_ORCHESTRATOR_PROMPT.md"]?.content,
+      "Workspace orchestrator prompt\n\nProject orchestrator prompt",
+    );
+    assert.strictEqual(result.files["DEVCLAW_ORCHESTRATOR_PROMPT.md"]?.missing, false);
   });
 
   it("should NOT strip AGENTS.md for unknown roles", async () => {

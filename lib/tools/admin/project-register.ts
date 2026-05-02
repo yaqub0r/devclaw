@@ -49,7 +49,7 @@ Example: \`prompts/developer.md\` overrides the default developer instructions f
 Files here take priority over the workspace defaults in \`devclaw/prompts/\`.
 
 The orchestrator also supports a live project-specific override at \`prompts/orchestrator.md\`.
-That file is layered into the main orchestrator session after \`AGENTS.md\` and after the workspace-wide \`devclaw/prompts/orchestrator.md\`.
+That file is injected into the main orchestrator session through a dedicated bootstrap file, after the \`AGENTS.md\` baseline and after the workspace-wide \`devclaw/prompts/orchestrator.md\` layer.
 
 ## Workflow Overrides
 
