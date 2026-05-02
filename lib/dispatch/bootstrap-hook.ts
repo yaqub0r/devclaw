@@ -5,8 +5,9 @@
  *   1. agent:bootstrap (internal hook) for worker sessions, replacing the
  *      orchestrator's AGENTS.md with role-specific instructions so workers see
  *      their own prompt on every turn.
- *   2. agent:bootstrap handling for main/orchestrator sessions, appending live
- *      workspace and project-specific orchestrator prompt layers to AGENTS.md.
+ *   2. agent:bootstrap handling for main/orchestrator sessions, injecting live
+ *      workspace and project-specific orchestrator prompt layers as a separate
+ *      bootstrap file instead of piggybacking on AGENTS.md.
  *   3. Prompt loaders used by bootstrap and dispatch fallback paths.
  */
 import fs from "node:fs/promises";
@@ -121,6 +122,9 @@ export async function loadRoleInstructions(
  *   2. devclaw/prompts/orchestrator.md
  *   3. devclaw/projects/<project>/prompts/orchestrator.md
  *   4. package default
+ *
+ * The returned content is meant for a dedicated bootstrap file so it remains
+ * independently loadable even when AGENTS.md is truncated by bootstrap limits.
  */
 export async function loadOrchestratorInstructions(
   workspaceDir: string,
@@ -221,10 +225,10 @@ async function resolveProjectNameForBootstrap(
  *   2. devclaw/prompts/<role>.md
  *   3. package default prompt
  *
- * Orchestrator precedence inside bootstrap AGENTS content:
+ * Orchestrator precedence inside bootstrap context:
  *   1. existing AGENTS.md/runtime baseline
- *   2. devclaw/prompts/orchestrator.md
- *   3. devclaw/projects/<project>/prompts/orchestrator.md
+ *   2. DEVCLAW_ORCHESTRATOR_PROMPT.md (workspace orchestrator prompt layer)
+ *   3. DEVCLAW_ORCHESTRATOR_PROMPT.md (project orchestrator prompt layer)
  *   4. issue/task/chat-specific context (outside this hook)
  */
 export function registerBootstrapHook(api: OpenClawPluginApi, ctx: PluginContext): void {
@@ -275,12 +279,21 @@ export function registerBootstrapHook(api: OpenClawPluginApi, ctx: PluginContext
         const { content, sources } = await loadOrchestratorInstructions(workspaceDir, projectName, { withSource: true });
         if (!content.trim()) return;
 
-        const baseline = agentsEntry.content?.trimEnd() ?? "";
-        const separator = baseline ? "\n\n" : "";
-        agentsEntry.content = `${baseline}${separator}<!-- DEVCLAW:ORCHESTRATOR-PROMPT -->\n${content.trim()}\n<!-- /DEVCLAW:ORCHESTRATOR-PROMPT -->\n`;
-        agentsEntry.missing = false;
+        const promptFileName = "DEVCLAW_ORCHESTRATOR_PROMPT.md";
+        const existingPromptEntry = bootstrapFiles.find((f) => f.name === promptFileName);
+        const promptEntry = existingPromptEntry ?? {
+          name: promptFileName,
+          path: path.join(workspaceDir, promptFileName),
+          content: "",
+          missing: false,
+        };
+
+        promptEntry.content = content.trim();
+        promptEntry.missing = false;
+        if (!existingPromptEntry) bootstrapFiles.push(promptEntry);
+
         ctx.logger.info(
-          `agent:bootstrap: appended orchestrator instructions${projectName ? ` for "${projectName}"` : ""} from ${sources.join(" -> ")}`,
+          `agent:bootstrap: injected orchestrator prompt file${projectName ? ` for "${projectName}"` : ""} from ${sources.join(" -> ")}`,
         );
         return;
       }
@@ -309,7 +322,7 @@ export function registerBootstrapHook(api: OpenClawPluginApi, ctx: PluginContext
     {
       name: "devclaw-bootstrap-role-instructions",
       description:
-        "Replaces worker AGENTS.md with role prompts and appends live orchestrator prompts for main sessions",
+        "Replaces worker AGENTS.md with role prompts and injects live orchestrator prompts for main sessions",
     } as any,
   );
 }

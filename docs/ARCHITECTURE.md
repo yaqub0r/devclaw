@@ -548,8 +548,8 @@ Worker prompt precedence:
 
 Orchestrator prompt precedence inside the main session bootstrap content:
 1. `AGENTS.md` and runtime baseline
-2. `devclaw/prompts/orchestrator.md`
-3. `devclaw/projects/<project>/prompts/orchestrator.md`
+2. `DEVCLAW_ORCHESTRATOR_PROMPT.md` containing `devclaw/prompts/orchestrator.md`
+3. `DEVCLAW_ORCHESTRATOR_PROMPT.md` extended with `devclaw/projects/<project>/prompts/orchestrator.md`
 4. current issue/chat/task context
 
 The source path is logged for production traceability: `Bootstrap hook: injected developer instructions for project "my-app" from /path/to/prompts/developer.md`.
@@ -767,8 +767,8 @@ See [CONFIGURATION.md](CONFIGURATION.md) for the full reference.
 | Workflow config (project) | `<workspace>/devclaw/projects/<project>/workflow.yaml` | Project-specific overrides |
 | Default role instructions | `<workspace>/devclaw/prompts/<role>.md` | Default `developer.md`, `tester.md`, `architect.md`, `reviewer.md` |
 | Project role instructions | `<workspace>/devclaw/projects/<project>/prompts/<role>.md` | Per-project role instruction overrides |
-| Default orchestrator overlay | `<workspace>/devclaw/prompts/orchestrator.md` | Live orchestrator prompt layered after AGENTS.md |
-| Project orchestrator overlay | `<workspace>/devclaw/projects/<project>/prompts/orchestrator.md` | Project-specific orchestrator overlay layered after workspace orchestrator prompt |
+| Default orchestrator overlay | `<workspace>/devclaw/prompts/orchestrator.md` | Loaded into `DEVCLAW_ORCHESTRATOR_PROMPT.md` after AGENTS.md |
+| Project orchestrator overlay | `<workspace>/devclaw/projects/<project>/prompts/orchestrator.md` | Appended inside `DEVCLAW_ORCHESTRATOR_PROMPT.md` after the workspace orchestrator prompt |
 | Audit log | `<workspace>/devclaw/log/audit.log` | NDJSON event log |
 | Session transcripts | `~/.openclaw/agents/<agent>/sessions/<uuid>.jsonl` | Conversation history per session |
 | Git repos | `~/git/<project>/` | Project source code |

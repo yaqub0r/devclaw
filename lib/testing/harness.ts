@@ -25,6 +25,8 @@ export type BootstrapResult = {
   agentsMdStripped: boolean;
   /** Final AGENTS.md content after bootstrap hook mutation. */
   agentsMdContent: string;
+  /** Final bootstrap files after hook mutation, indexed by file name. */
+  files: Record<string, { content: string; missing: boolean }>;
 };
 
 // ---------------------------------------------------------------------------
@@ -329,6 +331,12 @@ export async function createTestHarness(opts?: HarnessOptions): Promise<TestHarn
       return {
         agentsMdStripped: bootstrapFiles[0].missing === true && bootstrapFiles[0].content === "",
         agentsMdContent: bootstrapFiles[0].content ?? "",
+        files: Object.fromEntries(
+          bootstrapFiles.map((file) => [
+            file.name,
+            { content: file.content ?? "", missing: file.missing },
+          ]),
+        ),
       };
     },
     async cleanup() {

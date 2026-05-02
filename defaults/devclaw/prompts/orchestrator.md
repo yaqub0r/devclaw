@@ -1,6 +1,6 @@
 # Orchestrator Prompt Override
 
-This file is loaded into the main orchestrator session after the AGENTS.md baseline.
+This file is loaded into the main orchestrator session after the AGENTS.md baseline via a dedicated `DEVCLAW_ORCHESTRATOR_PROMPT.md` bootstrap file.
 
 Precedence inside the live orchestrator prompt stack:
 1. Runtime and system rules

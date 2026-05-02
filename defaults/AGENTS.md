@@ -135,9 +135,9 @@ If the test phase is enabled in workflow.yaml:
 
 ### Prompt Instructions
 
-Workers receive role-specific instructions appended to their task message. These are loaded from `devclaw/projects/<project-name>/prompts/<role>.md` in the workspace, falling back to `devclaw/prompts/<role>.md` if no project-specific file exists. `project_register` scaffolds the project override directory automatically.
+Workers receive role-specific instructions via bootstrap prompt injection. These are loaded from `devclaw/projects/<project-name>/prompts/<role>.md` in the workspace, falling back to `devclaw/prompts/<role>.md` if no project-specific file exists. `project_register` scaffolds the project override directory automatically.
 
-The main orchestrator session also supports live prompt layering. After the AGENTS.md baseline loads, DevClaw appends `devclaw/prompts/orchestrator.md`, then `devclaw/projects/<project-name>/prompts/orchestrator.md` when that project is known.
+The main orchestrator session also supports live prompt layering. After the AGENTS.md baseline loads, DevClaw injects a dedicated `DEVCLAW_ORCHESTRATOR_PROMPT.md` bootstrap file whose content comes from `devclaw/prompts/orchestrator.md`, then `devclaw/projects/<project-name>/prompts/orchestrator.md` when that project is known. Keeping the orchestrator overlay in its own bootstrap file avoids losing project policy when AGENTS.md is truncated.
 
 ### Heartbeats
 
