@@ -203,14 +203,14 @@ describe("E2E bootstrap — agent:bootstrap hook", () => {
   });
 
   it("should inject the project-specific orchestrator prompt into a real chat-backed orchestrator session", async () => {
-    h = await createTestHarness({ projectName: "my-app", channelId: "-1003581929219", messageThreadId: 190 });
+    h = await createTestHarness({ projectName: "my-app", channelId: "-1000000000001", messageThreadId: 42 });
     await h.writePrompt("orchestrator", "# My App Orchestrator\nUse the app-specific workflow.", "my-app");
     await h.writePrompt("orchestrator", "# Workspace Orchestrator\nGeneric workflow.");
 
-    const result = await h.simulateBootstrap("agent:devclaw:telegram:group:-1003581929219:topic:190", {
-      channelId: "-1003581929219",
+    const result = await h.simulateBootstrap("agent:devclaw:telegram:group:-1000000000001:topic:42", {
+      channelId: "-1000000000001",
       channel: "telegram",
-      messageThreadId: 190,
+      messageThreadId: 42,
     });
 
     assert.strictEqual(result.agentsMdStripped, false);
@@ -220,11 +220,11 @@ describe("E2E bootstrap — agent:bootstrap hook", () => {
   });
 
   it("should resolve the project-specific orchestrator prompt from the real session key when bootstrap context omits chat scope", async () => {
-    h = await createTestHarness({ projectName: "firstlight", channelId: "-1003746138337", messageThreadId: 2270 });
+    h = await createTestHarness({ projectName: "firstlight", channelId: "-1000000000002", messageThreadId: 99 });
     await h.writePrompt("orchestrator", "ticks\nfire stitcher", "firstlight");
     await h.writePrompt("orchestrator", "wasps\nfire hullcracker");
 
-    const result = await h.simulateBootstrap("agent:devclaw:telegram:group:-1003746138337:topic:2270", {
+    const result = await h.simulateBootstrap("agent:devclaw:telegram:group:-1000000000002:topic:99", {
       channel: "telegram",
     });
 
@@ -235,21 +235,21 @@ describe("E2E bootstrap — agent:bootstrap hook", () => {
   });
 
   it("should replace stale orchestrator.md content across repeated fresh bootstrap runs on the same topic key", async () => {
-    h = await createTestHarness({ projectName: "firstlight", channelId: "-1003746138337", messageThreadId: 1 });
+    h = await createTestHarness({ projectName: "firstlight", channelId: "-1000000000002", messageThreadId: 7 });
     const projectPrompt = path.join(h.workspaceDir, "devclaw", "projects", "firstlight", "prompts", "orchestrator.md");
     const workspacePrompt = path.join(h.workspaceDir, "devclaw", "prompts", "orchestrator.md");
 
     await h.writePrompt("orchestrator", "wasps\nfire hullcracker");
     await h.writePrompt("orchestrator", "ticks\nfire stitcher", "firstlight");
 
-    const first = await h.simulateBootstrap("agent:devclaw:telegram:group:-1003746138337:topic:1", {
+    const first = await h.simulateBootstrap("agent:devclaw:telegram:group:-1000000000002:topic:7", {
       channel: "telegram",
     });
     assert.ok(first.orchestratorContent?.includes("ticks"));
     assert.ok(first.orchestratorContent?.includes("fire stitcher"));
 
     await fs.rm(projectPrompt);
-    const second = await h.simulateBootstrap("agent:devclaw:telegram:group:-1003746138337:topic:1", {
+    const second = await h.simulateBootstrap("agent:devclaw:telegram:group:-1000000000002:topic:7", {
       channel: "telegram",
       bootstrapFiles: first.bootstrapFiles,
     });
@@ -259,7 +259,7 @@ describe("E2E bootstrap — agent:bootstrap hook", () => {
     assert.ok(!second.orchestratorContent?.includes("fire stitcher"));
 
     await fs.writeFile(projectPrompt, "ticks v2\nfire needlecaster", "utf-8");
-    const third = await h.simulateBootstrap("agent:devclaw:telegram:group:-1003746138337:topic:1", {
+    const third = await h.simulateBootstrap("agent:devclaw:telegram:group:-1000000000002:topic:7", {
       channel: "telegram",
       bootstrapFiles: second.bootstrapFiles,
     });
@@ -270,7 +270,7 @@ describe("E2E bootstrap — agent:bootstrap hook", () => {
 
     await fs.writeFile(workspacePrompt, "wasps v2\nfire emberhammer", "utf-8");
     await fs.rm(projectPrompt);
-    const fourth = await h.simulateBootstrap("agent:devclaw:telegram:group:-1003746138337:topic:1", {
+    const fourth = await h.simulateBootstrap("agent:devclaw:telegram:group:-1000000000002:topic:7", {
       channel: "telegram",
       bootstrapFiles: third.bootstrapFiles,
     });

@@ -66,8 +66,8 @@ describe("parseDevClawSessionKey", () => {
 describe("parseMainOrchestratorSessionScope", () => {
   it("should parse a real telegram topic session scope", () => {
     assert.deepStrictEqual(
-      parseMainOrchestratorSessionScope("agent:devclaw:telegram:group:-1003581929219:topic:190"),
-      { channel: "telegram", channelId: "-1003581929219", messageThreadId: "190" },
+      parseMainOrchestratorSessionScope("agent:devclaw:telegram:group:-1000000000001:topic:42"),
+      { channel: "telegram", channelId: "-1000000000001", messageThreadId: "42" },
     );
   });
 
@@ -95,7 +95,7 @@ describe("isMainOrchestratorSession", () => {
 
   it("should recognize real telegram group orchestrator sessions", () => {
     assert.strictEqual(
-      isMainOrchestratorSession("agent:devclaw:telegram:group:-1003581929219:topic:190"),
+      isMainOrchestratorSession("agent:devclaw:telegram:group:-1000000000001:topic:42"),
       true,
     );
   });
