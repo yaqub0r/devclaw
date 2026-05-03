@@ -49,6 +49,9 @@ const DEFAULT_DEV_INSTRUCTIONS = loadDefault("devclaw/prompts/developer.md");
 const DEFAULT_QA_INSTRUCTIONS = loadDefault("devclaw/prompts/tester.md");
 const DEFAULT_ARCHITECT_INSTRUCTIONS = loadDefault("devclaw/prompts/architect.md");
 const DEFAULT_REVIEWER_INSTRUCTIONS = loadDefault("devclaw/prompts/reviewer.md");
+const DEFAULT_ORCHESTRATOR_INSTRUCTIONS = loadDefault("devclaw/prompts/orchestrator.md");
+
+export const DEFAULT_ORCHESTRATOR_PROMPT = DEFAULT_ORCHESTRATOR_INSTRUCTIONS;
 
 /** Default role instructions indexed by role ID. Used by project scaffolding. */
 export const DEFAULT_ROLE_INSTRUCTIONS: Record<string, string> = {
@@ -56,6 +59,12 @@ export const DEFAULT_ROLE_INSTRUCTIONS: Record<string, string> = {
   tester: DEFAULT_QA_INSTRUCTIONS,
   architect: DEFAULT_ARCHITECT_INSTRUCTIONS,
   reviewer: DEFAULT_REVIEWER_INSTRUCTIONS,
+};
+
+/** Prompt files scaffolded into devclaw/prompts/. Includes non-worker orchestrator prompt. */
+export const DEFAULT_PROMPT_INSTRUCTIONS: Record<string, string> = {
+  ...DEFAULT_ROLE_INSTRUCTIONS,
+  orchestrator: DEFAULT_ORCHESTRATOR_INSTRUCTIONS,
 };
 
 // ---------------------------------------------------------------------------

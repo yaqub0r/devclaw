@@ -521,7 +521,7 @@ sequenceDiagram
     TK-->>HB: { pickups, skipped }
 ```
 
-## Worker instructions (bootstrap hook)
+## Prompt loading (bootstrap hook)
 
 Role-specific instructions (coding standards, deployment steps, completion rules) are injected into worker sessions via the `agent:bootstrap` hook — not appended to the task message.
 
@@ -541,8 +541,17 @@ sequenceDiagram
 ```
 
 **Resolution order:**
+Worker prompt precedence:
 1. `devclaw/projects/<project>/prompts/<role>.md` (project-specific)
 2. `devclaw/prompts/<role>.md` (workspace default)
+3. package default prompt
+
+Orchestrator prompt precedence inside the main session bootstrap content:
+1. `AGENTS.md` and runtime baseline
+2. `orchestrator.md` containing one resolved prompt source
+   (`devclaw/projects/<project>/prompts/orchestrator.md`, else
+   `devclaw/prompts/orchestrator.md`, else package default)
+3. current issue/chat/task context
 
 The source path is logged for production traceability: `Bootstrap hook: injected developer instructions for project "my-app" from /path/to/prompts/developer.md`.
 
@@ -757,8 +766,10 @@ See [CONFIGURATION.md](CONFIGURATION.md) for the full reference.
 | Worker state | `<workspace>/devclaw/projects.json` | Per-project worker state |
 | Workflow config (workspace) | `<workspace>/devclaw/workflow.yaml` | Workspace-level role/workflow overrides |
 | Workflow config (project) | `<workspace>/devclaw/projects/<project>/workflow.yaml` | Project-specific overrides |
-| Default role instructions | `<workspace>/devclaw/prompts/<role>.md` | Default `developer.md`, `tester.md`, `architect.md` |
+| Default role instructions | `<workspace>/devclaw/prompts/<role>.md` | Default `developer.md`, `tester.md`, `architect.md`, `reviewer.md` |
 | Project role instructions | `<workspace>/devclaw/projects/<project>/prompts/<role>.md` | Per-project role instruction overrides |
+| Default orchestrator prompt | `<workspace>/devclaw/prompts/orchestrator.md` | Used for `orchestrator.md` when no project override exists |
+| Project orchestrator prompt override | `<workspace>/devclaw/projects/<project>/prompts/orchestrator.md` | Wins for `orchestrator.md` when the current chat resolves to that project |
 | Audit log | `<workspace>/devclaw/log/audit.log` | NDJSON event log |
 | Session transcripts | `~/.openclaw/agents/<agent>/sessions/<uuid>.jsonl` | Conversation history per session |
 | Git repos | `~/git/<project>/` | Project source code |

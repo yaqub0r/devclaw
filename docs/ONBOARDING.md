@@ -61,7 +61,7 @@ The setup wizard walks you through:
    - **Tester senior** (thorough review) — default: `anthropic/claude-opus-4-6`
    - **Architect junior** (standard design) — default: `anthropic/claude-sonnet-4-5`
    - **Architect senior** (complex architecture) — default: `anthropic/claude-opus-4-6`
-3. **Workspace** — Writes AGENTS.md, HEARTBEAT.md, workflow.yaml, role templates, and initializes state
+3. **Workspace** — Writes AGENTS.md, HEARTBEAT.md, workflow.yaml, prompt templates (including orchestrator.md), and initializes state
 
 Non-interactive mode:
 ```bash
@@ -155,7 +155,7 @@ Go to the Telegram/WhatsApp group for the project and tell the orchestrator agen
 The agent calls `project_register`, which atomically:
 - Validates the repo and auto-detects GitHub/GitLab from remote
 - Creates all state labels (idempotent)
-- Scaffolds role instruction files (`devclaw/projects/<project>/prompts/developer.md`, `tester.md`, `architect.md`)
+- Creates the project override directory for prompt files, including support for `devclaw/projects/<project>/prompts/orchestrator.md`
 - Adds the project entry to `projects.json`
 - Logs the registration event
 
@@ -271,7 +271,7 @@ Change which model powers each level in `workflow.yaml` — see [Configuration](
 | Agent + workspace setup | Plugin (`setup`) | Creates agent, configures models, writes workspace files |
 | Channel binding migration | Plugin (`setup` with `migrateFrom`) | Automatically moves channel-wide bindings between agents |
 | Label setup | Plugin (`project_register`) | State labels, created idempotently via IssueProvider |
-| Prompt file scaffolding | Plugin (`project_register`) | Creates `devclaw/projects/<project>/prompts/<role>.md` for each role |
+| Prompt file scaffolding | Plugin (`project_register`) | Creates the project prompt override directory and documents `devclaw/projects/<project>/prompts/<role>.md` plus `orchestrator.md` |
 | Project registration | Plugin (`project_register`) | Entry in `projects.json` with empty worker state |
 | Telegram group setup | You (once per project) | Add bot to group |
 | Issue creation | Plugin (`task_create`) | Orchestrator or workers create issues from chat |
