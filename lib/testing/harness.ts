@@ -23,6 +23,12 @@ import type { PluginContext } from "../context.js";
 export type BootstrapResult = {
   /** Whether AGENTS.md was stripped from bootstrap files. */
   agentsMdStripped: boolean;
+  /** Names of bootstrap files present after hook mutation. */
+  bootstrapFileNames: string[];
+  /** Content injected into orchestrator.md, if any. */
+  orchestratorContent?: string;
+  /** Final AGENTS.md content after hook mutation. */
+  agentsContent?: string;
 };
 
 // ---------------------------------------------------------------------------
@@ -170,7 +176,7 @@ export type TestHarness = {
    * Simulate the agent:bootstrap hook firing for a session key.
    * Tests that AGENTS.md is stripped from bootstrap files for DevClaw workers.
    */
-  simulateBootstrap(sessionKey: string): Promise<BootstrapResult>;
+  simulateBootstrap(sessionKey: string, contextOverrides?: Record<string, unknown>): Promise<BootstrapResult>;
   /** Clean up temp directory. */
   cleanup(): Promise<void>;
 };
@@ -180,6 +186,8 @@ export type HarnessOptions = {
   projectName?: string;
   /** Channel ID (default: "-1234567890"). */
   channelId?: string;
+  /** Optional Telegram topic binding for topic-aware project resolution tests. */
+  messageThreadId?: number;
   /** Repo path (default: "/tmp/test-repo"). */
   repo?: string;
   /** Base branch (default: "main"). */
@@ -196,6 +204,7 @@ export async function createTestHarness(opts?: HarnessOptions): Promise<TestHarn
   const {
     projectName = "test-project",
     channelId = "-1234567890",
+    messageThreadId,
     repo = "/tmp/test-repo",
     baseBranch = "main",
     workflow = DEFAULT_WORKFLOW,
@@ -242,7 +251,13 @@ export async function createTestHarness(opts?: HarnessOptions): Promise<TestHarn
     deployUrl: "",
     baseBranch,
     deployBranch: baseBranch,
-    channels: [{ channelId, channel: "telegram", name: "primary", events: ["*"] }],
+    channels: [{
+      channelId,
+      channel: "telegram",
+      name: "primary",
+      events: ["*"],
+      ...(messageThreadId != null ? { messageThreadId } : {}),
+    }],
     provider: "github",
     workers: defaultWorkers,
   };
@@ -284,7 +299,10 @@ export async function createTestHarness(opts?: HarnessOptions): Promise<TestHarn
       await fs.mkdir(dir, { recursive: true });
       await fs.writeFile(path.join(dir, `${role}.md`), content, "utf-8");
     },
-    async simulateBootstrap(sessionKey: string) {
+    async simulateBootstrap(
+      sessionKey: string,
+      contextOverrides: Record<string, unknown> = {},
+    ) {
       // Capture the agent:bootstrap hook callback
       let internalHookCb: ((event: any) => Promise<void>) | null = null;
       const mockApi = {
@@ -320,12 +338,16 @@ export async function createTestHarness(opts?: HarnessOptions): Promise<TestHarn
       if (hookCb) {
         await hookCb({
           sessionKey,
-          context: { bootstrapFiles },
+          context: { workspaceDir, bootstrapFiles, ...contextOverrides },
         });
       }
 
+      const orchestratorEntry = bootstrapFiles.find((f) => f.name === "orchestrator.md");
       return {
         agentsMdStripped: bootstrapFiles[0].missing === true && bootstrapFiles[0].content === "",
+        bootstrapFileNames: bootstrapFiles.map((f) => f.name),
+        orchestratorContent: orchestratorEntry?.content,
+        agentsContent: bootstrapFiles[0]?.content,
       };
     },
     async cleanup() {

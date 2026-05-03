@@ -13,9 +13,10 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
 import type { PluginContext } from "../context.js";
+import { getProject, readProjects } from "../projects/index.js";
 import { getSessionKeyRolePattern } from "../roles/index.js";
 import { DATA_DIR } from "../setup/migrate-layout.js";
-import { DEFAULT_ROLE_INSTRUCTIONS } from "../setup/templates.js";
+import { DEFAULT_ORCHESTRATOR_INSTRUCTIONS, DEFAULT_ROLE_INSTRUCTIONS } from "../setup/templates.js";
 
 /**
  * Parse a DevClaw subagent session key to extract project name and role.
@@ -50,7 +51,7 @@ export function parseDevClawSessionKey(
 /**
  * Result of loading role instructions — includes the source for traceability.
  */
-export type RoleInstructionsResult = {
+export type PromptInstructionsResult = {
   content: string;
   /** Which file the instructions were loaded from, or null if none found. */
   source: string | null;
@@ -78,13 +79,13 @@ export async function loadRoleInstructions(
   projectName: string,
   role: string,
   opts: { withSource: true },
-): Promise<RoleInstructionsResult>;
+): Promise<PromptInstructionsResult>;
 export async function loadRoleInstructions(
   workspaceDir: string,
   projectName: string,
   role: string,
   opts?: { withSource: true },
-): Promise<string | RoleInstructionsResult> {
+): Promise<string | PromptInstructionsResult> {
   const dataDir = path.join(workspaceDir, DATA_DIR);
 
   const candidates = [
@@ -115,6 +116,85 @@ export async function loadRoleInstructions(
   return "";
 }
 
+export async function loadOrchestratorInstructions(
+  workspaceDir: string,
+  projectName?: string,
+): Promise<string>;
+export async function loadOrchestratorInstructions(
+  workspaceDir: string,
+  projectName: string | undefined,
+  opts: { withSource: true },
+): Promise<PromptInstructionsResult>;
+export async function loadOrchestratorInstructions(
+  workspaceDir: string,
+  projectName?: string,
+  opts?: { withSource: true },
+): Promise<string | PromptInstructionsResult> {
+  const dataDir = path.join(workspaceDir, DATA_DIR);
+  const candidates = [
+    ...(projectName
+      ? [path.join(dataDir, "projects", projectName, "prompts", "orchestrator.md")]
+      : []),
+    path.join(dataDir, "prompts", "orchestrator.md"),
+  ];
+
+  for (const filePath of candidates) {
+    try {
+      const content = await fs.readFile(filePath, "utf-8");
+      if (opts?.withSource) return { content, source: filePath };
+      return content;
+    } catch {
+      /* not found, try next */
+    }
+  }
+
+  if (DEFAULT_ORCHESTRATOR_INSTRUCTIONS) {
+    if (opts?.withSource) {
+      return { content: DEFAULT_ORCHESTRATOR_INSTRUCTIONS, source: "package-default" };
+    }
+    return DEFAULT_ORCHESTRATOR_INSTRUCTIONS;
+  }
+
+  if (opts?.withSource) return { content: "", source: null };
+  return "";
+}
+
+function isMainOrchestratorSession(sessionKey: string): boolean {
+  return /^agent:[^:]+:main$/.test(sessionKey);
+}
+
+async function resolveProjectNameForBootstrap(
+  workspaceDir: string,
+  context: Record<string, unknown>,
+): Promise<string | undefined> {
+  const channelId =
+    context.channelId ??
+    context.conversationId ??
+    context.peerId;
+
+  if (typeof channelId !== "string" || !channelId.trim()) return undefined;
+
+  const messageThreadId =
+    typeof context.messageThreadId === "number" || typeof context.messageThreadId === "string"
+      ? context.messageThreadId
+      : typeof context.threadId === "number" || typeof context.threadId === "string"
+        ? context.threadId
+        : undefined;
+
+  try {
+    const data = await readProjects(workspaceDir);
+    const project = getProject(data, {
+      channelId,
+      channel: typeof context.channel === "string" ? context.channel : "telegram",
+      accountId: typeof context.accountId === "string" ? context.accountId : undefined,
+      messageThreadId,
+    });
+    return project?.name;
+  } catch {
+    return undefined;
+  }
+}
+
 /**
  * Register the agent:bootstrap hook for DevClaw worker sessions.
  *
@@ -136,10 +216,18 @@ export function registerBootstrapHook(api: OpenClawPluginApi, ctx: PluginContext
       if (!sessionKey) return;
 
       const parsed = parseDevClawSessionKey(sessionKey);
-      if (!parsed) return;
+      const isOrchestrator = isMainOrchestratorSession(sessionKey);
+      if (!parsed && !isOrchestrator) return;
 
       const context = event.context as {
         workspaceDir?: string;
+        channelId?: string;
+        conversationId?: string;
+        peerId?: string;
+        channel?: string;
+        accountId?: string;
+        threadId?: number | string;
+        messageThreadId?: number | string;
         bootstrapFiles?: Array<{
           name: string;
           path: string;
@@ -154,37 +242,70 @@ export function registerBootstrapHook(api: OpenClawPluginApi, ctx: PluginContext
       const agentsEntry = bootstrapFiles.find((f) => f.name === "AGENTS.md");
       if (!agentsEntry) return;
 
-      // Load role instructions from workspace (project-specific → default fallback)
       const workspaceDir = context.workspaceDir;
       if (!workspaceDir) {
-        agentsEntry.content = "";
-        agentsEntry.missing = true;
-        ctx.logger.info(
-          `agent:bootstrap: stripped AGENTS.md for ${parsed.role} worker in "${parsed.projectName}" (no workspaceDir)`,
-        );
+        if (parsed) {
+          agentsEntry.content = "";
+          agentsEntry.missing = true;
+          ctx.logger.info(
+            `agent:bootstrap: stripped AGENTS.md for ${parsed.role} worker in "${parsed.projectName}" (no workspaceDir)`,
+          );
+        }
         return;
       }
 
-      const { content, source } = await loadRoleInstructions(
-        workspaceDir,
-        parsed.projectName,
-        parsed.role,
-        { withSource: true },
-      );
+      if (parsed) {
+        const { content, source } = await loadRoleInstructions(
+          workspaceDir,
+          parsed.projectName,
+          parsed.role,
+          { withSource: true },
+        );
 
-      if (content.trim()) {
-        agentsEntry.content = content;
-        agentsEntry.missing = false;
-        ctx.logger.info(
-          `agent:bootstrap: injected ${parsed.role} instructions for "${parsed.projectName}" from ${source}`,
-        );
-      } else {
-        agentsEntry.content = "";
-        agentsEntry.missing = true;
-        ctx.logger.info(
-          `agent:bootstrap: stripped AGENTS.md for ${parsed.role} worker in "${parsed.projectName}" (no role instructions found)`,
-        );
+        if (content.trim()) {
+          agentsEntry.content = content;
+          agentsEntry.missing = false;
+          ctx.logger.info(
+            `agent:bootstrap: injected ${parsed.role} instructions for "${parsed.projectName}" from ${source}`,
+          );
+        } else {
+          agentsEntry.content = "";
+          agentsEntry.missing = true;
+          ctx.logger.info(
+            `agent:bootstrap: stripped AGENTS.md for ${parsed.role} worker in "${parsed.projectName}" (no role instructions found)`,
+          );
+        }
+        return;
       }
+
+      const projectName = await resolveProjectNameForBootstrap(workspaceDir, context as Record<string, unknown>);
+      const { content, source } = await loadOrchestratorInstructions(workspaceDir, projectName, {
+        withSource: true,
+      });
+      if (!content.trim()) return;
+
+      const existing = bootstrapFiles.find((f) => f.name === "orchestrator.md");
+      if (existing) {
+        existing.content = content;
+        existing.missing = false;
+      } else {
+        bootstrapFiles.push({
+          name: "orchestrator.md",
+          path: path.join(workspaceDir, "orchestrator.md"),
+          content,
+          missing: false,
+        });
+      }
+
+      const synthetic = bootstrapFiles.find((f) => f.name === "DEVCLAW_ORCHESTRATOR_PROMPT.md");
+      if (synthetic) {
+        synthetic.content = "";
+        synthetic.missing = true;
+      }
+
+      ctx.logger.info(
+        `agent:bootstrap: injected orchestrator instructions${projectName ? ` for "${projectName}"` : ""} from ${source}`,
+      );
     },
     {
       name: "devclaw-bootstrap-role-instructions",

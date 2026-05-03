@@ -199,27 +199,79 @@ describe("E2E bootstrap — extraSystemPrompt injection", () => {
   });
 });
 
-describe("E2E bootstrap — agent:bootstrap hook (AGENTS.md stripping)", () => {
+describe("E2E bootstrap — agent:bootstrap hook", () => {
   let h: TestHarness;
 
   afterEach(async () => {
     if (h) await h.cleanup();
   });
 
-  it("should strip AGENTS.md for DevClaw worker sessions", async () => {
+  it("should keep worker bootstrap scoped to AGENTS.md only", async () => {
     h = await createTestHarness({ projectName: "my-app" });
 
     const result = await h.simulateBootstrap(
       "agent:main:subagent:my-app-developer-medior-Ada",
     );
-    assert.strictEqual(result.agentsMdStripped, true);
+    assert.ok(result.agentsContent);
+    assert.ok(!result.agentsContent?.includes("Orchestrator instructions"));
+    assert.ok(!result.bootstrapFileNames.includes("orchestrator.md"));
   });
 
-  it("should NOT strip AGENTS.md for non-DevClaw sessions", async () => {
-    h = await createTestHarness();
+  it("should inject the project-specific orchestrator prompt into the main session", async () => {
+    h = await createTestHarness({ projectName: "my-app" });
+    await h.writePrompt("orchestrator", "# My App Orchestrator\nUse the app-specific workflow.", "my-app");
+    await h.writePrompt("orchestrator", "# Workspace Orchestrator\nGeneric workflow.");
 
-    const result = await h.simulateBootstrap("agent:main:orchestrator");
+    const result = await h.simulateBootstrap("agent:main:main", {
+      channelId: h.channelId,
+      channel: "telegram",
+    });
+
     assert.strictEqual(result.agentsMdStripped, false);
+    assert.ok(result.bootstrapFileNames.includes("orchestrator.md"));
+    assert.ok(result.orchestratorContent?.includes("My App Orchestrator"));
+    assert.ok(!result.orchestratorContent?.includes("Generic workflow"));
+  });
+
+  it("should fall back to workspace orchestrator prompt for chat-scoped resolution misses", async () => {
+    h = await createTestHarness({ projectName: "my-app" });
+    await h.writePrompt("orchestrator", "# Workspace Orchestrator\nGeneric workflow.");
+
+    const result = await h.simulateBootstrap("agent:main:main", {
+      channelId: "unbound-chat",
+      channel: "telegram",
+    });
+
+    assert.ok(result.bootstrapFileNames.includes("orchestrator.md"));
+    assert.ok(result.orchestratorContent?.includes("Workspace Orchestrator"));
+  });
+
+  it("should resolve project-specific orchestrator prompt by topic when applicable", async () => {
+    h = await createTestHarness({ projectName: "my-app", messageThreadId: 42 });
+    await h.writePrompt("orchestrator", "# Topic Orchestrator\nUse topic-specific workflow.", "my-app");
+    await h.writePrompt("orchestrator", "# Workspace Orchestrator\nGeneric workflow.");
+
+    const result = await h.simulateBootstrap("agent:main:main", {
+      channelId: h.channelId,
+      channel: "telegram",
+      messageThreadId: 42,
+    });
+
+    assert.ok(result.orchestratorContent?.includes("Topic Orchestrator"));
+    assert.ok(!result.orchestratorContent?.includes("Generic workflow"));
+  });
+
+  it("should NOT inject orchestrator.md for non-main, non-worker sessions", async () => {
+    h = await createTestHarness();
+    await h.writePrompt("orchestrator", "# Workspace Orchestrator\nGeneric workflow.");
+
+    const result = await h.simulateBootstrap("agent:main:orchestrator", {
+      channelId: h.channelId,
+      channel: "telegram",
+    });
+
+    assert.strictEqual(result.agentsMdStripped, false);
+    assert.ok(!result.bootstrapFileNames.includes("orchestrator.md"));
   });
 
   it("should NOT strip AGENTS.md for unknown roles", async () => {
@@ -229,5 +281,6 @@ describe("E2E bootstrap — agent:bootstrap hook (AGENTS.md stripping)", () => {
       "agent:main:subagent:custom-app-investigator-medior",
     );
     assert.strictEqual(result.agentsMdStripped, false);
+    assert.ok(!result.bootstrapFileNames.includes("orchestrator.md"));
   });
 });

@@ -50,6 +50,15 @@ const DEFAULT_QA_INSTRUCTIONS = loadDefault("devclaw/prompts/tester.md");
 const DEFAULT_ARCHITECT_INSTRUCTIONS = loadDefault("devclaw/prompts/architect.md");
 const DEFAULT_REVIEWER_INSTRUCTIONS = loadDefault("devclaw/prompts/reviewer.md");
 
+function loadOptionalDefault(filename: string): string | null {
+  const filePath = path.join(DEFAULTS_DIR, filename);
+  try {
+    return fs.readFileSync(filePath, "utf-8");
+  } catch {
+    return null;
+  }
+}
+
 /** Default role instructions indexed by role ID. Used by project scaffolding. */
 export const DEFAULT_ROLE_INSTRUCTIONS: Record<string, string> = {
   developer: DEFAULT_DEV_INSTRUCTIONS,
@@ -57,6 +66,9 @@ export const DEFAULT_ROLE_INSTRUCTIONS: Record<string, string> = {
   architect: DEFAULT_ARCHITECT_INSTRUCTIONS,
   reviewer: DEFAULT_REVIEWER_INSTRUCTIONS,
 };
+
+export const DEFAULT_ORCHESTRATOR_INSTRUCTIONS =
+  loadOptionalDefault("devclaw/prompts/orchestrator.md");
 
 // ---------------------------------------------------------------------------
 // Workspace templates — defaults/AGENTS.md, defaults/SOUL.md, etc.
