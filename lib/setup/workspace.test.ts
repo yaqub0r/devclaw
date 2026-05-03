@@ -56,9 +56,7 @@ describe("ensureDefaultFiles — managed root-block behavior", () => {
     const ws = await makeTmpDir();
     await ensureDefaultFiles(ws);
     const devPrompt = path.join(ws, DATA_DIR, "prompts", "developer.md");
-    const orchestratorPrompt = path.join(ws, DATA_DIR, "prompts", "orchestrator.md");
     assert.ok(await fileExists(devPrompt), "developer.md prompt should be created");
-    assert.ok(await fileExists(orchestratorPrompt), "orchestrator.md prompt should be created");
   });
 
   it("should NOT overwrite existing prompt files", async () => {

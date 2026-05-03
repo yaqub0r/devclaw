@@ -13,7 +13,7 @@ import { jsonResult } from "../../json-result.js";
 import type { ToolContext } from "../../types.js";
 import type { PluginContext } from "../../context.js";
 import { writeAllDefaults, backupAndWrite, fileExists } from "../../setup/workspace.js";
-import { WORKFLOW_YAML_TEMPLATE, DEFAULT_PROMPT_INSTRUCTIONS } from "../../setup/templates.js";
+import { WORKFLOW_YAML_TEMPLATE, DEFAULT_ROLE_INSTRUCTIONS } from "../../setup/templates.js";
 import { DATA_DIR } from "../../setup/migrate-layout.js";
 import { getCurrentVersion, readVersionFile } from "../../setup/version.js";
 import { getBuildProvenance, formatBuildProvenanceSummary } from "../../build-provenance.js";
@@ -92,11 +92,11 @@ async function handleReset(workspacePath: string, scope: string) {
     written.push("devclaw/workflow.yaml");
   } else if (scope === "prompts") {
     const promptsDir = path.join(dataDir, "prompts");
-    for (const [promptName, content] of Object.entries(DEFAULT_PROMPT_INSTRUCTIONS)) {
+    for (const [role, content] of Object.entries(DEFAULT_ROLE_INSTRUCTIONS)) {
       if (!content) continue;
-      const rolePath = path.join(promptsDir, `${promptName}.md`);
+      const rolePath = path.join(promptsDir, `${role}.md`);
       await backupAndWrite(rolePath, content);
-      written.push(`devclaw/prompts/${promptName}.md`);
+      written.push(`devclaw/prompts/${role}.md`);
     }
   } else {
     throw new Error(`Unknown scope: ${scope}. Use: prompts, workflow, or all.`);

@@ -4,8 +4,8 @@
  */
 import { describe, it } from "node:test";
 import assert from "node:assert";
-import { parseDevClawSessionKey, loadOrchestratorInstructions, loadRoleInstructions } from "./bootstrap-hook.js";
-import { DEFAULT_ORCHESTRATOR_PROMPT, DEFAULT_ROLE_INSTRUCTIONS } from "../setup/templates.js";
+import { parseDevClawSessionKey, loadRoleInstructions } from "./bootstrap-hook.js";
+import { DEFAULT_ROLE_INSTRUCTIONS } from "../setup/templates.js";
 import fs from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
@@ -123,57 +123,6 @@ describe("loadRoleInstructions", () => {
 
     const result = await loadRoleInstructions(tmpDir, "old-project", "developer");
     assert.strictEqual(result, "Old layout instructions");
-
-    await fs.rm(tmpDir, { recursive: true });
-  });
-});
-
-describe("loadOrchestratorInstructions", () => {
-  it("should prefer project orchestrator instructions over workspace defaults", async () => {
-    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "devclaw-test-"));
-    await fs.mkdir(path.join(tmpDir, "devclaw", "prompts"), { recursive: true });
-    await fs.mkdir(path.join(tmpDir, "devclaw", "projects", "my-project", "prompts"), { recursive: true });
-    await fs.writeFile(path.join(tmpDir, "devclaw", "prompts", "orchestrator.md"), "Workspace orchestrator prompt");
-    await fs.writeFile(path.join(tmpDir, "devclaw", "projects", "my-project", "prompts", "orchestrator.md"), "Project orchestrator prompt");
-
-    const result = await loadOrchestratorInstructions(tmpDir, "my-project");
-    assert.strictEqual(result, "Project orchestrator prompt");
-
-    await fs.rm(tmpDir, { recursive: true });
-  });
-
-  it("should fall back to workspace orchestrator instructions when no project override exists", async () => {
-    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "devclaw-test-"));
-    await fs.mkdir(path.join(tmpDir, "devclaw", "prompts"), { recursive: true });
-    await fs.writeFile(path.join(tmpDir, "devclaw", "prompts", "orchestrator.md"), "Workspace orchestrator prompt");
-
-    const result = await loadOrchestratorInstructions(tmpDir, "missing-project");
-    assert.strictEqual(result, "Workspace orchestrator prompt");
-
-    await fs.rm(tmpDir, { recursive: true });
-  });
-
-  it("should return the winning source when requested", async () => {
-    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "devclaw-test-"));
-    await fs.mkdir(path.join(tmpDir, "devclaw", "prompts"), { recursive: true });
-    await fs.mkdir(path.join(tmpDir, "devclaw", "projects", "my-project", "prompts"), { recursive: true });
-    const workspacePath = path.join(tmpDir, "devclaw", "prompts", "orchestrator.md");
-    const projectPath = path.join(tmpDir, "devclaw", "projects", "my-project", "prompts", "orchestrator.md");
-    await fs.writeFile(workspacePath, "Workspace orchestrator prompt");
-    await fs.writeFile(projectPath, "Project orchestrator prompt");
-
-    const result = await loadOrchestratorInstructions(tmpDir, "my-project", { withSource: true });
-    assert.strictEqual(result.content, "Project orchestrator prompt");
-    assert.strictEqual(result.source, projectPath);
-
-    await fs.rm(tmpDir, { recursive: true });
-  });
-
-  it("should fall back to package default orchestrator prompt", async () => {
-    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "devclaw-test-"));
-
-    const result = await loadOrchestratorInstructions(tmpDir, "missing-project");
-    assert.strictEqual(result, DEFAULT_ORCHESTRATOR_PROMPT.trim());
 
     await fs.rm(tmpDir, { recursive: true });
   });

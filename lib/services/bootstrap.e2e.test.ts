@@ -206,160 +206,20 @@ describe("E2E bootstrap — agent:bootstrap hook (AGENTS.md stripping)", () => {
     if (h) await h.cleanup();
   });
 
-  it("should replace AGENTS.md with worker instructions for DevClaw worker sessions", async () => {
+  it("should strip AGENTS.md for DevClaw worker sessions", async () => {
     h = await createTestHarness({ projectName: "my-app" });
 
     const result = await h.simulateBootstrap(
       "agent:main:subagent:my-app-developer-medior-Ada",
     );
-    assert.strictEqual(result.agentsMdStripped, false);
-    assert.ok(!result.agentsMdContent.includes("This content should be stripped."));
-    assert.match(result.agentsMdContent, /Developer/i);
+    assert.strictEqual(result.agentsMdStripped, true);
   });
 
-  it("should inject the winning orchestrator prompt as a dedicated bootstrap file for main sessions", async () => {
+  it("should NOT strip AGENTS.md for non-DevClaw sessions", async () => {
     h = await createTestHarness();
-    await h.writePrompt("orchestrator", "Workspace orchestrator prompt");
-    await h.writePrompt("orchestrator", "Project orchestrator prompt", h.project.name);
 
     const result = await h.simulateBootstrap("agent:main:orchestrator");
     assert.strictEqual(result.agentsMdStripped, false);
-    assert.match(result.agentsMdContent, /# Orchestrator instructions/);
-    assert.ok(!result.agentsMdContent.includes("Workspace orchestrator prompt"));
-    assert.ok(!result.agentsMdContent.includes("Project orchestrator prompt"));
-    assert.strictEqual(
-      result.files["orchestrator.md"]?.content,
-      "Project orchestrator prompt",
-    );
-    assert.strictEqual(result.files["orchestrator.md"]?.missing, false);
-  });
-
-  it("should resolve topic-bound projects for orchestrator prompt injection", async () => {
-    h = await createTestHarness({
-      projectName: "root-project",
-      channelId: "-1003581929219",
-      extraProjects: {
-        devclaw: {
-          slug: "devclaw",
-          name: "devclaw",
-          repo: "/tmp/devclaw",
-          groupName: "DevClaw Topic",
-          deployUrl: "",
-          baseBranch: "main",
-          deployBranch: "main",
-          channels: [{
-            channelId: "-1003581929219",
-            channel: "telegram",
-            messageThreadId: 183,
-            name: "topic",
-            events: ["*"],
-          }],
-          provider: "github",
-          workers: {
-            developer: { levels: {} },
-            tester: { levels: {} },
-            architect: { levels: {} },
-            reviewer: { levels: {} },
-          },
-        },
-      },
-    });
-
-    await h.writePrompt("orchestrator", "Workspace orchestrator prompt");
-    await h.writePrompt("orchestrator", "Root project prompt", "root-project");
-    await h.writePrompt("orchestrator", "DevClaw topic prompt", "devclaw");
-
-    const result = await h.simulateBootstrap("agent:main:orchestrator", { messageThreadId: 183 });
-    assert.strictEqual(
-      result.files["orchestrator.md"]?.content,
-      "DevClaw topic prompt",
-    );
-    assert.ok(!result.files["orchestrator.md"]?.content.includes("Root project prompt"));
-  });
-
-  it("should fall back to chat-level project when no topic-specific binding matches", async () => {
-    h = await createTestHarness({
-      projectName: "root-project",
-      channelId: "-1003581929219",
-      extraProjects: {
-        devclaw: {
-          slug: "devclaw",
-          name: "devclaw",
-          repo: "/tmp/devclaw",
-          groupName: "DevClaw Topic",
-          deployUrl: "",
-          baseBranch: "main",
-          deployBranch: "main",
-          channels: [{
-            channelId: "-1003581929219",
-            channel: "telegram",
-            messageThreadId: 183,
-            name: "topic",
-            events: ["*"],
-          }],
-          provider: "github",
-          workers: {
-            developer: { levels: {} },
-            tester: { levels: {} },
-            architect: { levels: {} },
-            reviewer: { levels: {} },
-          },
-        },
-      },
-    });
-
-    await h.writePrompt("orchestrator", "Workspace orchestrator prompt");
-    await h.writePrompt("orchestrator", "Root project prompt", "root-project");
-    await h.writePrompt("orchestrator", "DevClaw topic prompt", "devclaw");
-
-    const result = await h.simulateBootstrap("agent:main:orchestrator", { messageThreadId: 999 });
-    assert.strictEqual(
-      result.files["orchestrator.md"]?.content,
-      "Root project prompt",
-    );
-    assert.ok(!result.files["orchestrator.md"]?.content.includes("DevClaw topic prompt"));
-  });
-
-  it("should use the chat-level project prompt for unrelated topics in the same chat", async () => {
-    h = await createTestHarness({
-      projectName: "firstlight",
-      channelId: "-1003746138337",
-    });
-
-    const workspacePrompt = "Workspace orchestrator prompt";
-    const projectPrompt = "How many licks does it take to get to the tootsie roll center of a tootsie pop? 365";
-    await h.writePrompt("orchestrator", workspacePrompt);
-    await h.writePrompt("orchestrator", projectPrompt, "firstlight");
-
-    const result = await h.simulateBootstrap("agent:main:orchestrator", { messageThreadId: 1 });
-    assert.strictEqual(result.files["orchestrator.md"]?.content, projectPrompt);
-    assert.ok(!result.files["orchestrator.md"]?.content.includes(workspacePrompt));
-  });
-
-  it("should still use the same project prompt for an exact topic binding when both chat and topic bindings exist", async () => {
-    h = await createTestHarness({
-      projectName: "firstlight",
-      channelId: "-1003746138337",
-    });
-
-    const data = await h.readProjects();
-    data.projects.firstlight!.channels.push({
-      channelId: "-1003746138337",
-      channel: "telegram",
-      messageThreadId: 2270,
-      name: "First Light topic",
-      events: ["*"],
-    });
-    await h.writeProjects(data);
-
-    const workspacePrompt = "Workspace orchestrator prompt";
-    const projectPrompt = "How many licks does it take to get to the tootsie roll center of a tootsie pop? 365";
-    await h.writePrompt("orchestrator", workspacePrompt);
-    await h.writePrompt("orchestrator", projectPrompt, "firstlight");
-
-    const result = await h.simulateBootstrap("agent:main:orchestrator", { messageThreadId: 2270 });
-    assert.strictEqual(result.files["orchestrator.md"]?.content, projectPrompt);
-    assert.ok(!result.files["orchestrator.md"]?.content.includes(workspacePrompt));
   });
 
   it("should NOT strip AGENTS.md for unknown roles", async () => {

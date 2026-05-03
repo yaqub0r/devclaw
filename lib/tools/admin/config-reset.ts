@@ -11,7 +11,8 @@ import type { ToolContext } from "../../types.js";
 import type { PluginContext } from "../../context.js";
 import { requireWorkspaceDir } from "../helpers.js";
 import { backupAndWrite } from "../../setup/workspace.js";
-import { WORKFLOW_YAML_TEMPLATE, DEFAULT_PROMPT_INSTRUCTIONS } from "../../setup/templates.js";
+import { WORKFLOW_YAML_TEMPLATE, DEFAULT_ROLE_INSTRUCTIONS } from "../../setup/templates.js";
+import { getAllRoleIds } from "../../roles/index.js";
 import { DATA_DIR } from "../../setup/migrate-layout.js";
 import { log as auditLog } from "../../audit.js";
 
@@ -33,7 +34,7 @@ export function createConfigResetTool(_ctx: PluginContext) {
           type: "string",
           enum: ["workflow", "prompts", "all"],
           description:
-            "What to reset. 'workflow' = workflow.yaml, 'prompts' = devclaw/prompts/*.md (including orchestrator.md), 'all' = both. Default: 'all'.",
+            "What to reset. 'workflow' = workflow.yaml, 'prompts' = devclaw/prompts/*.md, 'all' = both. Default: 'all'.",
         },
       },
       required: ["channelId"],
@@ -53,11 +54,12 @@ export function createConfigResetTool(_ctx: PluginContext) {
       if (target === "prompts" || target === "all") {
         const promptsDir = path.join(dataDir, "prompts");
         await fs.mkdir(promptsDir, { recursive: true });
-        for (const [promptName, content] of Object.entries(DEFAULT_PROMPT_INSTRUCTIONS)) {
+        for (const role of getAllRoleIds()) {
+          const content = DEFAULT_ROLE_INSTRUCTIONS[role];
           if (!content) continue;
-          const promptPath = path.join(promptsDir, `${promptName}.md`);
-          await backupAndWrite(promptPath, content);
-          resetFiles.push(`devclaw/prompts/${promptName}.md`);
+          const rolePath = path.join(promptsDir, `${role}.md`);
+          await backupAndWrite(rolePath, content);
+          resetFiles.push(`devclaw/prompts/${role}.md`);
         }
       }
 
