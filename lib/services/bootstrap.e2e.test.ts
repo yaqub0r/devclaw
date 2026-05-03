@@ -217,7 +217,7 @@ describe("E2E bootstrap — agent:bootstrap hook", () => {
     assert.ok(!result.bootstrapFileNames.includes("orchestrator.md"));
   });
 
-  it("should inject the project-specific orchestrator prompt into the main session", async () => {
+  it("should inject the project-specific orchestrator prompt into the legacy main session", async () => {
     h = await createTestHarness({ projectName: "my-app" });
     await h.writePrompt("orchestrator", "# My App Orchestrator\nUse the app-specific workflow.", "my-app");
     await h.writePrompt("orchestrator", "# Workspace Orchestrator\nGeneric workflow.");
@@ -230,6 +230,42 @@ describe("E2E bootstrap — agent:bootstrap hook", () => {
     assert.strictEqual(result.agentsMdStripped, false);
     assert.ok(result.bootstrapFileNames.includes("orchestrator.md"));
     assert.ok(result.orchestratorContent?.includes("My App Orchestrator"));
+    assert.ok(!result.orchestratorContent?.includes("Generic workflow"));
+  });
+
+  it("should inject the project-specific orchestrator prompt into a real chat-backed orchestrator session", async () => {
+    h = await createTestHarness({ projectName: "my-app", channelId: "-1003581929219", messageThreadId: 190 });
+    await h.writePrompt("orchestrator", "# My App Orchestrator\nUse the app-specific workflow.", "my-app");
+    await h.writePrompt("orchestrator", "# Workspace Orchestrator\nGeneric workflow.");
+
+    const result = await h.simulateBootstrap("agent:devclaw:telegram:group:-1003581929219:topic:190", {
+      channelId: "-1003581929219",
+      channel: "telegram",
+      messageThreadId: 190,
+    });
+
+    assert.strictEqual(result.agentsMdStripped, false);
+    assert.ok(result.bootstrapFileNames.includes("orchestrator.md"));
+    assert.ok(result.orchestratorContent?.includes("My App Orchestrator"));
+    assert.ok(!result.orchestratorContent?.includes("Generic workflow"));
+  });
+
+  it("should resolve the project-specific orchestrator prompt from the real session key when bootstrap context omits chat scope", async () => {
+    h = await createTestHarness({ projectName: "firstlight", channelId: "-1003746138337", messageThreadId: 2270 });
+    await h.writePrompt(
+      "orchestrator",
+      "You must follow a three step process when killing ticks:\n1. steady\n2. aim\n3. fire stitcher",
+      "firstlight",
+    );
+    await h.writePrompt("orchestrator", "# Workspace Orchestrator\nGeneric workflow.");
+
+    const result = await h.simulateBootstrap("agent:devclaw:telegram:group:-1003746138337:topic:2270", {
+      channel: "telegram",
+    });
+
+    assert.ok(result.bootstrapFileNames.includes("orchestrator.md"));
+    assert.ok(result.orchestratorContent?.includes("three step process when killing ticks"));
+    assert.ok(result.orchestratorContent?.includes("fire stitcher"));
     assert.ok(!result.orchestratorContent?.includes("Generic workflow"));
   });
 

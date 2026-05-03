@@ -4,7 +4,13 @@
  */
 import { describe, it } from "node:test";
 import assert from "node:assert";
-import { parseDevClawSessionKey, loadOrchestratorInstructions, loadRoleInstructions } from "./bootstrap-hook.js";
+import {
+  isMainOrchestratorSession,
+  parseDevClawSessionKey,
+  parseMainOrchestratorSessionScope,
+  loadOrchestratorInstructions,
+  loadRoleInstructions,
+} from "./bootstrap-hook.js";
 import { DEFAULT_ORCHESTRATOR_INSTRUCTIONS, DEFAULT_ROLE_INSTRUCTIONS } from "../setup/templates.js";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -54,6 +60,52 @@ describe("parseDevClawSessionKey", () => {
   it("should parse simple project name", () => {
     const result = parseDevClawSessionKey("agent:devclaw:subagent:api-developer-junior");
     assert.deepStrictEqual(result, { projectName: "api", role: "developer" });
+  });
+});
+
+describe("parseMainOrchestratorSessionScope", () => {
+  it("should parse a real telegram topic session scope", () => {
+    assert.deepStrictEqual(
+      parseMainOrchestratorSessionScope("agent:devclaw:telegram:group:-1003581929219:topic:190"),
+      { channel: "telegram", channelId: "-1003581929219", messageThreadId: "190" },
+    );
+  });
+
+  it("should parse a chat-backed orchestrator session without a topic", () => {
+    assert.deepStrictEqual(
+      parseMainOrchestratorSessionScope("agent:devclaw:discord:channel:ops-room"),
+      { channel: "discord", channelId: "ops-room" },
+    );
+  });
+
+  it("should reject legacy main and unknown session shapes", () => {
+    assert.strictEqual(parseMainOrchestratorSessionScope("agent:devclaw:main"), null);
+    assert.strictEqual(parseMainOrchestratorSessionScope("agent:devclaw:foo:bar"), null);
+  });
+});
+
+describe("isMainOrchestratorSession", () => {
+  it("should recognize the legacy main session key", () => {
+    assert.strictEqual(isMainOrchestratorSession("agent:devclaw:main"), true);
+  });
+
+  it("should recognize real telegram group orchestrator sessions", () => {
+    assert.strictEqual(
+      isMainOrchestratorSession("agent:devclaw:telegram:group:-1003581929219:topic:190"),
+      true,
+    );
+  });
+
+  it("should reject worker subagent sessions", () => {
+    assert.strictEqual(
+      isMainOrchestratorSession("agent:devclaw:subagent:devclaw-developer-medior-cami"),
+      false,
+    );
+  });
+
+  it("should reject unknown non-main session shapes", () => {
+    assert.strictEqual(isMainOrchestratorSession("agent:devclaw:orchestrator"), false);
+    assert.strictEqual(isMainOrchestratorSession("agent:devclaw:foo:bar"), false);
   });
 });
 

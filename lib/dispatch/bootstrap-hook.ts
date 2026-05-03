@@ -159,33 +159,66 @@ export async function loadOrchestratorInstructions(
   return "";
 }
 
-function isMainOrchestratorSession(sessionKey: string): boolean {
-  return /^agent:[^:]+:main$/.test(sessionKey);
+const MAIN_SESSION_PATTERNS = [
+  /^agent:[^:]+:main$/,
+  /^agent:[^:]+:(telegram|whatsapp|discord|slack):(group|dm|channel):[^:]+(?::topic:[^:]+)?$/,
+];
+
+export function isMainOrchestratorSession(sessionKey: string): boolean {
+  return MAIN_SESSION_PATTERNS.some((pattern) => pattern.test(sessionKey));
+}
+
+export type OrchestratorSessionScope = {
+  channel: string;
+  channelId: string;
+  messageThreadId?: string;
+};
+
+export function parseMainOrchestratorSessionScope(
+  sessionKey: string,
+): OrchestratorSessionScope | null {
+  const match = sessionKey.match(
+    /^agent:[^:]+:(telegram|whatsapp|discord|slack):(group|dm|channel):([^:]+)(?::topic:([^:]+))?$/,
+  );
+  if (!match) return null;
+  return {
+    channel: match[1],
+    channelId: match[3],
+    ...(match[4] ? { messageThreadId: match[4] } : {}),
+  };
 }
 
 async function resolveProjectNameForBootstrap(
   workspaceDir: string,
   context: Record<string, unknown>,
+  sessionKey?: string,
 ): Promise<string | undefined> {
+  const sessionScope = sessionKey ? parseMainOrchestratorSessionScope(sessionKey) : null;
   const channelId =
-    context.channelId ??
-    context.conversationId ??
-    context.peerId;
+    (typeof context.channelId === "string" && context.channelId.trim() ? context.channelId : undefined) ??
+    (typeof context.conversationId === "string" && context.conversationId.trim()
+      ? context.conversationId
+      : undefined) ??
+    (typeof context.peerId === "string" && context.peerId.trim() ? context.peerId : undefined) ??
+    sessionScope?.channelId;
 
-  if (typeof channelId !== "string" || !channelId.trim()) return undefined;
+  if (!channelId) return undefined;
 
   const messageThreadId =
     typeof context.messageThreadId === "number" || typeof context.messageThreadId === "string"
       ? context.messageThreadId
       : typeof context.threadId === "number" || typeof context.threadId === "string"
         ? context.threadId
-        : undefined;
+        : sessionScope?.messageThreadId;
 
   try {
     const data = await readProjects(workspaceDir);
     const project = getProject(data, {
       channelId,
-      channel: typeof context.channel === "string" ? context.channel : "telegram",
+      channel:
+        typeof context.channel === "string" && context.channel.trim()
+          ? context.channel
+          : sessionScope?.channel ?? "telegram",
       accountId: typeof context.accountId === "string" ? context.accountId : undefined,
       messageThreadId,
     });
@@ -278,7 +311,11 @@ export function registerBootstrapHook(api: OpenClawPluginApi, ctx: PluginContext
         return;
       }
 
-      const projectName = await resolveProjectNameForBootstrap(workspaceDir, context as Record<string, unknown>);
+      const projectName = await resolveProjectNameForBootstrap(
+        workspaceDir,
+        context as Record<string, unknown>,
+        sessionKey,
+      );
       const { content, source } = await loadOrchestratorInstructions(workspaceDir, projectName, {
         withSource: true,
       });
