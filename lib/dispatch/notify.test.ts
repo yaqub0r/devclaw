@@ -121,6 +121,57 @@ describe("notify", () => {
     assert.match(auditLog, /"delivery":"cli-fallback"/);
   });
 
+  it("passes messageThreadId through the Telegram CLI fallback", async () => {
+    const calls: Array<{ args: string[]; timeoutMs?: number }> = [];
+
+    const ok = await notify(
+      {
+        type: "workerComplete",
+        project: "devclaw",
+        issueId: 7,
+        issueUrl: "https://example.com/issues/7",
+        role: "developer",
+        result: "refine",
+      },
+      {
+        workspaceDir: tempDir,
+        channelId: "-100123",
+        channel: "telegram",
+        runtime: {
+          channel: {
+            telegram: {
+              sendMessageTelegram: async () => {
+                throw new Error("telegram runtime unavailable");
+              },
+            },
+          },
+        } as any,
+        runCommand: async (args, opts): Promise<SpawnResult> => {
+          const options = typeof opts === "number" ? { timeoutMs: opts } : opts as CommandOptions;
+          calls.push({ args, timeoutMs: options?.timeoutMs });
+          return {
+            stdout: "",
+            stderr: "",
+            code: 0,
+            signal: null,
+            killed: false,
+            termination: "exit",
+          };
+        },
+        messageThreadId: 176,
+      },
+    );
+
+    assert.equal(ok, true);
+    assert.equal(calls.length, 1);
+    assert.ok(calls[0]?.args.includes("--thread-id"));
+    assert.ok(calls[0]?.args.includes("176"));
+
+    const auditLog = await readFile(join(tempDir, "devclaw", "log", "audit.log"), "utf-8");
+    assert.match(auditLog, /"delivery":"cli-fallback"/);
+    assert.match(auditLog, /"messageThreadId":176/);
+  });
+
   it("logs notify_error and returns false when no sender is available", async () => {
     const ok = await notify(
       {
