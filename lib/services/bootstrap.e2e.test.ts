@@ -78,17 +78,17 @@ describe("E2E bootstrap — agent:bootstrap hook", () => {
 
   it("should resolve the project-specific orchestrator prompt from the real session key when bootstrap context omits chat scope", async () => {
     h = await createTestHarness({ projectName: "firstlight", channelId: "-1000000000002", messageThreadId: 99 });
-    await h.writePrompt("orchestrator", "ticks\nfire stitcher", "firstlight");
-    await h.writePrompt("orchestrator", "wasps\nfire hullcracker");
+    await h.writePrompt("orchestrator", "project-marker\nproject-step", "firstlight");
+    await h.writePrompt("orchestrator", "workspace-marker\nworkspace-step");
 
     const result = await h.simulateBootstrap("agent:devclaw:telegram:group:-1000000000002:topic:99", {
       channel: "telegram",
     });
 
     assert.ok(result.bootstrapFileNames.includes("orchestrator.md"));
-    assert.ok(result.orchestratorContent?.includes("ticks"));
-    assert.ok(result.orchestratorContent?.includes("fire stitcher"));
-    assert.ok(!result.orchestratorContent?.includes("wasps"));
+    assert.ok(result.orchestratorContent?.includes("project-marker"));
+    assert.ok(result.orchestratorContent?.includes("project-step"));
+    assert.ok(!result.orchestratorContent?.includes("workspace-marker"));
   });
 
   it("should replace stale orchestrator.md content across repeated fresh bootstrap runs on the same topic key", async () => {
@@ -96,45 +96,45 @@ describe("E2E bootstrap — agent:bootstrap hook", () => {
     const projectPrompt = path.join(h.workspaceDir, "devclaw", "projects", "firstlight", "prompts", "orchestrator.md");
     const workspacePrompt = path.join(h.workspaceDir, "devclaw", "prompts", "orchestrator.md");
 
-    await h.writePrompt("orchestrator", "wasps\nfire hullcracker");
-    await h.writePrompt("orchestrator", "ticks\nfire stitcher", "firstlight");
+    await h.writePrompt("orchestrator", "workspace-marker\nworkspace-step");
+    await h.writePrompt("orchestrator", "project-marker\nproject-step", "firstlight");
 
     const first = await h.simulateBootstrap("agent:devclaw:telegram:group:-1000000000002:topic:7", {
       channel: "telegram",
     });
-    assert.ok(first.orchestratorContent?.includes("ticks"));
-    assert.ok(first.orchestratorContent?.includes("fire stitcher"));
+    assert.ok(first.orchestratorContent?.includes("project-marker"));
+    assert.ok(first.orchestratorContent?.includes("project-step"));
 
     await fs.rm(projectPrompt);
     const second = await h.simulateBootstrap("agent:devclaw:telegram:group:-1000000000002:topic:7", {
       channel: "telegram",
       bootstrapFiles: first.bootstrapFiles,
     });
-    assert.ok(second.orchestratorContent?.includes("wasps"));
-    assert.ok(second.orchestratorContent?.includes("fire hullcracker"));
-    assert.ok(!second.orchestratorContent?.includes("ticks"));
-    assert.ok(!second.orchestratorContent?.includes("fire stitcher"));
+    assert.ok(second.orchestratorContent?.includes("workspace-marker"));
+    assert.ok(second.orchestratorContent?.includes("workspace-step"));
+    assert.ok(!second.orchestratorContent?.includes("project-marker"));
+    assert.ok(!second.orchestratorContent?.includes("project-step"));
 
-    await fs.writeFile(projectPrompt, "ticks v2\nfire needlecaster", "utf-8");
+    await fs.writeFile(projectPrompt, "project-marker-v2\nproject-step-v2", "utf-8");
     const third = await h.simulateBootstrap("agent:devclaw:telegram:group:-1000000000002:topic:7", {
       channel: "telegram",
       bootstrapFiles: second.bootstrapFiles,
     });
-    assert.ok(third.orchestratorContent?.includes("ticks v2"));
-    assert.ok(third.orchestratorContent?.includes("fire needlecaster"));
-    assert.ok(!third.orchestratorContent?.includes("wasps"));
-    assert.ok(!third.orchestratorContent?.includes("fire hullcracker"));
+    assert.ok(third.orchestratorContent?.includes("project-marker-v2"));
+    assert.ok(third.orchestratorContent?.includes("project-step-v2"));
+    assert.ok(!third.orchestratorContent?.includes("workspace-marker"));
+    assert.ok(!third.orchestratorContent?.includes("workspace-step"));
 
-    await fs.writeFile(workspacePrompt, "wasps v2\nfire emberhammer", "utf-8");
+    await fs.writeFile(workspacePrompt, "workspace-marker-v2\nworkspace-step-v2", "utf-8");
     await fs.rm(projectPrompt);
     const fourth = await h.simulateBootstrap("agent:devclaw:telegram:group:-1000000000002:topic:7", {
       channel: "telegram",
       bootstrapFiles: third.bootstrapFiles,
     });
-    assert.ok(fourth.orchestratorContent?.includes("wasps v2"));
-    assert.ok(fourth.orchestratorContent?.includes("fire emberhammer"));
-    assert.ok(!fourth.orchestratorContent?.includes("ticks v2"));
-    assert.ok(!fourth.orchestratorContent?.includes("fire needlecaster"));
+    assert.ok(fourth.orchestratorContent?.includes("workspace-marker-v2"));
+    assert.ok(fourth.orchestratorContent?.includes("workspace-step-v2"));
+    assert.ok(!fourth.orchestratorContent?.includes("project-marker-v2"));
+    assert.ok(!fourth.orchestratorContent?.includes("project-step-v2"));
   });
 
   it("should NOT inject orchestrator.md for non-main, non-worker sessions", async () => {
