@@ -33,6 +33,7 @@ const DEFAULT_DEV_INSTRUCTIONS = loadDefault("devclaw/prompts/developer.md");
 const DEFAULT_QA_INSTRUCTIONS = loadDefault("devclaw/prompts/tester.md");
 const DEFAULT_ARCHITECT_INSTRUCTIONS = loadDefault("devclaw/prompts/architect.md");
 const DEFAULT_REVIEWER_INSTRUCTIONS = loadDefault("devclaw/prompts/reviewer.md");
+export const DEFAULT_ORCHESTRATOR_INSTRUCTIONS = loadDefault("devclaw/prompts/orchestrator.md");
 
 /** Default role instructions indexed by role ID. Used by project scaffolding. */
 export const DEFAULT_ROLE_INSTRUCTIONS: Record<string, string> = {

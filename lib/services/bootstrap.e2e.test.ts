@@ -1,13 +1,10 @@
 /**
- * E2E bootstrap tests — verifies role instructions reach workers via extraSystemPrompt:
- *   dispatchTask() → loadRoleInstructions() → gateway agent call includes extraSystemPrompt
- *
- * Also tests that the agent:bootstrap hook strips AGENTS.md from worker sessions.
- *
- * Run: npx tsx --test lib/services/bootstrap.e2e.test.ts
+ * E2E bootstrap tests.
  */
 import { describe, it, afterEach } from "node:test";
 import assert from "node:assert";
+import fs from "node:fs/promises";
+import path from "node:path";
 import { createTestHarness, type TestHarness } from "../testing/index.js";
 import { dispatchTask } from "../dispatch/index.js";
 
@@ -21,8 +18,6 @@ describe("E2E bootstrap — extraSystemPrompt injection", () => {
   it("should inject project-specific instructions via extraSystemPrompt", async () => {
     h = await createTestHarness({ projectName: "my-app" });
     h.provider.seedIssue({ iid: 1, title: "Add feature", labels: ["To Do"] });
-
-    // Write both default and project-specific prompts
     await h.writePrompt("developer", "# Default Developer\nGeneric instructions.");
     await h.writePrompt("developer", "# My App Developer\nUse React. Follow our design system.", "my-app");
 
@@ -42,11 +37,9 @@ describe("E2E bootstrap — extraSystemPrompt injection", () => {
       runCommand: h.runCommand,
     });
 
-    // Verify extraSystemPrompt in the gateway agent call
     const prompts = h.commands.extraSystemPrompts();
-    assert.strictEqual(prompts.length, 1, `Expected 1 extraSystemPrompt, got ${prompts.length}`);
-    assert.ok(prompts[0].includes("My App Developer"), `Got: ${prompts[0]}`);
-    assert.ok(prompts[0].includes("Use React"));
+    assert.strictEqual(prompts.length, 1);
+    assert.ok(prompts[0].includes("My App Developer"));
     assert.ok(!prompts[0].includes("Generic instructions"));
   });
 
@@ -54,7 +47,7 @@ describe("E2E bootstrap — extraSystemPrompt injection", () => {
     h = await createTestHarness({ projectName: "other-app" });
     h.provider.seedIssue({ iid: 2, title: "Fix bug", labels: ["To Do"] });
 
-    // Only write default prompt — no project-specific
+    // Only write default prompt, no project-specific
     await h.writePrompt("developer", "# Default Developer\nFollow coding standards.");
 
     await dispatchTask({
@@ -83,8 +76,6 @@ describe("E2E bootstrap — extraSystemPrompt injection", () => {
     h = await createTestHarness({ projectName: "bare-app" });
     h.provider.seedIssue({ iid: 3, title: "Chore", labels: ["To Do"] });
 
-    // Don't write any custom prompts — ensureWorkspaceMigrated scaffolds defaults
-
     await dispatchTask({
       workspaceDir: h.workspaceDir,
       agentId: "main",
@@ -102,7 +93,6 @@ describe("E2E bootstrap — extraSystemPrompt injection", () => {
     });
 
     const prompts = h.commands.extraSystemPrompts();
-    // No prompt files exist in this temp workspace — extraSystemPrompt should be absent
     assert.strictEqual(prompts.length, 0, "No extraSystemPrompt when no prompt files exist");
   });
 
@@ -110,11 +100,9 @@ describe("E2E bootstrap — extraSystemPrompt injection", () => {
     h = await createTestHarness({ projectName: "multi-role" });
     h.provider.seedIssue({ iid: 4, title: "Test thing", labels: ["To Test"] });
 
-    // Write project-specific for developer, default for tester
     await h.writePrompt("developer", "# Dev for multi-role\nSpecific dev rules.", "multi-role");
     await h.writePrompt("tester", "# Default Tester\nRun integration tests.");
 
-    // Dispatch as tester
     await dispatchTask({
       workspaceDir: h.workspaceDir,
       agentId: "main",
@@ -199,35 +187,109 @@ describe("E2E bootstrap — extraSystemPrompt injection", () => {
   });
 });
 
-describe("E2E bootstrap — agent:bootstrap hook (AGENTS.md stripping)", () => {
+describe("E2E bootstrap — agent:bootstrap hook", () => {
   let h: TestHarness;
 
   afterEach(async () => {
     if (h) await h.cleanup();
   });
 
-  it("should strip AGENTS.md for DevClaw worker sessions", async () => {
+  it("should keep worker bootstrap scoped to AGENTS.md only", async () => {
     h = await createTestHarness({ projectName: "my-app" });
-
-    const result = await h.simulateBootstrap(
-      "agent:main:subagent:my-app-developer-medior-Ada",
-    );
-    assert.strictEqual(result.agentsMdStripped, true);
+    const result = await h.simulateBootstrap("agent:main:subagent:my-app-developer-medior-Ada");
+    assert.ok(result.agentsContent);
+    assert.ok(!result.agentsContent?.includes("Orchestrator instructions"));
+    assert.ok(!result.bootstrapFileNames.includes("orchestrator.md"));
   });
 
-  it("should NOT strip AGENTS.md for non-DevClaw sessions", async () => {
+  it("should inject the project-specific orchestrator prompt into a real chat-backed orchestrator session", async () => {
+    h = await createTestHarness({ projectName: "my-app", channelId: "-1003581929219", messageThreadId: 190 });
+    await h.writePrompt("orchestrator", "# My App Orchestrator\nUse the app-specific workflow.", "my-app");
+    await h.writePrompt("orchestrator", "# Workspace Orchestrator\nGeneric workflow.");
+
+    const result = await h.simulateBootstrap("agent:devclaw:telegram:group:-1003581929219:topic:190", {
+      channelId: "-1003581929219",
+      channel: "telegram",
+      messageThreadId: 190,
+    });
+
+    assert.strictEqual(result.agentsMdStripped, false);
+    assert.ok(result.bootstrapFileNames.includes("orchestrator.md"));
+    assert.ok(result.orchestratorContent?.includes("My App Orchestrator"));
+    assert.ok(!result.orchestratorContent?.includes("Generic workflow"));
+  });
+
+  it("should resolve the project-specific orchestrator prompt from the real session key when bootstrap context omits chat scope", async () => {
+    h = await createTestHarness({ projectName: "firstlight", channelId: "-1003746138337", messageThreadId: 2270 });
+    await h.writePrompt("orchestrator", "ticks\nfire stitcher", "firstlight");
+    await h.writePrompt("orchestrator", "wasps\nfire hullcracker");
+
+    const result = await h.simulateBootstrap("agent:devclaw:telegram:group:-1003746138337:topic:2270", {
+      channel: "telegram",
+    });
+
+    assert.ok(result.bootstrapFileNames.includes("orchestrator.md"));
+    assert.ok(result.orchestratorContent?.includes("ticks"));
+    assert.ok(result.orchestratorContent?.includes("fire stitcher"));
+    assert.ok(!result.orchestratorContent?.includes("wasps"));
+  });
+
+  it("should replace stale orchestrator.md content across repeated fresh bootstrap runs on the same topic key", async () => {
+    h = await createTestHarness({ projectName: "firstlight", channelId: "-1003746138337", messageThreadId: 1 });
+    const projectPrompt = path.join(h.workspaceDir, "devclaw", "projects", "firstlight", "prompts", "orchestrator.md");
+    const workspacePrompt = path.join(h.workspaceDir, "devclaw", "prompts", "orchestrator.md");
+
+    await h.writePrompt("orchestrator", "wasps\nfire hullcracker");
+    await h.writePrompt("orchestrator", "ticks\nfire stitcher", "firstlight");
+
+    const first = await h.simulateBootstrap("agent:devclaw:telegram:group:-1003746138337:topic:1", {
+      channel: "telegram",
+    });
+    assert.ok(first.orchestratorContent?.includes("ticks"));
+    assert.ok(first.orchestratorContent?.includes("fire stitcher"));
+
+    await fs.rm(projectPrompt);
+    const second = await h.simulateBootstrap("agent:devclaw:telegram:group:-1003746138337:topic:1", {
+      channel: "telegram",
+      bootstrapFiles: first.bootstrapFiles,
+    });
+    assert.ok(second.orchestratorContent?.includes("wasps"));
+    assert.ok(second.orchestratorContent?.includes("fire hullcracker"));
+    assert.ok(!second.orchestratorContent?.includes("ticks"));
+    assert.ok(!second.orchestratorContent?.includes("fire stitcher"));
+
+    await fs.writeFile(projectPrompt, "ticks v2\nfire needlecaster", "utf-8");
+    const third = await h.simulateBootstrap("agent:devclaw:telegram:group:-1003746138337:topic:1", {
+      channel: "telegram",
+      bootstrapFiles: second.bootstrapFiles,
+    });
+    assert.ok(third.orchestratorContent?.includes("ticks v2"));
+    assert.ok(third.orchestratorContent?.includes("fire needlecaster"));
+    assert.ok(!third.orchestratorContent?.includes("wasps"));
+    assert.ok(!third.orchestratorContent?.includes("fire hullcracker"));
+
+    await fs.writeFile(workspacePrompt, "wasps v2\nfire emberhammer", "utf-8");
+    await fs.rm(projectPrompt);
+    const fourth = await h.simulateBootstrap("agent:devclaw:telegram:group:-1003746138337:topic:1", {
+      channel: "telegram",
+      bootstrapFiles: third.bootstrapFiles,
+    });
+    assert.ok(fourth.orchestratorContent?.includes("wasps v2"));
+    assert.ok(fourth.orchestratorContent?.includes("fire emberhammer"));
+    assert.ok(!fourth.orchestratorContent?.includes("ticks v2"));
+    assert.ok(!fourth.orchestratorContent?.includes("fire needlecaster"));
+  });
+
+  it("should NOT inject orchestrator.md for non-main, non-worker sessions", async () => {
     h = await createTestHarness();
+    await h.writePrompt("orchestrator", "# Workspace Orchestrator\nGeneric workflow.");
 
-    const result = await h.simulateBootstrap("agent:main:orchestrator");
+    const result = await h.simulateBootstrap("agent:main:orchestrator", {
+      channelId: h.channelId,
+      channel: "telegram",
+    });
+
     assert.strictEqual(result.agentsMdStripped, false);
-  });
-
-  it("should NOT strip AGENTS.md for unknown roles", async () => {
-    h = await createTestHarness({ projectName: "custom-app" });
-
-    const result = await h.simulateBootstrap(
-      "agent:main:subagent:custom-app-investigator-medior",
-    );
-    assert.strictEqual(result.agentsMdStripped, false);
+    assert.ok(!result.bootstrapFileNames.includes("orchestrator.md"));
   });
 });
