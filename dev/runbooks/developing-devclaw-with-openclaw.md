@@ -38,6 +38,42 @@ If the runbook itself needs to change, update it on `devclaw-local-current` and 
 
 Use `review/*` for local-review branches into `devclaw-local-current` and `pr/*` for upstream-facing export branches. Do not use `contrib/*`.
 
+## Local-only regression and documentation boundary
+
+Keep a strong boundary between local operational material and upstream-facing project material.
+
+Local-only material should normally live under `/dev/` on `devclaw-local-current`, especially when it is primarily for local operator use rather than upstream product behavior.
+
+This includes, unless there is a clear reason otherwise:
+
+- local regression notes and local release checklists
+- local debug runbooks and local validation recipes
+- operator-specific semantic test plans
+- local environment identifiers, chat ids, topic ids, or other deployment fingerprints
+- fixture wording that exists only to help a local human distinguish one local prompt source from another during live debugging
+- temporary or durable notes about self-hosted validation flow that are not part of the upstream product contract
+
+When a regression test or fixture is intended to go upstream, genericize it first.
+Do not export local environment fingerprints or local operator-specific semantic markers just because they were convenient during debugging.
+
+For upstream-facing tests and fixtures:
+
+- use clearly fake but shape-valid identifiers
+- use neutral marker text instead of local debugging phrases when the exact wording is not part of the product contract
+- prefer generic project names and generic prompt content unless a real product-specific example is required
+
+If the local lane needs richer operator-facing regression material than upstream should carry, keep the richer version under `/dev/` and keep the upstream-facing test or fixture intentionally generalized.
+
+Before opening or refreshing a `pr/*` export branch, do an explicit export-hygiene pass for this boundary.
+At minimum, check whether the candidate package includes:
+
+- local chat or topic ids
+- local-only semantic marker text
+- local runbook-only references that should stay under `/dev/`
+- prompt or fixture content whose meaning depends on the operator already knowing the local debugging story
+
+If any of those appear in the export package, either move the local-only material under `/dev/` or genericize it before the upstream handoff proceeds.
+
 The required branch naming conventions are:
 
 - `review/<issue-number>-<short-description>`
