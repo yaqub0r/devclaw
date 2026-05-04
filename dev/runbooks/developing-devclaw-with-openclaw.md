@@ -100,6 +100,40 @@ Typical flow:
 
 Upstream review material should be prepared from `pr/*`, while `devclaw-local-current` remains the complete local operating branch.
 
+### Promotion ownership and close-gate rule
+
+The orchestrator owns the promotion lane end-to-end. Do not treat worker completion as promotion completion.
+
+Worker-owned steps may include implementation, review, or testing sub-results such as:
+
+- developer `done`
+- reviewer `approve` or `reject`
+- tester `pass`, `fail`, or `refine`
+
+Those results are evidence and inputs to the promotion lane. They do **not** by themselves mean the promotion issue is finished.
+
+For local-first release work, the orchestrator-owned responsibilities include:
+
+- keeping the promotion issue current as the canonical lane record
+- creating or refreshing the `review/*` branch and local-truth PR
+- driving the required human checkpoint on that PR
+- ensuring the accepted change actually lands in `devclaw-local-current`
+- making the live-install or reload step explicit when the lane requires live validation
+- verifying which branch, path, and commit are truly live before claiming the lane is complete
+- carrying the lane forward into export prep, handoff, upstream watch, rollback, or cleanup as needed
+
+For any promotion issue, do **not** close or treat it as effectively done until the real terminal checkpoint for that lane has been reached and recorded on the issue.
+
+At minimum, that means the issue should record which of these gates have actually been satisfied:
+
+- the accepted package landed in `devclaw-local-current`
+- the required human review, merge, and testing checkpoint occurred
+- the live self-hosted environment was reloaded and verified when live validation was part of the lane
+- any required export-prep or operator handoff artifacts were prepared
+- any remaining human-only next step is explicitly called out if the lane is still open
+
+If one or more of those gates is still pending, the promotion issue is still active even if some worker state labels say `Done`.
+
 ### Fresh-package rule for corrected reruns
 
 If a promotion family has already been merged, failed, gone stale, or otherwise stopped being a clean representation of the current fix, do **not** treat the old merged `review/*` branch or PR as reusable promotion state.
