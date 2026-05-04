@@ -311,6 +311,17 @@ The goal after upstream PR open is that the local release family should normally
 - the retained `pr/*` release branch
 - the upstream issue / upstream PR links being watched
 
+That collapse applies to the issue surface too, not only to branches, PRs, and worktrees.
+If older local implementation, research, or superseded promotion issues from the same release family are no longer the canonical active tracker, close or otherwise retire them promptly unless there is a concrete reason to keep one open.
+Do not leave multiple open local issues representing the same already-promoted family just because the branch/worktree cleanup happened.
+
+Before declaring the family collapsed, do an explicit tracker-surface check:
+
+- list the local issues in that release family
+- identify which single issue is the canonical surviving tracker
+- close or retire the rest unless the operator explicitly wants them preserved
+- record that issue-surface cleanup on the surviving tracker so the local board shape matches the branch/PR cleanup
+
 At that point, the orchestrator should also create or refresh a persistent watch, such as a daily cron job, for that specific upstream PR so it does not get forgotten while waiting on review or merge.
 
 That ongoing tracking should include:
