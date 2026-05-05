@@ -1,6 +1,7 @@
 import { log as auditLog } from "../audit.js";
 import { loadConfig } from "../config/index.js";
-import { getRoleLabelColor, StateType, getCurrentStateLabel, findStateByLabel } from "../workflow/index.js";
+import { sendToSessionFireAndForget, type NotifyRoutingTarget } from "../dispatch/session.js";
+import { getRoleLabelColor, StateType, getCurrentStateLabel, findStateByLabel, getInitialStateLabel } from "../workflow/index.js";
 import type {
   InterventionRuntimeContext,
   OrchestratorInterventionAction,
@@ -35,8 +36,13 @@ export async function recordAndApplyInterventionEvent(
     if (!matchesPolicy(policy, normalized)) continue;
 
     const mode = policy.mode ?? "auto";
+    const wake = await wakeOrchestrator(ctx, normalized, policy, mode).catch((err) => ({
+      delivered: false,
+      error: (err as Error).message ?? String(err),
+    }));
+
     if (mode === "notify") {
-      const details = { issueId: normalized.issueId, eventType: normalized.eventType };
+      const details = { issueId: normalized.issueId, eventType: normalized.eventType, wake };
       executions.push({
         policyId: policy.id,
         policyTitle: policy.title,
@@ -53,12 +59,14 @@ export async function recordAndApplyInterventionEvent(
         policyTitle: policy.title,
         eventType: normalized.eventType,
         actionType: policy.action.type,
+        wake,
       });
       continue;
     }
 
     try {
-      const details = await executePolicyAction(ctx, normalized, policy.action);
+      const actionDetails = await executePolicyAction(ctx, normalized, policy.action);
+      const details = { ...actionDetails, wake };
       const record = {
         policyId: policy.id,
         policyTitle: policy.title,
@@ -97,6 +105,7 @@ export async function recordAndApplyInterventionEvent(
         eventType: normalized.eventType,
         actionType: policy.action.type,
         error,
+        wake,
       });
     }
   }
@@ -232,7 +241,85 @@ function renderTemplate(template: string | undefined, event: OrchestratorInterve
 }
 
 function findPlanningLabel(workflow: InterventionRuntimeContext["workflow"]): string {
-  const planning = Object.values(workflow.states).find((state) => state.type === StateType.HOLD);
-  if (!planning) throw new Error("workflow has no HOLD state to receive follow-up work");
-  return planning.label;
+  const planningLabel = getInitialStateLabel(workflow);
+  const planning = findStateByLabel(workflow, planningLabel);
+  if (!planning || planning.type !== StateType.HOLD) {
+    throw new Error(`workflow initial state ${planningLabel} is not a HOLD state`);
+  }
+  return planningLabel;
+}
+
+async function wakeOrchestrator(
+  ctx: InterventionRuntimeContext,
+  event: OrchestratorInterventionEvent,
+  policy: OrchestratorInterventionPolicy,
+  mode: "notify" | "auto",
+): Promise<Record<string, unknown>> {
+  if (!ctx.runCommand) return { delivered: false, reason: "runCommand_unavailable" };
+
+  const notifyTarget = resolveWakeTarget(ctx);
+  if (!notifyTarget) return { delivered: false, reason: "channel_unavailable" };
+
+  const sessionKey = buildMainOrchestratorSessionKey(ctx.agentId ?? "main", notifyTarget);
+  sendToSessionFireAndForget(sessionKey, buildWakeMessage(event, policy, mode), {
+    agentId: ctx.agentId,
+    workspaceDir: ctx.workspaceDir,
+    runCommand: ctx.runCommand,
+    lane: "main",
+    notifyTarget,
+    idempotencyKey: `devclaw-orchestrator-wake-${ctx.project.slug}-${policy.id}-${event.issueId}-${event.eventType}-${event.ts}`,
+  });
+
+  await auditLog(ctx.workspaceDir, "orchestrator_intervention_wake", {
+    project: ctx.project.name,
+    issueId: event.issueId,
+    policyId: policy.id,
+    eventType: event.eventType,
+    mode,
+    sessionKey,
+  });
+
+  return { delivered: true, sessionKey, channelId: notifyTarget.channelId, messageThreadId: notifyTarget.messageThreadId ?? null };
+}
+
+function resolveWakeTarget(ctx: InterventionRuntimeContext): NotifyRoutingTarget | null {
+  const channel = ctx.project.channels.find((entry) =>
+    entry.channelId === ctx.channelId && (ctx.messageThreadId == null || entry.messageThreadId === ctx.messageThreadId),
+  ) ?? ctx.project.channels[0];
+  if (!channel) return null;
+  return {
+    channelId: channel.channelId,
+    channel: channel.channel,
+    accountId: channel.accountId,
+    messageThreadId: channel.messageThreadId,
+  };
+}
+
+function buildMainOrchestratorSessionKey(agentId: string, target: NotifyRoutingTarget): string {
+  const base = `agent:${agentId}:${target.channel}:group:${target.channelId}`;
+  return target.messageThreadId != null ? `${base}:topic:${target.messageThreadId}` : base;
+}
+
+function buildWakeMessage(
+  event: OrchestratorInterventionEvent,
+  policy: OrchestratorInterventionPolicy,
+  mode: "notify" | "auto",
+): string {
+  return [
+    `Live intervention wake for issue #${event.issueId}.`,
+    "",
+    `Matched policy: ${policy.title} (${policy.id})`,
+    `Mode: ${mode}`,
+    `Event: ${event.eventType}`,
+    `Action: ${policy.action.type}`,
+    "",
+    "Structured event:",
+    "```json",
+    JSON.stringify(event, null, 2),
+    "```",
+    "",
+    mode === "auto"
+      ? "DevClaw is executing the bounded action automatically. Review and intervene if you want to add guidance or override with further policy."
+      : "Please review this event and decide whether to intervene. The matched policy is notify-only, so no automatic workflow action was taken.",
+  ].join("\n");
 }

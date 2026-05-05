@@ -113,7 +113,7 @@ export async function tick(opts: {
 
       // Review pass: transition issues whose PR check condition is met
       result.totalReviewTransitions += await performReviewPass(
-        workspaceDir, slug, project, provider, resolvedConfig, pluginConfig, runtime, runCommand,
+        workspaceDir, slug, project, provider, resolvedConfig, pluginConfig, runtime, runCommand, agentId,
       );
 
       // Review skip pass: auto-merge and transition review:skip issues through the review queue

@@ -126,6 +126,8 @@ export async function executeCompletion(opts: {
   pluginConfig?: Record<string, unknown>;
   /** Plugin runtime for direct API access (avoids CLI subprocess timeouts) */
   runtime?: PluginRuntime;
+  /** Agent id used for orchestrator wake delivery */
+  agentId?: string;
   /** Workflow config (defaults to DEFAULT_WORKFLOW) */
   workflow?: WorkflowConfig;
   /** Tasks created during this work session (e.g. architect implementation tasks) */
@@ -379,10 +381,12 @@ export async function executeCompletion(opts: {
       workspaceDir,
       channelId: notifyTarget?.channelId ?? interventionProject.channels[0]?.channelId ?? projectSlug,
       messageThreadId: notifyTarget?.messageThreadId,
+      agentId: opts.agentId,
       project: interventionProject,
       workflow,
       provider,
       issue: updatedIssue,
+      runCommand: rc,
     }, {
       eventType,
       issueId,
@@ -402,10 +406,12 @@ export async function executeCompletion(opts: {
         workspaceDir,
         channelId: notifyTarget?.channelId ?? interventionProject.channels[0]?.channelId ?? projectSlug,
         messageThreadId: notifyTarget?.messageThreadId,
+        agentId: opts.agentId,
         project: interventionProject,
         workflow,
         provider,
         issue: updatedIssue,
+        runCommand: rc,
       }, {
         eventType: "pr.merged",
         issueId,

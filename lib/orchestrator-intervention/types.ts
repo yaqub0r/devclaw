@@ -1,6 +1,7 @@
 import type { WorkflowConfig } from "../workflow/index.js";
 import type { IssueProvider, Issue } from "../providers/provider.js";
 import type { Project } from "../projects/index.js";
+import type { RunCommand } from "../context.js";
 
 export const ORCHESTRATOR_INTERVENTION_EVENT_TYPES = [
   "worker.completed",
@@ -95,9 +96,11 @@ export type InterventionRuntimeContext = {
   workspaceDir: string;
   channelId: string;
   messageThreadId?: number;
+  agentId?: string;
   project: Project;
   workflow: WorkflowConfig;
   provider: IssueProvider;
   issue: Issue;
   sessionKey?: string;
+  runCommand?: RunCommand;
 };

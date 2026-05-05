@@ -5,7 +5,7 @@ import { upsertInterventionPolicy } from "./store.js";
 import { recordAndApplyInterventionEvent } from "./engine.js";
 
 describe("orchestrator intervention engine", () => {
-  it("executes an auto comment policy on matching review feedback", async () => {
+  it("wakes the orchestrator and executes an auto comment policy on matching review feedback", async () => {
     const h = await createTestHarness();
     try {
       const issue = h.provider.seedIssue({ iid: 42, title: "Needs follow-up", labels: ["Refining"] });
@@ -20,10 +20,12 @@ describe("orchestrator intervention engine", () => {
       const executions = await recordAndApplyInterventionEvent({
         workspaceDir: h.workspaceDir,
         channelId: h.channelId,
+        agentId: "main",
         project: h.project,
         workflow: h.workflow,
         provider: h.provider,
         issue,
+        runCommand: h.runCommand,
       }, {
         eventType: "review.feedback",
         issueId: 42,
@@ -33,9 +35,14 @@ describe("orchestrator intervention engine", () => {
 
       assert.equal(executions.length, 1);
       assert.equal(executions[0]?.executed, true);
+      assert.equal((executions[0]?.details as any)?.wake?.delivered, true);
       const comments = await h.provider.listComments(42);
       assert.equal(comments.length, 1);
       assert.match(comments[0]!.body, /Seen on #42: changes_requested/);
+      const wakes = h.commands.taskMessages();
+      assert.equal(wakes.length, 1);
+      assert.match(wakes[0]!, /Live intervention wake for issue #42/);
+      assert.match(wakes[0]!, /"eventType": "review.feedback"/);
     } finally {
       await h.cleanup();
     }
@@ -57,10 +64,12 @@ describe("orchestrator intervention engine", () => {
       const executions = await recordAndApplyInterventionEvent({
         workspaceDir: h.workspaceDir,
         channelId: h.channelId,
+        agentId: "main",
         project: h.project,
         workflow: h.workflow,
         provider: h.provider,
         issue,
+        runCommand: h.runCommand,
       }, {
         eventType: "workflow.hold",
         issueId: 77,
@@ -76,6 +85,56 @@ describe("orchestrator intervention engine", () => {
       const comments = await h.provider.listComments(77);
       assert.equal(comments.length, 1);
       assert.match(comments[0]!.body, /Requeued after blocked/);
+    } finally {
+      await h.cleanup();
+    }
+  });
+
+  it("creates follow-up issues in the workflow initial hold state, not the first hold state by order", async () => {
+    const h = await createTestHarness();
+    try {
+      h.workflow = {
+        ...h.workflow,
+        initial: "planning",
+        states: {
+          refining: { label: "Refining", type: "HOLD", description: "later hold" },
+          planning: { label: "Planning", type: "HOLD", description: "initial hold" },
+          todo: h.workflow.states.todo,
+          doing: h.workflow.states.doing,
+          done: h.workflow.states.done,
+        },
+      } as any;
+      const issue = h.provider.seedIssue({ iid: 88, title: "Needs follow-up", labels: ["Doing"] });
+      await upsertInterventionPolicy(h.workspaceDir, h.project.slug, {
+        id: "create-followup",
+        title: "Create follow-up",
+        mode: "auto",
+        issueId: 88,
+        event: { type: "worker.completed", result: "done" },
+        action: { type: "create_followup", title: "Follow-up for #{{issueId}}", body: "Body" },
+      });
+
+      const executions = await recordAndApplyInterventionEvent({
+        workspaceDir: h.workspaceDir,
+        channelId: h.channelId,
+        agentId: "main",
+        project: h.project,
+        workflow: h.workflow,
+        provider: h.provider,
+        issue,
+        runCommand: h.runCommand,
+      }, {
+        eventType: "worker.completed",
+        issueId: 88,
+        result: "done",
+        source: "worker",
+      });
+
+      assert.equal(executions[0]?.executed, true);
+      const createdIssueId = Number((executions[0]?.details as any)?.createdIssueId);
+      const created = await h.provider.getIssue(createdIssueId);
+      assert.ok(created.labels.includes("Planning"));
+      assert.ok(!created.labels.includes("Refining"));
     } finally {
       await h.cleanup();
     }

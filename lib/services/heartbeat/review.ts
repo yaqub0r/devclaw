@@ -6,6 +6,7 @@
  * Called by the heartbeat service during its periodic sweep.
  */
 import type { IssueProvider } from "../../providers/provider.js";
+import type { Project } from "../../projects/index.js";
 import { PrState } from "../../providers/provider.js";
 import {
   Action,
@@ -27,6 +28,7 @@ import { recordAndApplyInterventionEvent } from "../../orchestrator-intervention
 export async function reviewPass(opts: {
   workspaceDir: string;
   projectName: string;
+  project?: Project;
   workflow: WorkflowConfig;
   provider: IssueProvider;
   repoPath: string;
@@ -40,9 +42,11 @@ export async function reviewPass(opts: {
   /** Called when a PR is closed without merging (for notifications). */
   onPrClosed?: (issueId: number, prUrl: string | null, issueTitle: string, issueUrl: string) => void;
   runCommand: RunCommand;
+  agentId?: string;
 }): Promise<number> {
   const rc = opts.runCommand;
-  const { workspaceDir, projectName, workflow, provider, repoPath, gitPullTimeoutMs = 30_000, baseBranch, onMerge, onFeedback, onPrClosed } = opts;
+  const { workspaceDir, projectName, project, workflow, provider, repoPath, gitPullTimeoutMs = 30_000, baseBranch, onMerge, onFeedback, onPrClosed, agentId } = opts;
+  const interventionProject = project ?? { slug: projectName, name: projectName, repo: repoPath, groupName: projectName, deployUrl: "", baseBranch: baseBranch ?? "main", deployBranch: baseBranch ?? "main", channels: [], workers: {} } as Project;
   let transitions = 0;
 
   // Find all states with a review check (e.g. toReview with check: prApproved)
@@ -117,8 +121,10 @@ export async function reviewPass(opts: {
             });
             await recordAndApplyInterventionEvent({
               workspaceDir,
-              channelId: projectName,
-              project: { slug: projectName, name: projectName, repo: repoPath, groupName: projectName, deployUrl: "", baseBranch: baseBranch ?? "main", deployBranch: baseBranch ?? "main", channels: [], workers: {} },
+              channelId: project?.channels[0]?.channelId ?? projectName,
+              messageThreadId: project?.channels[0]?.messageThreadId,
+              agentId,
+              project: interventionProject,
               workflow,
               provider,
               issue: await provider.getIssue(issue.iid),
@@ -165,8 +171,10 @@ export async function reviewPass(opts: {
             });
             await recordAndApplyInterventionEvent({
               workspaceDir,
-              channelId: projectName,
-              project: { slug: projectName, name: projectName, repo: repoPath, groupName: projectName, deployUrl: "", baseBranch: baseBranch ?? "main", deployBranch: baseBranch ?? "main", channels: [], workers: {} },
+              channelId: project?.channels[0]?.channelId ?? projectName,
+              messageThreadId: project?.channels[0]?.messageThreadId,
+              agentId,
+              project: interventionProject,
               workflow,
               provider,
               issue: await provider.getIssue(issue.iid),
@@ -217,8 +225,10 @@ export async function reviewPass(opts: {
             });
             await recordAndApplyInterventionEvent({
               workspaceDir,
-              channelId: projectName,
-              project: { slug: projectName, name: projectName, repo: repoPath, groupName: projectName, deployUrl: "", baseBranch: baseBranch ?? "main", deployBranch: baseBranch ?? "main", channels: [], workers: {} },
+              channelId: project?.channels[0]?.channelId ?? projectName,
+              messageThreadId: project?.channels[0]?.messageThreadId,
+              agentId,
+              project: interventionProject,
               workflow,
               provider,
               issue: await provider.getIssue(issue.iid),
@@ -332,8 +342,10 @@ export async function reviewPass(opts: {
       });
       await recordAndApplyInterventionEvent({
         workspaceDir,
-        channelId: projectName,
-        project: { slug: projectName, name: projectName, repo: repoPath, groupName: projectName, deployUrl: "", baseBranch: baseBranch ?? "main", deployBranch: baseBranch ?? "main", channels: [], workers: {} },
+        channelId: project?.channels[0]?.channelId ?? projectName,
+        messageThreadId: project?.channels[0]?.messageThreadId,
+        agentId,
+        project: interventionProject,
         workflow,
         provider,
         issue: await provider.getIssue(issue.iid),

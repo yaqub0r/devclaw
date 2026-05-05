@@ -94,12 +94,15 @@ export async function performReviewPass(
   pluginConfig: Record<string, unknown> | undefined,
   runtime?: PluginRuntime,
   runCommand?: RunCommand,
+  agentId?: string,
 ): Promise<number> {
   const notifyConfig = getNotificationConfig(pluginConfig);
 
   return reviewPass({
     workspaceDir,
+    agentId,
     projectName: projectSlug,
+    project,
     workflow: resolvedConfig.workflow,
     provider,
     repoPath: project.repo,

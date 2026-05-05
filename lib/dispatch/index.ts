@@ -331,11 +331,13 @@ export async function dispatchTask(
   await recordAndApplyInterventionEvent({
     workspaceDir,
     channelId: primaryChannelId,
+    agentId,
     project,
     workflow,
     provider,
     issue: await provider.getIssue(issueId),
     sessionKey,
+    runCommand: rc,
   }, {
     eventType: "workflow.dispatch",
     issueId,
