@@ -6,6 +6,7 @@
  * Called by the heartbeat service during its periodic sweep.
  */
 import type { IssueProvider } from "../../providers/provider.js";
+import type { Project } from "../../projects/index.js";
 import { PrState } from "../../providers/provider.js";
 import {
   Action,
@@ -18,6 +19,7 @@ import { detectStepRouting } from "../queue-scan.js";
 import type { RunCommand } from "../../context.js";
 import { log as auditLog } from "../../audit.js";
 import { recordLoopDiagnostic } from "../loop-diagnostics.js";
+import { recordAndApplyInterventionEvent } from "../../orchestrator-intervention/engine.js";
 
 /**
  * Scan review-type states and transition issues whose PR check condition is met.
@@ -26,6 +28,7 @@ import { recordLoopDiagnostic } from "../loop-diagnostics.js";
 export async function reviewPass(opts: {
   workspaceDir: string;
   projectName: string;
+  project?: Project;
   workflow: WorkflowConfig;
   provider: IssueProvider;
   repoPath: string;
@@ -39,9 +42,11 @@ export async function reviewPass(opts: {
   /** Called when a PR is closed without merging (for notifications). */
   onPrClosed?: (issueId: number, prUrl: string | null, issueTitle: string, issueUrl: string) => void;
   runCommand: RunCommand;
+  agentId?: string;
 }): Promise<number> {
   const rc = opts.runCommand;
-  const { workspaceDir, projectName, workflow, provider, repoPath, gitPullTimeoutMs = 30_000, baseBranch, onMerge, onFeedback, onPrClosed } = opts;
+  const { workspaceDir, projectName, project, workflow, provider, repoPath, gitPullTimeoutMs = 30_000, baseBranch, onMerge, onFeedback, onPrClosed, agentId } = opts;
+  const interventionProject = project ?? { slug: projectName, name: projectName, repo: repoPath, groupName: projectName, deployUrl: "", baseBranch: baseBranch ?? "main", deployBranch: baseBranch ?? "main", channels: [], workers: {} } as Project;
   let transitions = 0;
 
   // Find all states with a review check (e.g. toReview with check: prApproved)
@@ -114,6 +119,24 @@ export async function reviewPass(opts: {
               reason: status.state === PrState.HAS_COMMENTS ? "pr_comments" : "changes_requested",
               prUrl: status.url,
             });
+            await recordAndApplyInterventionEvent({
+              workspaceDir,
+              channelId: project?.channels[0]?.channelId ?? projectName,
+              messageThreadId: project?.channels[0]?.messageThreadId,
+              agentId,
+              project: interventionProject,
+              workflow,
+              provider,
+              issue: await provider.getIssue(issue.iid),
+            }, {
+              eventType: "review.feedback",
+              issueId: issue.iid,
+              reason: status.state === PrState.HAS_COMMENTS ? "pr_comments" : "changes_requested",
+              fromState: state.label,
+              toState: targetState.label,
+              prUrl: status.url,
+              source: "heartbeat",
+            }).catch(() => {});
             onFeedback?.(issue.iid, "changes_requested", status.url, issue.title, issue.web_url);
             // React to each review comment with 🤖 to acknowledge processing (best-effort)
             reactToFeedbackComments(provider, issue.iid).catch(() => {});
@@ -146,6 +169,24 @@ export async function reviewPass(opts: {
               reason: "merge_conflict",
               prUrl: status.url,
             });
+            await recordAndApplyInterventionEvent({
+              workspaceDir,
+              channelId: project?.channels[0]?.channelId ?? projectName,
+              messageThreadId: project?.channels[0]?.messageThreadId,
+              agentId,
+              project: interventionProject,
+              workflow,
+              provider,
+              issue: await provider.getIssue(issue.iid),
+            }, {
+              eventType: "review.feedback",
+              issueId: issue.iid,
+              reason: "merge_conflict",
+              fromState: state.label,
+              toState: targetState.label,
+              prUrl: status.url,
+              source: "heartbeat",
+            }).catch(() => {});
             onFeedback?.(issue.iid, "merge_conflict", status.url, issue.title, issue.web_url);
             transitions++;
             continue;
@@ -182,6 +223,24 @@ export async function reviewPass(opts: {
               prUrl: status.url,
               actions: closedActions,
             });
+            await recordAndApplyInterventionEvent({
+              workspaceDir,
+              channelId: project?.channels[0]?.channelId ?? projectName,
+              messageThreadId: project?.channels[0]?.messageThreadId,
+              agentId,
+              project: interventionProject,
+              workflow,
+              provider,
+              issue: await provider.getIssue(issue.iid),
+            }, {
+              eventType: "review.pr_closed",
+              issueId: issue.iid,
+              fromState: state.label,
+              toState: targetState.label,
+              prUrl: status.url,
+              reason: "pr_closed",
+              source: "heartbeat",
+            }).catch(() => {});
             onPrClosed?.(issue.iid, status.url, issue.title, issue.web_url);
             transitions++;
             continue;
@@ -281,6 +340,24 @@ export async function reviewPass(opts: {
         prState: status.state,
         prUrl: status.url,
       });
+      await recordAndApplyInterventionEvent({
+        workspaceDir,
+        channelId: project?.channels[0]?.channelId ?? projectName,
+        messageThreadId: project?.channels[0]?.messageThreadId,
+        agentId,
+        project: interventionProject,
+        workflow,
+        provider,
+        issue: await provider.getIssue(issue.iid),
+      }, {
+        eventType: status.state === PrState.MERGED ? "pr.merged" : "review.approved",
+        issueId: issue.iid,
+        fromState: state.label,
+        toState: targetState.label,
+        prUrl: status.url,
+        source: "heartbeat",
+        data: { prState: status.state },
+      }).catch(() => {});
 
       transitions++;
     }

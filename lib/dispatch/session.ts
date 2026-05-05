@@ -90,6 +90,45 @@ export type NotifyRoutingTarget = {
   messageThreadId?: number;
 };
 
+export function sendToSessionFireAndForget(
+  sessionKey: string,
+  message: string,
+  opts: {
+    agentId?: string;
+    workspaceDir: string;
+    runCommand: RunCommand;
+    dispatchTimeoutMs?: number;
+    lane?: "main" | "subagent";
+    notifyTarget?: NotifyRoutingTarget;
+    idempotencyKey?: string;
+    extraSystemPrompt?: string;
+    spawnedBy?: string;
+  },
+): void {
+  const rc = opts.runCommand;
+  const gatewayParamsRecord: Record<string, unknown> = {
+    idempotencyKey: opts.idempotencyKey ?? `devclaw-session-${sessionKey}`,
+    agentId: opts.agentId ?? "devclaw",
+    sessionKey,
+    message,
+    deliver: false,
+    ...(opts.lane ? { lane: opts.lane } : {}),
+    ...(opts.spawnedBy ? { spawnedBy: opts.spawnedBy } : {}),
+    ...(opts.extraSystemPrompt ? { extraSystemPrompt: opts.extraSystemPrompt } : {}),
+  };
+  applyNotifyRoutingToGatewayParams(gatewayParamsRecord, opts.notifyTarget);
+  const gatewayParams = JSON.stringify(gatewayParamsRecord);
+  rc(
+    ["openclaw", "gateway", "call", "agent", "--params", gatewayParams, "--expect-final", "--json"],
+    { timeoutMs: opts.dispatchTimeoutMs ?? 600_000 },
+  ).catch((err) => {
+    auditLog(opts.workspaceDir, "dispatch_warning", {
+      step: "sendToSession", sessionKey,
+      error: (err as Error).message ?? String(err),
+    }).catch(() => {});
+  });
+}
+
 function applyNotifyRoutingToGatewayParams(
   params: Record<string, unknown>,
   target: NotifyRoutingTarget | undefined,
@@ -130,28 +169,15 @@ export function sendToAgent(
     notifyTarget?: NotifyRoutingTarget;
   },
 ): void {
-  const rc = opts.runCommand;
-  const gatewayParamsRecord: Record<string, unknown> = {
-    idempotencyKey: `devclaw-${opts.projectName}-${opts.issueId}-${opts.role}-${opts.level ?? "unknown"}-${opts.slotIndex ?? 0}-${opts.fromLabel ?? "unknown"}-${sessionKey}`,
-    agentId: opts.agentId ?? "devclaw",
-    sessionKey,
-    message: taskMessage,
-    deliver: false,
+  sendToSessionFireAndForget(sessionKey, taskMessage, {
+    agentId: opts.agentId,
+    workspaceDir: opts.workspaceDir,
+    runCommand: opts.runCommand,
+    dispatchTimeoutMs: opts.dispatchTimeoutMs,
     lane: "subagent",
-    ...(opts.orchestratorSessionKey ? { spawnedBy: opts.orchestratorSessionKey } : {}),
-    ...(opts.extraSystemPrompt ? { extraSystemPrompt: opts.extraSystemPrompt } : {}),
-  };
-  applyNotifyRoutingToGatewayParams(gatewayParamsRecord, opts.notifyTarget);
-  const gatewayParams = JSON.stringify(gatewayParamsRecord);
-  // Fire-and-forget: long-running agent turn, don't await
-  rc(
-    ["openclaw", "gateway", "call", "agent", "--params", gatewayParams, "--expect-final", "--json"],
-    { timeoutMs: opts.dispatchTimeoutMs ?? 600_000 },
-  ).catch((err) => {
-    auditLog(opts.workspaceDir, "dispatch_warning", {
-      step: "sendToAgent", sessionKey,
-      issue: opts.issueId, role: opts.role,
-      error: (err as Error).message ?? String(err),
-    }).catch(() => {});
+    notifyTarget: opts.notifyTarget,
+    idempotencyKey: `devclaw-${opts.projectName}-${opts.issueId}-${opts.role}-${opts.level ?? "unknown"}-${opts.slotIndex ?? 0}-${opts.fromLabel ?? "unknown"}-${sessionKey}`,
+    extraSystemPrompt: opts.extraSystemPrompt,
+    spawnedBy: opts.orchestratorSessionKey,
   });
 }

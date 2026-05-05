@@ -27,6 +27,7 @@ import {
 import { getLevelsForRole } from "../../roles/index.js";
 import { loadConfig } from "../../config/index.js";
 import { requireWorkspaceDir, resolveChannelId, resolveProject, resolveProvider, autoAssignOwnerLabel, applyNotifyLabel } from "../helpers.js";
+import { recordAndApplyInterventionEvent } from "../../orchestrator-intervention/engine.js";
 
 export function createTaskStartTool(ctx: PluginContext) {
   return (toolCtx: ToolContext) => ({
@@ -130,6 +131,24 @@ Examples:
         transitioned, level: levelHint ?? null,
       });
 
+      await recordAndApplyInterventionEvent({
+        workspaceDir,
+        channelId,
+        messageThreadId,
+        project,
+        workflow,
+        provider,
+        issue: await provider.getIssue(issueId),
+        sessionKey: toolCtx.sessionKey,
+      }, {
+        eventType: "workflow.requeue",
+        issueId,
+        fromState: currentLabel,
+        toState: targetLabel,
+        source: "system",
+        data: { transitioned, levelHint: levelHint ?? null },
+      }).catch(() => {});
+
       const levelMsg = levelHint ? ` (level hint: ${levelHint})` : "";
       const announcement = transitioned
         ? `▶️ #${issueId} moved to "${targetLabel}"${levelMsg} — heartbeat will dispatch.`
@@ -153,7 +172,7 @@ Examples:
  * - ACTIVE: error (already being worked on)
  * - TERMINAL: error (issue is closed)
  */
-function resolveTarget(
+export function resolveTarget(
   workflow: WorkflowConfig,
   currentLabel: string,
   currentState: StateConfig,

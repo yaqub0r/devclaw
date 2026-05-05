@@ -30,7 +30,7 @@ Classical management theory — later formalized by Bernard Bass in his work on 
 
 DevClaw's task lifecycle is built on this. The orchestrator delegates a task via `task_start`, then steps away. It only re-engages in specific scenarios:
 
-1. **DEVELOPER completes work** → The label moves to `To Review`. The heartbeat polls PR status. No orchestrator involvement needed.
+1. **DEVELOPER completes work** → The label moves to `To Review`. The heartbeat polls PR status. No manual orchestrator involvement is needed on the default path, though intervention policy may wake or steer follow-up when configured.
 2. **PR is approved** → The heartbeat auto-merges the PR, closes the issue, and transitions to Done. Pipeline complete. (Or to `To Test` if the test phase is enabled.)
 3. **PR has issues** → Comments or changes-requested reviews move the issue to `To Improve`. The scheduler dispatches DEVELOPER on the next tick.
 4. **TESTER passes** (test phase only) → The issue closes. Pipeline complete.
