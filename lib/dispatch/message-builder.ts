@@ -2,8 +2,10 @@
  * message-builder.ts — Task message construction for worker sessions.
  */
 import type { ResolvedRoleConfig } from "../config/index.js";
+import type { IssueCheckoutContract } from "../projects/types.js";
 import { formatPrContext, formatPrFeedback, type PrContext, type PrFeedback } from "./pr-context.js";
 import { getFallbackEmoji } from "../roles/index.js";
+import { renderCheckoutRecoveryGuidance } from "../checkout-contract.js";
 
 /**
  * Build the task message sent to a worker session.
@@ -26,6 +28,7 @@ export function buildTaskMessage(opts: {
   resolvedRole?: ResolvedRoleConfig;
   prContext?: PrContext;
   prFeedback?: PrFeedback;
+  checkoutContract?: IssueCheckoutContract;
   /** Pre-formatted attachment context string (from formatAttachmentsForTask) */
   attachmentContext?: string;
 }): string {
@@ -68,8 +71,36 @@ export function buildTaskMessage(opts: {
   }
 
   if (opts.prContext) parts.push(...formatPrContext(opts.prContext));
+  if (opts.checkoutContract) {
+    const contract = opts.checkoutContract;
+    parts.push(
+      ``,
+      `## Canonical Checkout Contract`,
+      `- Mode: \`${contract.mode}\``,
+      `- Required worktree: \`${contract.canonicalWorktreePath}\``,
+      `- Required branch: \`${contract.canonicalBranch}\``,
+      `- Base branch: \`${contract.baseBranch}\``,
+      `- Base worktree: \`${contract.baseWorktreePath}\``,
+      `- Required cleanliness: \`${contract.requiredCleanliness}\``,
+      `- Contract status: \`${contract.status}\``,
+      `- Required implementation lane: canonical checkout above`,
+      `- Allowed derived validation lane: ad-hoc temp/review validation is fine only after preserving the canonical checkout identity`,
+    );
+    if (contract.lastVerifiedProvenance) {
+      parts.push(
+        `- Last verified path: \`${contract.lastVerifiedProvenance.path}\``,
+        `- Last verified branch: \`${contract.lastVerifiedProvenance.branch ?? "(missing)"}\``,
+        `- Last verified HEAD: \`${contract.lastVerifiedProvenance.headSha ?? "(missing)"}\``,
+        `- Last verified clean: \`${String(contract.lastVerifiedProvenance.clean)}\``,
+      );
+      if (contract.lastVerifiedProvenance.details) {
+        parts.push(`- Verification note: ${contract.lastVerifiedProvenance.details}`);
+      }
+    }
+    parts.push(...renderCheckoutRecoveryGuidance(contract));
+  }
   if (opts.prFeedback) {
-    parts.push(...formatPrFeedback(opts.prFeedback, baseBranch));
+    parts.push(...formatPrFeedback(opts.prFeedback, baseBranch, opts.checkoutContract));
     
     // Defensive warning if branch name is missing (shouldn't happen in practice)
     if (!opts.prFeedback.branchName && opts.prFeedback.reason === "merge_conflict") {
@@ -126,6 +157,7 @@ export function buildConflictFixMessage(opts: {
   baseBranch: string;
   resolvedRole?: ResolvedRoleConfig;
   prFeedback: PrFeedback;
+  checkoutContract?: IssueCheckoutContract;
 }): string {
   const {
     projectName, channelId, role, issueId, issueTitle,
@@ -143,7 +175,17 @@ export function buildConflictFixMessage(opts: {
     `> Do NOT re-implement the feature or make other changes.`,
   ];
 
-  parts.push(...formatPrFeedback(prFeedback, baseBranch));
+  if (opts.checkoutContract) {
+    parts.push(
+      ``,
+      `## Canonical Checkout Contract`,
+      `- Required worktree: \`${opts.checkoutContract.canonicalWorktreePath}\``,
+      `- Required branch: \`${opts.checkoutContract.canonicalBranch}\``,
+      `- Base branch: \`${opts.checkoutContract.baseBranch}\``,
+    );
+  }
+
+  parts.push(...formatPrFeedback(prFeedback, baseBranch, opts.checkoutContract));
 
   parts.push(
     ``,

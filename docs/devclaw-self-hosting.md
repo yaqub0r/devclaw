@@ -23,14 +23,16 @@ That means branch switching for DevClaw development is really a **plugin source 
 
 ## Recommended branch roles
 
-These are roles, not mandatory branch names:
+For DevClaw self-hosting, use this local policy:
 
-- **clean integration branch**: the branch that tracks the normal upstream line
-- **working branch**: a feature or fix branch carrying in-progress changes
-- **fallback branch**: an optional known-good branch you can switch back to quickly
-- **local docs branch**: an optional branch for operator runbooks that are not meant for upstream
+- **implementation branch**: `devclaw-local-dev`
+- **release/local-truth branch**: `devclaw-local-current`
+- **ordinary issue branches**: `issue/*`, based on `devclaw-local-dev`
+- **local review branches**: `review/*`
+- **upstream export branches**: `pr/*`
+- **fallback branch**: an optional known-good lane such as `devclaw-local-stable`
 
-Use names that fit your repo. The workflow matters more than the naming.
+Normal implementation work belongs on canonical `issue/*` worktrees derived from `devclaw-local-dev`. Live self-hosting checks and release/promotion work are explicit exception modes and do not replace the ordinary issue checkout contract.
 
 ## Safe live-switch procedure
 

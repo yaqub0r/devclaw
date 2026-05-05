@@ -1,7 +1,7 @@
 /**
  * projects/mutations.ts — State mutations for project worker slots.
  */
-import type { SlotState, RoleWorkerState, Project, ProjectsData } from "./types.js";
+import type { SlotState, RoleWorkerState, Project, ProjectsData, IssueCheckoutContract } from "./types.js";
 import { acquireLock, releaseLock, readProjects, writeProjects, resolveProjectSlug } from "./io.js";
 import { emptySlot, findFreeSlot, findSlotByIssue } from "./slots.js";
 
@@ -122,6 +122,26 @@ export async function activateWorker(
  * Finds the slot by issueId (searches across all levels), or by explicit level+slotIndex.
  * Accepts slug or channelId (dual-mode).
  */
+export async function upsertIssueCheckout(
+  workspaceDir: string,
+  slugOrChannelId: string,
+  contract: IssueCheckoutContract,
+): Promise<ProjectsData> {
+  await acquireLock(workspaceDir);
+  try {
+    const data = await readProjects(workspaceDir);
+    const slug = resolveProjectSlug(data, slugOrChannelId);
+    if (!slug) throw new Error(`Project not found for slug or channelId: ${slugOrChannelId}`);
+    const project = data.projects[slug]!;
+    if (!project.issueCheckouts) project.issueCheckouts = {};
+    project.issueCheckouts[String(contract.issueId)] = contract;
+    await writeProjects(workspaceDir, data);
+    return data;
+  } finally {
+    await releaseLock(workspaceDir);
+  }
+}
+
 export async function deactivateWorker(
   workspaceDir: string,
   slugOrChannelId: string,

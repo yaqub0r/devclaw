@@ -40,6 +40,35 @@ export type Channel = {
   messageThreadId?: number;
 };
 
+export type CheckoutMode = "issue" | "review" | "pr" | "live" | "release";
+export type CheckoutStatus = "planned" | "created" | "adopted" | "missing" | "dirty" | "mismatched" | "verified";
+
+export type CheckoutProvenance = {
+  verifiedAt: string;
+  path: string;
+  branch: string | null;
+  headSha: string | null;
+  clean: boolean;
+  status: CheckoutStatus;
+  details?: string;
+};
+
+export type IssueCheckoutContract = {
+  issueId: number;
+  issueTitle?: string;
+  mode: CheckoutMode;
+  repoPath: string;
+  canonicalBranch: string;
+  canonicalWorktreePath: string;
+  baseBranch: string;
+  baseWorktreePath: string;
+  targetRef: string;
+  targetSha: string | null;
+  requiredCleanliness: "clean" | "allow-derived-dirty";
+  status: CheckoutStatus;
+  lastVerifiedProvenance?: CheckoutProvenance;
+};
+
 /**
  * Project configuration in the new project-first schema.
  */
@@ -58,6 +87,8 @@ export type Project = {
   provider?: "github" | "gitlab";
   /** Worker state per role (developer, tester, architect, or custom roles). Shared across all channels. */
   workers: Record<string, RoleWorkerState>;
+  /** Persisted per-issue checkout contract state. */
+  issueCheckouts?: Record<string, IssueCheckoutContract>;
 };
 
 /**

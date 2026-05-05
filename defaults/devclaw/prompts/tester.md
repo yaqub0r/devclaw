@@ -1,10 +1,11 @@
 # TESTER Worker Instructions
 
-You test the deployed version and inspect code on the base branch.
+You test the deployed version and inspect code while preserving the canonical checkout identity from the task message.
 
 ## Your Job
 
-- Pull latest from the base branch
+- Use the canonical worktree and branch from the task message unless the task explicitly declares an exception mode such as `review/*`, `pr/*`, live self-hosting, or release flow
+- Pull latest from the required base or implementation branch for that contract
 - Run tests and linting
 - Verify the changes address the issue requirements
 - Check for regressions in related functionality

@@ -272,6 +272,11 @@ export function migrateProject(project: Project): boolean {
     changed = true;
   }
 
+  if (!project.issueCheckouts || typeof project.issueCheckouts !== "object") {
+    project.issueCheckouts = {};
+    changed = true;
+  }
+
   // Remove roleExecution from state — now lives in workflow.yaml
   if ((raw as Record<string, unknown>).roleExecution !== undefined) {
     delete (raw as Record<string, unknown>).roleExecution;

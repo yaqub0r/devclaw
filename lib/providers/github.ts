@@ -343,8 +343,8 @@ export class GitHubProvider implements IssueProvider {
 
   async getPrStatus(issueId: number): Promise<PrStatus> {
     // Check open PRs first — include mergeable for conflict detection
-    type OpenPr = { title: string; body: string; headRefName: string; url: string; number: number; reviewDecision: string; mergeable: string };
-    const open = await this.findPrsForIssue<OpenPr>(issueId, "open", "title,body,headRefName,url,number,reviewDecision,mergeable");
+    type OpenPr = { title: string; body: string; headRefName: string; baseRefName: string; url: string; number: number; reviewDecision: string; mergeable: string };
+    const open = await this.findPrsForIssue<OpenPr>(issueId, "open", "title,body,headRefName,baseRefName,url,number,reviewDecision,mergeable");
     if (open.length > 0) {
       const pr = open[0];
       let state: PrState;
@@ -375,15 +375,15 @@ export class GitHubProvider implements IssueProvider {
         : pr.mergeable === "MERGEABLE" ? true
         : undefined; // UNKNOWN or missing — don't assume
 
-      return { state, url: pr.url, title: pr.title, sourceBranch: pr.headRefName, mergeable };
+      return { state, url: pr.url, title: pr.title, sourceBranch: pr.headRefName, targetBranch: pr.baseRefName, mergeable };
     }
     // Check merged PRs — also fetch reviewDecision to detect approved-then-merged vs self-merged.
-    type MergedPr = { title: string; body: string; headRefName: string; url: string; reviewDecision: string | null };
-    const merged = await this.findPrsForIssue<MergedPr>(issueId, "merged", "title,body,headRefName,url,reviewDecision");
+    type MergedPr = { title: string; body: string; headRefName: string; baseRefName: string; url: string; reviewDecision: string | null };
+    const merged = await this.findPrsForIssue<MergedPr>(issueId, "merged", "title,body,headRefName,baseRefName,url,reviewDecision");
     if (merged.length > 0) {
       const pr = merged[0];
       const state = pr.reviewDecision === "APPROVED" ? PrState.APPROVED : PrState.MERGED;
-      return { state, url: pr.url, title: pr.title, sourceBranch: pr.headRefName };
+      return { state, url: pr.url, title: pr.title, sourceBranch: pr.headRefName, targetBranch: pr.baseRefName };
     }
     // Check for closed-without-merge PRs. url: non-null = PR was explicitly closed;
     // url: null = no PR has ever been created for this issue.

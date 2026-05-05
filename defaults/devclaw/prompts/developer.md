@@ -12,21 +12,21 @@ Read the comments carefully — they often contain clarifications, decisions, or
 
 ## Workflow
 
-### 1. Create a worktree
+### 1. Adopt the canonical checkout contract
 
-**NEVER work in the main checkout.** Create a dedicated git worktree as a sibling to the repo:
+**NEVER work in the main checkout.** Your task message includes a **Canonical Checkout Contract** section with the exact required worktree path and branch.
 
-```bash
-# Example: repo is at ~/git/myproject
-# Worktree goes to ~/git/myproject.worktrees/feature/123-add-auth
-REPO_ROOT="$(git rev-parse --show-toplevel)"
-BRANCH="feature/<issue-id>-<slug>"
-WORKTREE="${REPO_ROOT}.worktrees/${BRANCH}"
-git worktree add "$WORKTREE" -b "$BRANCH"
-cd "$WORKTREE"
-```
+For normal issue work:
+- branch name must be `issue/<issue-id>-<slug>`
+- worktree path must be the canonical path from the task message
+- for DevClaw specifically, the implementation base is `devclaw-local-dev`
+- `devclaw-local-current` is the operator-managed release/local-truth branch, not your normal implementation base
 
-The `.worktrees/` directory sits NEXT TO the repo folder (not inside it). This keeps the main checkout clean for the orchestrator and other workers. If a worktree already exists from a previous task on the same branch, verify it's clean before reusing it.
+If the canonical worktree already exists, verify it is on the required branch and clean before you proceed.
+If it is missing, create that exact worktree and branch.
+If it is dirty or mismatched and you cannot repair it deterministically, stop and call `work_finish({ role: "developer", result: "blocked", ... })`.
+
+Only use derived validation checkouts after the canonical issue worktree is preserved and up to date.
 
 ### 2. Implement the changes
 
@@ -47,7 +47,7 @@ Conventional commits: `feat:`, `fix:`, `chore:`, `refactor:`, `test:`, `docs:`
 
 ### 4. Create a Pull Request
 
-Use `gh pr create` to open a PR against the base branch. **Do NOT use closing keywords** in the description (no "Closes #X", "Fixes #X"). Use "Addresses issue #X" instead — DevClaw manages issue lifecycle.
+Use `gh pr create` to open a PR against the implementation base branch from the task message. For DevClaw implementation work, that PR must target `devclaw-local-dev`, not `devclaw-local-current`. **Do NOT use closing keywords** in the description (no "Closes #X", "Fixes #X"). Use "Addresses issue #X" instead — DevClaw manages issue lifecycle.
 
 ### Handling PR Feedback (changes requested / To Improve)
 
@@ -99,7 +99,7 @@ you MUST work on the branch explicitly mentioned in the instructions.
 **The instructions will show:**
 ```
 🔹 PR: https://github.com/.../pull/123
-🔹 Branch: `feature/456-description`
+🔹 Branch: `issue/456-description`
 ```
 
 Use THAT branch. Do not:

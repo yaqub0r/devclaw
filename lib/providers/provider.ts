@@ -48,6 +48,8 @@ export type PrStatus = {
   title?: string;
   /** Source branch name (e.g. "feature/7-blog-cms"). */
   sourceBranch?: string;
+  /** Target/base branch name for the PR/MR. */
+  targetBranch?: string;
   /** false = has merge conflicts. undefined = unknown or not applicable. */
   mergeable?: boolean;
 };

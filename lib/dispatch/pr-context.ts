@@ -8,6 +8,7 @@
  */
 import type { IssueProvider } from "../providers/provider.js";
 import { PrState } from "../providers/provider.js";
+import type { IssueCheckoutContract } from "../projects/types.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -109,7 +110,7 @@ export function formatPrContext(prContext: PrContext): string[] {
 /**
  * Format PR review feedback section for task message.
  */
-export function formatPrFeedback(prFeedback: PrFeedback, baseBranch: string): string[] {
+export function formatPrFeedback(prFeedback: PrFeedback, baseBranch: string, checkoutContract?: IssueCheckoutContract): string[] {
   if (prFeedback.comments.length === 0) return [];
 
   const reasonLabel = prFeedback.reason === "merge_conflict"
@@ -130,7 +131,8 @@ export function formatPrFeedback(prFeedback: PrFeedback, baseBranch: string): st
   }
 
   if (prFeedback.reason === "merge_conflict") {
-    const branchName = prFeedback.branchName || "your-branch";
+    const branchName = prFeedback.branchName || checkoutContract?.canonicalBranch || "your-branch";
+    const worktreePath = checkoutContract?.canonicalWorktreePath;
 
     parts.push(
       ``, `### Conflict Resolution Instructions`,
@@ -146,15 +148,15 @@ export function formatPrFeedback(prFeedback: PrFeedback, baseBranch: string): st
       `   \`\`\`bash`,
       `   git fetch origin ${branchName}`,
       `   git checkout ${branchName}`,
-      `   # Or if you already have a worktree:`,
-      `   cd "${branchName}"`,
+      `   # Or if you already have the canonical worktree:`,
+      `   cd "${worktreePath ?? branchName}"`,
       `   git fetch origin`,
       `   git reset --hard origin/${branchName}`,
       `   \`\`\``,
       ``,
       `2. Rebase onto \`${baseBranch}\`:`,
       `   \`\`\`bash`,
-      `   git rebase ${baseBranch}`,
+      `   git rebase ${checkoutContract?.baseBranch ?? baseBranch}`,
       `   \`\`\``,
       ``,
       `3. Resolve any conflicts:`,

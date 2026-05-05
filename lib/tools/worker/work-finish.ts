@@ -12,13 +12,15 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { ToolContext } from "../../types.js";
 import type { PluginContext, RunCommand } from "../../context.js";
-import { getRoleWorker, resolveRepoPath, findSlotByIssue } from "../../projects/index.js";
+import { getRoleWorker, resolveRepoPath, findSlotByIssue, upsertIssueCheckout } from "../../projects/index.js";
 import { executeCompletion, getRule } from "../../services/pipeline.js";
 import { log as auditLog } from "../../audit.js";
 import { DATA_DIR } from "../../setup/migrate-layout.js";
 import { requireWorkspaceDir, resolveChannelId, resolveProject, resolveProvider } from "../helpers.js";
 import { getAllRoleIds, isValidResult, getCompletionResults } from "../../roles/index.js";
 import { loadWorkflow } from "../../workflow/index.js";
+import { inspectCheckoutContract, getImplementationBaseBranch } from "../../checkout-contract.js";
+import type { IssueCheckoutContract } from "../../projects/types.js";
 
 /**
  * Get the current git branch name.
@@ -84,6 +86,8 @@ async function validatePrExistsForDeveloper(
   runCommand: RunCommand,
   workspaceDir: string,
   projectSlug: string,
+  expectedBaseBranch: string,
+  expectedSourceBranch?: string,
 ): Promise<void> {
   try {
     const prStatus = await provider.getPrStatus(issueId);
@@ -111,6 +115,24 @@ async function validatePrExistsForDeveloper(
     // url is set — an open or merged PR exists and is linked to this issue.
     // getPrStatus locates PRs via the issue tracker's linked-PR API, so any
     // non-null url already implies the PR references the issue.
+
+    if (expectedSourceBranch && prStatus.sourceBranch && prStatus.sourceBranch !== expectedSourceBranch) {
+      throw new Error(
+        `Cannot mark work_finish(done) with the wrong PR source branch.\n\n` +
+        `✗ Expected source branch: ${expectedSourceBranch}\n` +
+        `✗ PR source branch: ${prStatus.sourceBranch}\n\n` +
+        `Update the canonical implementation branch, or open the correct PR from ${expectedSourceBranch}.`,
+      );
+    }
+
+    if (prStatus.targetBranch && prStatus.targetBranch !== expectedBaseBranch) {
+      throw new Error(
+        `Cannot mark work_finish(done) with the wrong PR base branch.\n\n` +
+        `✗ Expected base branch: ${expectedBaseBranch}\n` +
+        `✗ PR base branch: ${prStatus.targetBranch}\n\n` +
+        `Open or retarget the implementation PR into ${expectedBaseBranch}, then call work_finish again.`,
+      );
+    }
 
     // Mark PR as "seen" (with eyes emoji) if not already marked.
     // This helps distinguish system-created PRs from human responses.
@@ -173,6 +195,38 @@ async function validatePrExistsForDeveloper(
     }
     console.warn(`PR validation warning for issue #${issueId}:`, err);
   }
+}
+
+async function validateCheckoutContractForCompletion(
+  contract: IssueCheckoutContract | undefined,
+  runCommand: RunCommand,
+  workspaceDir: string,
+  projectSlug: string,
+  issueId: number,
+): Promise<IssueCheckoutContract | undefined> {
+  if (!contract) return undefined;
+  const provenance = await inspectCheckoutContract(contract, runCommand);
+  const updated = { ...contract, status: provenance.status, lastVerifiedProvenance: provenance, targetSha: provenance.headSha };
+  if (provenance.status !== "verified") {
+    await auditLog(workspaceDir, "work_finish_rejected", {
+      project: projectSlug,
+      issue: issueId,
+      reason: "checkout_contract_mismatch",
+      checkoutStatus: provenance.status,
+      checkoutPath: provenance.path,
+      checkoutBranch: provenance.branch,
+      checkoutDetails: provenance.details,
+    });
+    throw new Error(
+      `Cannot complete work_finish until the canonical checkout contract is healthy.\n\n` +
+      `✗ Status: ${provenance.status}\n` +
+      `✗ Path: ${provenance.path}\n` +
+      `✗ Branch: ${provenance.branch ?? "(missing)"}\n` +
+      `${provenance.details ? `✗ Details: ${provenance.details}\n` : ""}\n` +
+      `Repair the canonical issue worktree if it is safely recoverable. Otherwise call work_finish with result "blocked" and explain the checkout drift.`
+    );
+  }
+  return updated;
 }
 
 export function createWorkFinishTool(ctx: PluginContext) {
@@ -267,10 +321,27 @@ export function createWorkFinishTool(ctx: PluginContext) {
 
       const repoPath = resolveRepoPath(project.repo);
       const pluginConfig = ctx.pluginConfig;
+      const completionNeedsVerifiedCheckout = ["done", "approve", "reject", "pass", "fail"].includes(result);
+      const storedContract = project.issueCheckouts?.[String(issueId)];
+      const validatedContract = completionNeedsVerifiedCheckout
+        ? await validateCheckoutContractForCompletion(storedContract, ctx.runCommand, workspaceDir, project.slug, issueId)
+        : storedContract;
+      if (validatedContract) {
+        await upsertIssueCheckout(workspaceDir, project.slug, validatedContract);
+      }
 
       // For developers marking work as done, validate that a PR exists
       if (role === "developer" && result === "done") {
-        await validatePrExistsForDeveloper(issueId, repoPath, provider, ctx.runCommand, workspaceDir, project.slug);
+        await validatePrExistsForDeveloper(
+          issueId,
+          repoPath,
+          provider,
+          ctx.runCommand,
+          workspaceDir,
+          project.slug,
+          validatedContract?.baseBranch ?? getImplementationBaseBranch(project),
+          validatedContract?.canonicalBranch,
+        );
       }
 
       const completion = await executeCompletion({

@@ -117,6 +117,7 @@ export async function migrateLegacySchema(data: any, runCommand?: RunCommand): P
       channels,
       provider: firstProj.provider,
       workers: mergedWorkers,
+      issueCheckouts: {},
     };
   }
 

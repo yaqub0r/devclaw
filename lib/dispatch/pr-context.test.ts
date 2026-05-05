@@ -5,7 +5,7 @@ describe("formatPrFeedback", () => {
   it("returns empty array when no comments", () => {
     const feedback: PrFeedback = {
       url: "https://github.com/user/repo/pull/123",
-      branchName: "feature/123-test",
+      branchName: "issue/123-test",
       reason: "merge_conflict",
       comments: [],
     };
@@ -16,7 +16,7 @@ describe("formatPrFeedback", () => {
   it("includes branch name in conflict resolution instructions", () => {
     const feedback: PrFeedback = {
       url: "https://github.com/user/repo/pull/123",
-      branchName: "feature/456-test",
+      branchName: "issue/456-test",
       reason: "merge_conflict",
       comments: [
         {
@@ -30,10 +30,10 @@ describe("formatPrFeedback", () => {
     const result = formatPrFeedback(feedback, "main");
     const text = result.join("\n");
 
-    expect(text).toContain("feature/456-test");
-    expect(text).toContain("🔹 Branch: `feature/456-test`");
-    expect(text).toContain("git checkout feature/456-test");
-    expect(text).toContain("git push --force-with-lease origin feature/456-test");
+    expect(text).toContain("issue/456-test");
+    expect(text).toContain("🔹 Branch: `issue/456-test`");
+    expect(text).toContain("git checkout issue/456-test");
+    expect(text).toContain("git push --force-with-lease origin issue/456-test");
   });
 
   it("uses fallback branch name when not provided", () => {
@@ -59,7 +59,7 @@ describe("formatPrFeedback", () => {
   it("includes step-by-step instructions for conflict resolution", () => {
     const feedback: PrFeedback = {
       url: "https://github.com/user/repo/pull/123",
-      branchName: "feature/123-fix",
+      branchName: "issue/123-fix",
       reason: "merge_conflict",
       comments: [
         {
@@ -89,7 +89,7 @@ describe("formatPrFeedback", () => {
   it("correctly formats changes_requested feedback", () => {
     const feedback: PrFeedback = {
       url: "https://github.com/user/repo/pull/456",
-      branchName: "feature/789-feature",
+      branchName: "issue/789-feature",
       reason: "changes_requested",
       comments: [
         {
@@ -112,7 +112,7 @@ describe("formatPrFeedback", () => {
   it("includes comment location information when available", () => {
     const feedback: PrFeedback = {
       url: "https://github.com/user/repo/pull/123",
-      branchName: "feature/456-test",
+      branchName: "issue/456-test",
       reason: "changes_requested",
       comments: [
         {
@@ -134,7 +134,7 @@ describe("formatPrFeedback", () => {
   it("uses correct base branch in rebase command", () => {
     const feedback: PrFeedback = {
       url: "https://github.com/user/repo/pull/123",
-      branchName: "feature/test",
+      branchName: "issue/test",
       reason: "merge_conflict",
       comments: [
         {
