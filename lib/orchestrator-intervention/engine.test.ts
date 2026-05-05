@@ -139,4 +139,52 @@ describe("orchestrator intervention engine", () => {
       await h.cleanup();
     }
   });
+
+  it("uses the same resolved agent id for wake session key and gateway delivery when agentId is omitted", async () => {
+    const h = await createTestHarness();
+    try {
+      const issue = h.provider.seedIssue({ iid: 93, title: "Wake target", labels: ["Doing"] });
+      await upsertInterventionPolicy(h.workspaceDir, h.project.slug, {
+        id: "notify-default-agent",
+        title: "Notify with default agent",
+        mode: "notify",
+        issueId: 93,
+        event: { type: "worker.completed", result: "done" },
+        action: { type: "comment", message: "unused" },
+      });
+
+      await recordAndApplyInterventionEvent({
+        workspaceDir: h.workspaceDir,
+        channelId: h.channelId,
+        project: h.project,
+        workflow: h.workflow,
+        provider: h.provider,
+        issue,
+        runCommand: h.runCommand,
+      }, {
+        eventType: "worker.completed",
+        issueId: 93,
+        result: "done",
+        source: "worker",
+      });
+
+      const wakeCommand = h.commands.commands.find((command) =>
+        command.argv[0] === "openclaw" &&
+        command.argv[1] === "gateway" &&
+        command.argv[2] === "call" &&
+        command.argv[3] === "agent" &&
+        command.taskMessage?.includes("Live intervention wake for issue #93"),
+      );
+      assert.ok(wakeCommand, "expected orchestrator wake gateway call");
+
+      const paramsIdx = wakeCommand!.argv.indexOf("--params");
+      assert.notEqual(paramsIdx, -1, "wake command should include --params");
+      const params = JSON.parse(wakeCommand!.argv[paramsIdx + 1]!);
+
+      assert.equal(params.agentId, "main");
+      assert.equal(params.sessionKey, `agent:main:telegram:group:${h.channelId}`);
+    } finally {
+      await h.cleanup();
+    }
+  });
 });

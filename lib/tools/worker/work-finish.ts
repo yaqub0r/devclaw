@@ -281,6 +281,7 @@ export function createWorkFinishTool(ctx: PluginContext) {
         level: slotLevel,
         slotIndex,
         runtime: ctx.runtime,
+        agentId: toolCtx.agentId,
         workflow,
         createdTasks,
         runCommand: ctx.runCommand,

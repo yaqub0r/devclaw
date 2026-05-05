@@ -260,9 +260,10 @@ async function wakeOrchestrator(
   const notifyTarget = resolveWakeTarget(ctx);
   if (!notifyTarget) return { delivered: false, reason: "channel_unavailable" };
 
-  const sessionKey = buildMainOrchestratorSessionKey(ctx.agentId ?? "main", notifyTarget);
+  const agentId = ctx.agentId ?? "main";
+  const sessionKey = buildMainOrchestratorSessionKey(agentId, notifyTarget);
   sendToSessionFireAndForget(sessionKey, buildWakeMessage(event, policy, mode), {
-    agentId: ctx.agentId,
+    agentId,
     workspaceDir: ctx.workspaceDir,
     runCommand: ctx.runCommand,
     lane: "main",
