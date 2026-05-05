@@ -9,6 +9,7 @@ import { deactivateWorker, loadProjectBySlug, getRoleWorker } from "../projects/
 import type { RunCommand } from "../context.js";
 import { notify, getNotificationConfig } from "../dispatch/notify.js";
 import { log as auditLog } from "../audit.js";
+import { recordAndApplyInterventionEvent } from "../orchestrator-intervention/engine.js";
 import { loadConfig } from "../config/index.js";
 import { detectStepRouting } from "./queue-scan.js";
 import { recordLoopDiagnostic } from "./loop-diagnostics.js";
@@ -365,6 +366,55 @@ export async function executeCompletion(opts: {
       } catch (err) {
         auditLog(workspaceDir, "pipeline_warning", { step: "reviewNotify", issue: issueId, role, error: (err as Error).message ?? String(err) }).catch(() => {});
       }
+    }
+  }
+
+  const interventionProject = await loadProjectBySlug(workspaceDir, projectSlug);
+  if (interventionProject) {
+    const updatedIssue = await provider.getIssue(issueId);
+    const eventType = transitionedTo === "Refining"
+      ? "workflow.hold"
+      : "worker.completed";
+    await recordAndApplyInterventionEvent({
+      workspaceDir,
+      channelId: notifyTarget?.channelId ?? interventionProject.channels[0]?.channelId ?? projectSlug,
+      messageThreadId: notifyTarget?.messageThreadId,
+      project: interventionProject,
+      workflow,
+      provider,
+      issue: updatedIssue,
+    }, {
+      eventType,
+      issueId,
+      role,
+      level: opts.level,
+      result,
+      reason: transitionedTo === "Refining" ? result : undefined,
+      fromState: rule.from,
+      toState: transitionedTo,
+      prUrl: prUrl ?? null,
+      source: "worker",
+      data: { summary: summary ?? null, createdTasks: createdTasks ?? null },
+    }).catch(() => {});
+
+    if (mergedPr) {
+      await recordAndApplyInterventionEvent({
+        workspaceDir,
+        channelId: notifyTarget?.channelId ?? interventionProject.channels[0]?.channelId ?? projectSlug,
+        messageThreadId: notifyTarget?.messageThreadId,
+        project: interventionProject,
+        workflow,
+        provider,
+        issue: updatedIssue,
+      }, {
+        eventType: "pr.merged",
+        issueId,
+        role,
+        level: opts.level,
+        prUrl: prUrl ?? null,
+        source: "worker",
+        data: { mergedBy: "pipeline" },
+      }).catch(() => {});
     }
   }
 

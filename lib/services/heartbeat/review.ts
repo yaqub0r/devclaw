@@ -18,6 +18,7 @@ import { detectStepRouting } from "../queue-scan.js";
 import type { RunCommand } from "../../context.js";
 import { log as auditLog } from "../../audit.js";
 import { recordLoopDiagnostic } from "../loop-diagnostics.js";
+import { recordAndApplyInterventionEvent } from "../../orchestrator-intervention/engine.js";
 
 /**
  * Scan review-type states and transition issues whose PR check condition is met.
@@ -114,6 +115,22 @@ export async function reviewPass(opts: {
               reason: status.state === PrState.HAS_COMMENTS ? "pr_comments" : "changes_requested",
               prUrl: status.url,
             });
+            await recordAndApplyInterventionEvent({
+              workspaceDir,
+              channelId: projectName,
+              project: { slug: projectName, name: projectName, repo: repoPath, groupName: projectName, deployUrl: "", baseBranch: baseBranch ?? "main", deployBranch: baseBranch ?? "main", channels: [], workers: {} },
+              workflow,
+              provider,
+              issue: await provider.getIssue(issue.iid),
+            }, {
+              eventType: "review.feedback",
+              issueId: issue.iid,
+              reason: status.state === PrState.HAS_COMMENTS ? "pr_comments" : "changes_requested",
+              fromState: state.label,
+              toState: targetState.label,
+              prUrl: status.url,
+              source: "heartbeat",
+            }).catch(() => {});
             onFeedback?.(issue.iid, "changes_requested", status.url, issue.title, issue.web_url);
             // React to each review comment with 🤖 to acknowledge processing (best-effort)
             reactToFeedbackComments(provider, issue.iid).catch(() => {});
@@ -146,6 +163,22 @@ export async function reviewPass(opts: {
               reason: "merge_conflict",
               prUrl: status.url,
             });
+            await recordAndApplyInterventionEvent({
+              workspaceDir,
+              channelId: projectName,
+              project: { slug: projectName, name: projectName, repo: repoPath, groupName: projectName, deployUrl: "", baseBranch: baseBranch ?? "main", deployBranch: baseBranch ?? "main", channels: [], workers: {} },
+              workflow,
+              provider,
+              issue: await provider.getIssue(issue.iid),
+            }, {
+              eventType: "review.feedback",
+              issueId: issue.iid,
+              reason: "merge_conflict",
+              fromState: state.label,
+              toState: targetState.label,
+              prUrl: status.url,
+              source: "heartbeat",
+            }).catch(() => {});
             onFeedback?.(issue.iid, "merge_conflict", status.url, issue.title, issue.web_url);
             transitions++;
             continue;
@@ -182,6 +215,22 @@ export async function reviewPass(opts: {
               prUrl: status.url,
               actions: closedActions,
             });
+            await recordAndApplyInterventionEvent({
+              workspaceDir,
+              channelId: projectName,
+              project: { slug: projectName, name: projectName, repo: repoPath, groupName: projectName, deployUrl: "", baseBranch: baseBranch ?? "main", deployBranch: baseBranch ?? "main", channels: [], workers: {} },
+              workflow,
+              provider,
+              issue: await provider.getIssue(issue.iid),
+            }, {
+              eventType: "review.pr_closed",
+              issueId: issue.iid,
+              fromState: state.label,
+              toState: targetState.label,
+              prUrl: status.url,
+              reason: "pr_closed",
+              source: "heartbeat",
+            }).catch(() => {});
             onPrClosed?.(issue.iid, status.url, issue.title, issue.web_url);
             transitions++;
             continue;
@@ -281,6 +330,22 @@ export async function reviewPass(opts: {
         prState: status.state,
         prUrl: status.url,
       });
+      await recordAndApplyInterventionEvent({
+        workspaceDir,
+        channelId: projectName,
+        project: { slug: projectName, name: projectName, repo: repoPath, groupName: projectName, deployUrl: "", baseBranch: baseBranch ?? "main", deployBranch: baseBranch ?? "main", channels: [], workers: {} },
+        workflow,
+        provider,
+        issue: await provider.getIssue(issue.iid),
+      }, {
+        eventType: status.state === PrState.MERGED ? "pr.merged" : "review.approved",
+        issueId: issue.iid,
+        fromState: state.label,
+        toState: targetState.label,
+        prUrl: status.url,
+        source: "heartbeat",
+        data: { prState: status.state },
+      }).catch(() => {});
 
       transitions++;
     }

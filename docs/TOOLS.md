@@ -412,6 +412,35 @@ Reference guide for workflow configuration. Call before making any workflow chan
 
 ---
 
+### `orchestrator_intervention`
+
+Manage live orchestrator intervention policy and read the normalized intervention event timeline.
+
+**Actions**
+- `set_policy` — upsert a project-wide or issue-specific rule
+- `delete_policy` — remove a rule by id
+- `list_policies` — inspect saved rules
+- `get_events` — read recent structured workflow events for a project or issue
+
+**Supported event types**
+- `worker.completed`
+- `workflow.dispatch`
+- `workflow.requeue`
+- `workflow.hold`
+- `review.feedback`
+- `review.approved`
+- `review.pr_closed`
+- `pr.merged`
+
+**Supported action types**
+- `comment`
+- `set_level`
+- `requeue`
+- `queue_issue`
+- `create_followup`
+
+Rules run in either `notify` or `auto` mode. Every match and action is audit-logged.
+
 ### `research_task`
 
 Spawn an architect for a design investigation. Creates a `To Research` issue with rich context and dispatches an architect worker through `To Research` → `Researching` states.

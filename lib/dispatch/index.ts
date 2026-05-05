@@ -27,6 +27,7 @@ import { slotName } from "../names.js";
 import { buildTaskMessage, buildConflictFixMessage, buildAnnouncement, formatSessionLabel } from "./message-builder.js";
 import { ensureSessionFireAndForget, sendToAgent, shouldClearSession } from "./session.js";
 import { acknowledgeComments, EYES_EMOJI } from "./acknowledge.js";
+import { recordAndApplyInterventionEvent } from "../orchestrator-intervention/engine.js";
 
 export type DispatchOpts = {
   workspaceDir: string;
@@ -96,7 +97,7 @@ export async function dispatchTask(
   // ── Setup (no side effects — safe to fail) ──────────────────────────
   const resolvedConfig = await loadConfig(workspaceDir, project.name);
   const resolvedRole = resolvedConfig.roles[role];
-  const { timeouts } = resolvedConfig;
+  const { timeouts, workflow } = resolvedConfig;
   const model = resolveModel(role, level, resolvedRole);
   const roleWorker = getRoleWorker(project, role);
   const slot = roleWorker.levels[level]?.[slotIndex] ?? emptySlot();
@@ -156,7 +157,6 @@ export async function dispatchTask(
   const comments = await provider.listComments(issueId);
 
   // Fetch PR context based on workflow role semantics (no hardcoded role/label checks)
-  const { workflow } = resolvedConfig;
   const prFeedback = isFeedbackState(workflow, fromLabel)
     ? await fetchPrFeedback(provider, issueId) : undefined;
   const prContext = hasReviewCheck(workflow, role)
@@ -328,6 +328,25 @@ export async function dispatchTask(
   }
 
   // Step 6: Audit
+  await recordAndApplyInterventionEvent({
+    workspaceDir,
+    channelId: primaryChannelId,
+    project,
+    workflow,
+    provider,
+    issue: await provider.getIssue(issueId),
+    sessionKey,
+  }, {
+    eventType: "workflow.dispatch",
+    issueId,
+    role,
+    level,
+    fromState: fromLabel,
+    toState: toLabel,
+    source: "system",
+    data: { sessionAction, botName },
+  }).catch(() => {});
+
   await auditDispatch(workspaceDir, {
     project: project.name, issueId, issueTitle,
     role, level, model, sessionAction, sessionKey,

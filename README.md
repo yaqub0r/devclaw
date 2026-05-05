@@ -82,7 +82,7 @@ GitHub/GitLab issues are the single source of truth — not an internal database
 
 - **[External task state](#your-issues-stay-in-your-tracker)** — labels, transitions, and status queries go through your issue tracker
 - **[Atomic operations](#what-atomic-means-here)** — label transition + state update + session dispatch + audit log in one call
-- **[Tool-based guardrails](#the-toolbox)** — 23 tools enforce the process; the agent provides intent, the plugin handles mechanics
+- **[Tool-based guardrails](#the-toolbox)** — 24 tools enforce the process; the agent provides intent, the plugin handles mechanics
 
 ### ~60-80% token savings
 
@@ -223,7 +223,7 @@ With the optional test phase enabled, an additional QA cycle runs before closing
 - **TESTER "pass"** → `Done`, issue closes
 - **TESTER "fail"** → `To Improve`, back to DEV
 
-The orchestrator doesn't need to poll, check, or coordinate. Workers are self-reporting.
+The orchestrator doesn't need to poll, check, or coordinate for the normal path. Workers are self-reporting, and optional intervention policy can wake or steer follow-up actions when configured.
 
 ### Research tasks follow a separate path
 
@@ -282,7 +282,7 @@ When a worker calls `work_finish`, the plugin transitions the label. The schedul
 - **PR approved** → auto-merge → label moves to `Done`, issue closes
 - **"blocked"** → label reverts to queue (`To Do`) for retry
 
-No orchestrator involvement. Workers self-report, the scheduler fills free slots.
+No manual orchestrator involvement for the normal path. Workers self-report, the scheduler fills free slots, and optional intervention policy can step in on matched live events.
 
 ### Execution modes
 
@@ -395,6 +395,19 @@ The orchestrator is a **planner and dispatcher** — not a coder. This separatio
 
 ### What the orchestrator does
 
+### Live intervention policy
+
+DevClaw now supports a structured live intervention layer on top of the normal pipeline:
+
+- workflow and worker activity is normalized into a per-project event timeline under `devclaw/log/orchestrator-events.<project>.ndjson`
+- the operator can manage intervention rules with `orchestrator_intervention`
+- rules can be project-wide or issue-specific, and can be changed while work is in flight
+- matched rules are either `notify` only or `auto`
+- v1 action guardrails are explicit: `comment`, `set_level`, `requeue`, `queue_issue`, `create_followup`
+- every event match and every intervention decision is audit-logged
+
+This keeps the heartbeat authoritative for the default workflow, while giving the orchestrator a bounded, inspectable way to steer exceptional flow.
+
 - **Plans**: Analyzes requirements, breaks down work, decides priorities
 - **Dispatches**: Creates issues, assigns developer levels, starts workers
 - **Coordinates**: Monitors queue, handles status checks, answers questions
@@ -498,7 +511,7 @@ You can also use the [CLI wizard or non-interactive setup](docs/ONBOARDING.md#st
 
 ## The toolbox
 
-DevClaw gives the orchestrator 23 tools. These aren't just convenience wrappers — they're **guardrails**. Each tool encodes a complex multi-step operation into a single atomic call. The agent provides intent, the plugin handles mechanics. The agent physically cannot skip a label transition, forget to update state, or dispatch to the wrong session — those decisions are made by deterministic code, not LLM reasoning.
+DevClaw gives the orchestrator 24 tools. These aren't just convenience wrappers — they're **guardrails**. Each tool encodes a complex multi-step operation into a single atomic call. The agent provides intent, the plugin handles mechanics. The agent physically cannot skip a label transition, forget to update state, or dispatch to the wrong session — those decisions are made by deterministic code, not LLM reasoning.
 
 | Tool                   | What it does                                                                            |
 | ---------------------- | --------------------------------------------------------------------------------------- |
