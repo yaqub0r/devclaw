@@ -243,10 +243,14 @@ function renderTemplate(template: string | undefined, event: OrchestratorInterve
 function findPlanningLabel(workflow: InterventionRuntimeContext["workflow"]): string {
   const planningLabel = getInitialStateLabel(workflow);
   const planning = findStateByLabel(workflow, planningLabel);
-  if (!planning || planning.type !== StateType.HOLD) {
+  if (!planning || !isHoldState(planning.type)) {
     throw new Error(`workflow initial state ${planningLabel} is not a HOLD state`);
   }
   return planningLabel;
+}
+
+function isHoldState(type: string | undefined): boolean {
+  return (type ?? "").toLowerCase() === StateType.HOLD;
 }
 
 async function wakeOrchestrator(
