@@ -7,9 +7,10 @@ It lives under `/dev` because these rules are first-class local operating docs a
 
 Treat these branch roles as the working contract:
 
-- `devclaw-local-current`: local truth and day-to-day working lane
+- `devclaw-local-dev`: ordinary implementation base branch for normal issue work
+- `devclaw-local-current`: local truth, promotion, deploy, and local operational documentation lane
 - `devclaw-local-stable`: local fallback lane when `devclaw-local-current` is too noisy or risky
-- `issue/*`: local implementation branches for scoped work
+- `issue/*`: local implementation branches for scoped work, normally created from `devclaw-local-dev`
 - `review/*`: local review branches opened against `devclaw-local-current`
 - `pr/*`: export branches prepared for upstream review
 
@@ -18,11 +19,12 @@ Upstream `main` is a reference point and export target. It is not the normal day
 ## Operating model
 
 1. Keep local docs and operator runbooks on `devclaw-local-current`.
-2. Start implementation from `devclaw-local-current` into an `issue/*` branch when you need isolated task work.
-3. Land validated work back onto `devclaw-local-current` so local truth stays complete.
-4. When work needs to go upstream, export it onto a matching `pr/*` branch.
-5. Preserve the `/dev/` documentation changes on `devclaw-local-current` even when the upstream export omits local-only material.
-6. Push runbook and workflow changes to the Git remote that tracks `devclaw-local-current` so the policy is not left only in a local checkout or an unknown branch.
+2. Start ordinary implementation from `devclaw-local-dev` into an `issue/*` branch when you need isolated task work.
+3. Use the ordinary implementation PR into `devclaw-local-dev` as the normal developer completion lane.
+4. Land validated release-worthy work back onto `devclaw-local-current` through the promotion/review flow so local truth stays complete.
+5. When work needs to go upstream, export it onto a matching `pr/*` branch.
+6. Preserve the `/dev/` documentation changes on `devclaw-local-current` even when the upstream export omits local-only material.
+7. Push runbook and workflow changes to the Git remote that tracks `devclaw-local-current` so the policy is not left only in a local checkout or an unknown branch.
 
 ## Mandatory compliance rule
 
@@ -102,7 +104,11 @@ Upstream review material should be prepared from `pr/*`, while `devclaw-local-cu
 
 ### Promotion ownership and close-gate rule
 
-The orchestrator owns the promotion lane end-to-end. Do not treat worker completion as promotion completion.
+The orchestrator owns the **promotion lane** end-to-end. Do not treat worker completion as promotion completion.
+
+This section applies to explicit promotion/export work, for example `UP:` issues or tasks that are intentionally preparing `review/*` and `pr/*` branches.
+It does **not** mean the orchestrator owns the ordinary implementation PR for normal issue work.
+For normal implementation tasks, the developer should still open and maintain the issue PR into the active implementation base branch.
 
 Worker-owned steps may include implementation, review, or testing sub-results such as:
 
