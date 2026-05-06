@@ -7,9 +7,10 @@ It lives under `/dev` because these rules are first-class local operating docs a
 
 Treat these branch roles as the working contract:
 
-- `devclaw-local-current`: local truth and day-to-day working lane
+- `devclaw-local-dev`: normal project branch for day-to-day implementation work
+- `devclaw-local-current`: operator-managed local truth and release branch
 - `devclaw-local-stable`: local fallback lane when `devclaw-local-current` is too noisy or risky
-- `issue/*`: local implementation branches for scoped work
+- `issue/*`: canonical local implementation branches for scoped work, derived from `devclaw-local-dev`
 - `review/*`: local review branches opened against `devclaw-local-current`
 - `pr/*`: export branches prepared for upstream review
 
@@ -18,11 +19,12 @@ Upstream `main` is a reference point and export target. It is not the normal day
 ## Operating model
 
 1. Keep local docs and operator runbooks on `devclaw-local-current`.
-2. Start implementation from `devclaw-local-current` into an `issue/*` branch when you need isolated task work.
-3. Land validated work back onto `devclaw-local-current` so local truth stays complete.
-4. When work needs to go upstream, export it onto a matching `pr/*` branch.
-5. Preserve the `/dev/` documentation changes on `devclaw-local-current` even when the upstream export omits local-only material.
-6. Push runbook and workflow changes to the Git remote that tracks `devclaw-local-current` so the policy is not left only in a local checkout or an unknown branch.
+2. Start ordinary implementation from `devclaw-local-dev` into a canonical `issue/*` branch/worktree when you need isolated task work.
+3. Land developer PRs from `issue/*` back into `devclaw-local-dev`.
+4. Let the operator/orchestrator manage promotion from `devclaw-local-dev` into `devclaw-local-current`.
+5. When work needs to go upstream, export it onto a matching `pr/*` branch.
+6. Preserve the `/dev/` documentation changes on `devclaw-local-current` even when the upstream export omits local-only material.
+7. Push runbook and workflow changes to the Git remote that tracks `devclaw-local-current` so the policy is not left only in a local checkout or an unknown branch.
 
 ## Mandatory compliance rule
 

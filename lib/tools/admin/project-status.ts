@@ -89,6 +89,17 @@ export function createProjectStatusTool(ctx: PluginContext) {
           .join(" → "),
       };
 
+      const issueCheckouts = Object.values(project.issueCheckouts ?? {}).map((contract) => ({
+        issueId: contract.issueId,
+        mode: contract.mode,
+        status: contract.status,
+        canonicalBranch: contract.canonicalBranch,
+        canonicalWorktreePath: contract.canonicalWorktreePath,
+        baseBranch: contract.baseBranch,
+        verifiedAt: contract.lastVerifiedProvenance?.verifiedAt ?? null,
+        clean: contract.lastVerifiedProvenance?.clean ?? null,
+      }));
+
       return jsonResult({
         success: true,
         instanceName,
@@ -104,6 +115,10 @@ export function createProjectStatusTool(ctx: PluginContext) {
         },
         workflow: workflowSummary,
         workers,
+        checkoutContracts: {
+          count: issueCheckouts.length,
+          items: issueCheckouts,
+        },
       });
     },
   });

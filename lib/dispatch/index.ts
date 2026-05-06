@@ -14,12 +14,15 @@ import {
   updateSlot,
   getRoleWorker,
   emptySlot,
+  upsertIssueCheckout,
+  resolveRepoPath,
 } from "../projects/index.js";
 import { resolveModel } from "../roles/index.js";
 import { notify, getNotificationConfig } from "./notify.js";
 import { loadConfig, type ResolvedRoleConfig } from "../config/index.js";
 import { ReviewPolicy, TestPolicy, resolveReviewRouting, resolveTestRouting, resolveNotifyChannel, isFeedbackState, hasReviewCheck, producesReviewableWork, hasTestPhase, detectOwner, getOwnerLabel, OWNER_LABEL_COLOR, getRoleLabelColor, STEP_ROUTING_COLOR, getStateLabels } from "../workflow/index.js";
 import { fetchPrFeedback, fetchPrContext, type PrFeedback, type PrContext } from "./pr-context.js";
+import { ensureCheckoutContract, resolveExpectedCheckoutContract } from "../checkout-contract.js";
 import { formatAttachmentsForTask } from "./attachments.js";
 import { loadRoleInstructions } from "./bootstrap-hook.js";
 import { slotName } from "../names.js";
@@ -162,6 +165,21 @@ export async function dispatchTask(
   const prContext = hasReviewCheck(workflow, role)
     ? await fetchPrContext(provider, issueId) : undefined;
 
+  const repoPath = resolveRepoPath(project.repo);
+  const checkoutContract = await ensureCheckoutContract(
+    resolveExpectedCheckoutContract({
+      project,
+      issueId,
+      issueTitle,
+      repoPath,
+      role,
+      prBranchName: prFeedback?.branchName,
+      targetSha: prContext?.diff ? undefined : null,
+    }),
+    rc,
+  );
+  await upsertIssueCheckout(workspaceDir, project.slug, checkoutContract);
+
   // Fetch attachment context (best-effort — never blocks dispatch)
   let attachmentContext: string | undefined;
   try {
@@ -175,13 +193,13 @@ export async function dispatchTask(
         projectName: project.name, channelId: primaryChannelId, role, issueId,
         issueTitle, issueUrl,
         repo: project.repo, baseBranch: project.baseBranch,
-        resolvedRole, prFeedback,
+        resolvedRole, prFeedback, checkoutContract,
       })
     : buildTaskMessage({
         projectName: project.name, channelId: primaryChannelId, role, issueId,
         issueTitle, issueDescription, issueUrl,
         repo: project.repo, baseBranch: project.baseBranch,
-        comments, resolvedRole, prContext, prFeedback, attachmentContext,
+        comments, resolvedRole, prContext, prFeedback, checkoutContract, attachmentContext,
       });
 
   // Load role-specific instructions to inject into the worker's system prompt

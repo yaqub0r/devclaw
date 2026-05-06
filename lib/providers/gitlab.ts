@@ -27,6 +27,7 @@ type GitLabMR = {
   web_url: string;
   state: string;
   source_branch?: string;
+  target_branch?: string;
   merged_at: string | null;
   approved_by?: Array<unknown>;
   author?: { username: string };
@@ -220,15 +221,15 @@ export class GitLabProvider implements IssueProvider {
       // Detect merge conflicts
       const mergeable = await this.isMrMergeable(open.iid);
 
-      return { state, url: open.web_url, title: open.title, sourceBranch: open.source_branch, mergeable };
+      return { state, url: open.web_url, title: open.title, sourceBranch: open.source_branch, targetBranch: open.target_branch, mergeable };
     }
     // Check merged MRs
     const merged = mrs.find((mr) => mr.state === "merged");
-    if (merged) return { state: PrState.MERGED, url: merged.web_url, title: merged.title, sourceBranch: merged.source_branch };
+    if (merged) return { state: PrState.MERGED, url: merged.web_url, title: merged.title, sourceBranch: merged.source_branch, targetBranch: merged.target_branch };
     // Check for closed-without-merge MRs. url: non-null = MR was explicitly closed;
     // url: null = no MR has ever been created for this issue.
     const closed = mrs.find((mr) => mr.state === "closed");
-    if (closed) return { state: PrState.CLOSED, url: closed.web_url, title: closed.title, sourceBranch: closed.source_branch };
+    if (closed) return { state: PrState.CLOSED, url: closed.web_url, title: closed.title, sourceBranch: closed.source_branch, targetBranch: closed.target_branch };
     return { state: PrState.CLOSED, url: null };
   }
 
