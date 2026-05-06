@@ -7,8 +7,8 @@ It lives under `/dev` because these rules are first-class local operating docs a
 
 Treat these branch roles as the working contract:
 
-- `devclaw-local-dev`: ordinary implementation base branch for normal issue work
-- `devclaw-local-current`: local truth, promotion, deploy, and local operational documentation lane
+- `devclaw-local-dev`: ordinary implementation base branch and the live pre-promotion validation lane for normal issue work
+- `devclaw-local-current`: accepted local truth, promotion, deploy, and local operational documentation lane
 - `devclaw-local-stable`: local fallback lane when `devclaw-local-current` is too noisy or risky
 - `issue/*`: local implementation branches for scoped work, normally created from `devclaw-local-dev`
 - `review/*`: local review branches opened against `devclaw-local-current`
@@ -21,10 +21,11 @@ Upstream `main` is a reference point and export target. It is not the normal day
 1. Keep local docs and operator runbooks on `devclaw-local-current`.
 2. Start ordinary implementation from `devclaw-local-dev` into an `issue/*` branch when you need isolated task work.
 3. Use the ordinary implementation PR into `devclaw-local-dev` as the normal developer completion lane.
-4. Land validated release-worthy work back onto `devclaw-local-current` through the promotion/review flow so local truth stays complete.
-5. When work needs to go upstream, export it onto a matching `pr/*` branch.
-6. Preserve the `/dev/` documentation changes on `devclaw-local-current` even when the upstream export omits local-only material.
-7. Push runbook and workflow changes to the Git remote that tracks `devclaw-local-current` so the policy is not left only in a local checkout or an unknown branch.
+4. Make `devclaw-local-dev` the live validation lane for ordinary implementation work when live testing is required, and verify the fix there before promoting it further.
+5. Only after the fix is accepted on `devclaw-local-dev`, promote it into `devclaw-local-current` through the `review/*` local-truth lane.
+6. After the accepted package is present on `devclaw-local-current`, export the upstreamable change set onto a matching `pr/*` branch.
+7. Preserve the `/dev/` documentation changes on `devclaw-local-current` even when the upstream export omits local-only material.
+8. Push runbook and workflow changes to the Git remote that tracks `devclaw-local-current` so the policy is not left only in a local checkout or an unknown branch.
 
 ## Mandatory compliance rule
 
@@ -88,17 +89,19 @@ Where:
 
 Typical flow:
 
-1. implement and validate locally
-2. open or update the local promotion issue that owns the full upstream-promotion workflow
-3. create or refresh `review/<issue-number>-<short-description>` from `devclaw-local-current`
-4. apply the exact accepted fix onto the `review/*` branch
-5. push the `review/*` branch to the fork remote
-6. autonomously open or refresh the fork PR from `review/*` into `devclaw-local-current`
-7. use that PR for local-truth review, merge, and testing on `devclaw-local-current`
-8. after the change is merged and validated on `devclaw-local-current`, create or refresh `pr/<issue-number>-<short-description>` from `upstream/main`
-9. apply the same upstreamable commit set onto the `pr/*` branch
-10. push the `pr/*` branch to the fork remote
-11. prepare the final compare/diff URL and PR body for DevClaw official
+1. implement on `issue/*` from `devclaw-local-dev`
+2. land the ordinary implementation PR into `devclaw-local-dev`
+3. make `devclaw-local-dev` live when needed for development validation and test the accepted fix there
+4. open or update the local promotion issue that owns the full upstream-promotion workflow
+5. create or refresh `review/<issue-number>-<short-description>` from `devclaw-local-current`
+6. cherry-pick or otherwise apply the exact accepted fix onto the `review/*` branch
+7. push the `review/*` branch to the fork remote
+8. autonomously open or refresh the fork PR from `review/*` into `devclaw-local-current`
+9. use that PR for local-truth review, merge, and accepted-lane validation on `devclaw-local-current`
+10. after the change is merged and validated on `devclaw-local-current`, create or refresh `pr/<issue-number>-<short-description>` from `upstream/main`
+11. cherry-pick or otherwise apply the same upstreamable commit set onto the `pr/*` branch
+12. push the `pr/*` branch to the fork remote
+13. prepare the final compare/diff URL and PR body for DevClaw official
 
 Upstream review material should be prepared from `pr/*`, while `devclaw-local-current` remains the complete local operating branch.
 
@@ -121,6 +124,7 @@ Those results are evidence and inputs to the promotion lane. They do **not** by 
 For local-first release work, the orchestrator-owned responsibilities include:
 
 - keeping the promotion issue current as the canonical lane record
+- making the `devclaw-local-dev` live-validation checkpoint explicit when the lane requires ordinary implementation validation before promotion
 - creating or refreshing the `review/*` branch and local-truth PR
 - driving the required human checkpoint on that PR
 - ensuring the accepted change actually lands in `devclaw-local-current`
