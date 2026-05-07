@@ -84,6 +84,10 @@ export function createProjectStatusTool(ctx: PluginContext) {
         reviewPolicy: workflow.reviewPolicy ?? "human",
         roleExecution: workflow.roleExecution ?? ExecutionMode.PARALLEL,
         testPhase: hasTestPhase,
+        delivery: {
+          promotion: workflow.delivery?.promotion?.policy ?? "skip",
+          acceptance: workflow.delivery?.acceptance?.policy ?? "skip",
+        },
         stateFlow: Object.entries(workflow.states)
           .map(([, s]) => s.label)
           .join(" → "),
