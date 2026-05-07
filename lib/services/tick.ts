@@ -120,46 +120,51 @@ export async function projectTick(opts: {
       continue;
     }
 
-    // Review policy gate: fallback for issues dispatched before step routing labels existed
-    if (role === "reviewer") {
-      const policy = workflow.reviewPolicy ?? ReviewPolicy.HUMAN;
-      if (policy === ReviewPolicy.HUMAN) {
-        skipped.push({ role, reason: "Review policy: human (heartbeat handles via PR polling)" });
-        continue;
-      }
-      if (policy === ReviewPolicy.SKIP) {
-        skipped.push({ role, reason: "Review policy: skip (heartbeat handles via review-skip pass)" });
-        continue;
-      }
-    }
-
-    // Test policy gate: fallback for issues dispatched before test routing labels existed
-    if (role === "tester") {
-      const policy = workflow.testPolicy ?? TestPolicy.SKIP;
-      if (policy === TestPolicy.SKIP) {
-        skipped.push({ role, reason: "Test policy: skip (heartbeat handles via test-skip pass)" });
-        continue;
-      }
-    }
-
     const next = await findNextIssueForRole(provider, role, workflow, instanceName);
     if (!next) continue;
 
     const { issue, label: currentLabel } = next;
     const targetLabel = getActiveLabel(workflow, role);
 
-    // Step routing: check for review:human / review:skip / test:skip labels
+    // Fallback policy gates for legacy issues that predate routing labels.
+    if (role === "reviewer" && currentLabel !== workflow.states[workflow.delivery?.promotion?.queueState ?? ""]?.label) {
+      const reviewRouting = detectStepRouting(issue.labels, "review");
+      const policy = workflow.reviewPolicy ?? ReviewPolicy.HUMAN;
+      if (!reviewRouting && (policy === ReviewPolicy.HUMAN || policy === ReviewPolicy.SKIP)) {
+        skipped.push({ role, reason: `Review policy: ${policy}` });
+        continue;
+      }
+    }
+
+    if (role === "tester" && currentLabel !== workflow.states[workflow.delivery?.acceptance?.queueState ?? ""]?.label) {
+      const testRouting = detectStepRouting(issue.labels, "test");
+      const policy = workflow.testPolicy ?? TestPolicy.SKIP;
+      if (!testRouting && policy === TestPolicy.SKIP) {
+        skipped.push({ role, reason: "Test policy: skip" });
+        continue;
+      }
+    }
+
+    // Step routing: check for human/skip routing labels on queue phases
     if (role === "reviewer") {
-      const routing = detectStepRouting(issue.labels, "review");
+      const reviewRouting = detectStepRouting(issue.labels, "review");
+      const promotionRouting = currentLabel === workflow.states[workflow.delivery?.promotion?.queueState ?? ""]?.label
+        ? detectStepRouting(issue.labels, "promotion")
+        : null;
+      const routing = promotionRouting ?? reviewRouting;
       if (routing === "human" || routing === "skip") {
-        skipped.push({ role, reason: `review:${routing} label` });
+        skipped.push({ role, reason: `${promotionRouting ? "promotion" : "review"}:${routing} label` });
         continue;
       }
     }
     if (role === "tester") {
-      const routing = detectStepRouting(issue.labels, "test");
-      if (routing === "skip") {
-        skipped.push({ role, reason: "test:skip label" });
+      const testRouting = detectStepRouting(issue.labels, "test");
+      const acceptanceRouting = currentLabel === workflow.states[workflow.delivery?.acceptance?.queueState ?? ""]?.label
+        ? detectStepRouting(issue.labels, "acceptance")
+        : null;
+      const routing = acceptanceRouting ?? testRouting;
+      if (routing === "human" || routing === "skip") {
+        skipped.push({ role, reason: `${acceptanceRouting ? "acceptance" : "test"}:${routing} label` });
         continue;
       }
     }

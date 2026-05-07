@@ -22,6 +22,7 @@ import {
   performReviewPass,
   performReviewSkipPass,
   performTestSkipPass,
+  performDeliveryPass,
 } from "./passes.js";
 
 // ---------------------------------------------------------------------------
@@ -35,6 +36,7 @@ export type TickResult = {
   totalReviewTransitions: number;
   totalReviewSkipTransitions: number;
   totalTestSkipTransitions: number;
+  totalDeliveryTransitions: number;
 };
 
 // ---------------------------------------------------------------------------
@@ -68,6 +70,7 @@ export async function tick(opts: {
       totalReviewTransitions: 0,
       totalReviewSkipTransitions: 0,
       totalTestSkipTransitions: 0,
+      totalDeliveryTransitions: 0,
     };
   }
 
@@ -78,6 +81,7 @@ export async function tick(opts: {
     totalReviewTransitions: 0,
     totalReviewSkipTransitions: 0,
     totalTestSkipTransitions: 0,
+    totalDeliveryTransitions: 0,
   };
 
   const projectExecution =
@@ -123,6 +127,11 @@ export async function tick(opts: {
 
       // Test skip pass: auto-transition test:skip issues through the test queue
       result.totalTestSkipTransitions += await performTestSkipPass(
+        workspaceDir, slug, provider, resolvedConfig,
+      );
+
+      // Delivery pass: auto-transition skipped or human-completed promotion/acceptance queues
+      result.totalDeliveryTransitions += await performDeliveryPass(
         workspaceDir, slug, provider, resolvedConfig,
       );
 
@@ -173,6 +182,7 @@ export async function tick(opts: {
     reviewTransitions: result.totalReviewTransitions,
     reviewSkipTransitions: result.totalReviewSkipTransitions,
     testSkipTransitions: result.totalTestSkipTransitions,
+    deliveryTransitions: result.totalDeliveryTransitions,
     pickups: result.totalPickups,
     skipped: result.totalSkipped,
   });

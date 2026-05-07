@@ -33,6 +33,20 @@ export const TestPolicy = {
 } as const;
 export type TestPolicy = (typeof TestPolicy)[keyof typeof TestPolicy];
 
+/** Delivery-phase policy for promotion/acceptance routing. */
+export const DeliveryPolicy = {
+  HUMAN: "human",
+  AGENT: "agent",
+  SKIP: "skip",
+} as const;
+export type DeliveryPolicy = (typeof DeliveryPolicy)[keyof typeof DeliveryPolicy];
+
+export const DeliveryPhase = {
+  PROMOTION: "promotion",
+  ACCEPTANCE: "acceptance",
+} as const;
+export type DeliveryPhase = (typeof DeliveryPhase)[keyof typeof DeliveryPhase];
+
 /** Role identifier. Built-in: "developer", "tester", "architect". Extensible via config. */
 export type Role = string;
 /** Action identifier. Built-in actions listed in `Action`; custom actions are also valid strings. */
@@ -60,6 +74,9 @@ export const WorkflowEvent = {
   COMPLETE: "COMPLETE",
   REVIEW: "REVIEW",
   APPROVED: "APPROVED",
+  PROMOTED: "PROMOTED",
+  ACCEPTED: "ACCEPTED",
+  DEMOTED: "DEMOTED",
   MERGE_FAILED: "MERGE_FAILED",
   CHANGES_REQUESTED: "CHANGES_REQUESTED",
   MERGE_CONFLICT: "MERGE_CONFLICT",
@@ -94,6 +111,18 @@ export type WorkflowConfig = {
   initial: string;
   reviewPolicy?: ReviewPolicy;
   testPolicy?: TestPolicy;
+  delivery?: {
+    promotion?: {
+      policy?: DeliveryPolicy;
+      queueState?: string;
+      activeState?: string;
+    };
+    acceptance?: {
+      policy?: DeliveryPolicy;
+      queueState?: string;
+      activeState?: string;
+    };
+  };
   roleExecution?: ExecutionMode;
   /** Default max workers per level across all roles. Default: 2. */
   maxWorkersPerLevel?: number;

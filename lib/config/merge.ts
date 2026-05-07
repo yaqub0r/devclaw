@@ -48,6 +48,18 @@ export function mergeConfig(
       initial: overlay.workflow?.initial ?? base.workflow?.initial,
       reviewPolicy: overlay.workflow?.reviewPolicy ?? base.workflow?.reviewPolicy,
       testPolicy: overlay.workflow?.testPolicy ?? base.workflow?.testPolicy,
+      delivery: base.workflow?.delivery || overlay.workflow?.delivery
+        ? {
+            promotion: {
+              ...base.workflow?.delivery?.promotion,
+              ...overlay.workflow?.delivery?.promotion,
+            },
+            acceptance: {
+              ...base.workflow?.delivery?.acceptance,
+              ...overlay.workflow?.delivery?.acceptance,
+            },
+          }
+        : undefined,
       roleExecution: overlay.workflow?.roleExecution ?? base.workflow?.roleExecution,
       maxWorkersPerLevel: overlay.workflow?.maxWorkersPerLevel ?? base.workflow?.maxWorkersPerLevel,
       states: {

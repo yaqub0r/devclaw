@@ -30,10 +30,20 @@ const StateConfigSchema = z.object({
   on: z.record(z.string(), TransitionTargetSchema).optional(),
 });
 
+const DeliveryPhaseSchema = z.object({
+  policy: z.enum(["human", "agent", "skip"]).optional(),
+  queueState: z.string().optional(),
+  activeState: z.string().optional(),
+}).optional();
+
 const WorkflowConfigSchema = z.object({
   initial: z.string(),
   reviewPolicy: z.enum(["human", "agent", "skip"]).optional(),
   testPolicy: z.enum(["skip", "agent"]).optional(),
+  delivery: z.object({
+    promotion: DeliveryPhaseSchema,
+    acceptance: DeliveryPhaseSchema,
+  }).optional(),
   roleExecution: z.enum(["parallel", "sequential"]).optional(),
   maxWorkersPerLevel: z.number().int().positive().optional(),
   states: z.record(z.string(), StateConfigSchema),
@@ -95,7 +105,7 @@ export function validateConfig(raw: unknown): void {
  * - Terminal states have no outgoing transitions
  */
 export function validateWorkflowIntegrity(
-  workflow: { initial: string; states: Record<string, { type: string; role?: string; on?: Record<string, unknown> }> },
+  workflow: { initial: string; delivery?: { promotion?: { queueState?: string; activeState?: string }; acceptance?: { queueState?: string; activeState?: string } }; states: Record<string, { type: string; role?: string; on?: Record<string, unknown> }> },
 ): string[] {
   const errors: string[] = [];
   const stateKeys = new Set(Object.keys(workflow.states));
@@ -103,6 +113,24 @@ export function validateWorkflowIntegrity(
   if (!stateKeys.has(workflow.initial)) {
     errors.push(`Initial state "${workflow.initial}" does not exist in states`);
   }
+
+  const validateDeliveryRef = (phase: "promotion" | "acceptance", stateKind: "queueState" | "activeState", value?: string) => {
+    if (!value) return;
+    if (!stateKeys.has(value)) {
+      errors.push(`workflow.delivery.${phase}.${stateKind} references non-existent state "${value}"`);
+      return;
+    }
+    const state = workflow.states[value];
+    const expectedType = stateKind === "queueState" ? StateType.QUEUE : StateType.ACTIVE;
+    if (state?.type !== expectedType) {
+      errors.push(`workflow.delivery.${phase}.${stateKind} must reference a ${expectedType} state`);
+    }
+  };
+
+  validateDeliveryRef("promotion", "queueState", workflow.delivery?.promotion?.queueState);
+  validateDeliveryRef("promotion", "activeState", workflow.delivery?.promotion?.activeState);
+  validateDeliveryRef("acceptance", "queueState", workflow.delivery?.acceptance?.queueState);
+  validateDeliveryRef("acceptance", "activeState", workflow.delivery?.acceptance?.activeState);
 
   for (const [key, state] of Object.entries(workflow.states)) {
     if (state.type === StateType.QUEUE && !state.role) {

@@ -20,6 +20,11 @@ import {
   getNextStateDescription,
   getCompletionEmoji,
   resolveNotifyChannel,
+  findStateKeyByLabel,
+  getDeliveryPhaseConfig,
+  getDeliveryPhaseForLabel,
+  recordPromotedCandidate,
+  markCandidateStatus,
   type CompletionRule,
   type WorkflowConfig,
 } from "../workflow/index.js";
@@ -274,6 +279,9 @@ export async function executeCompletion(opts: {
   // Then execute post-transition actions (close/reopen)
   // Finally deactivate worker (last — ensures label is set even if deactivation fails)
   const transitionedTo = rule.to as StateLabel;
+  const toStateKey = findStateKeyByLabel(workflow, transitionedTo);
+  const toPhase = getDeliveryPhaseForLabel(workflow, transitionedTo);
+  const fromPhase = getDeliveryPhaseForLabel(workflow, rule.from);
   if (transitionedTo === "Refining") {
     await provider.addComment(issueId, buildRefiningHoldComment({
       role,
@@ -285,6 +293,25 @@ export async function executeCompletion(opts: {
     }));
   }
   await provider.transitionLabel(issueId, rule.from as StateLabel, transitionedTo);
+
+  if (toPhase === "acceptance" && toStateKey && toStateKey === getDeliveryPhaseConfig(workflow, "acceptance")?.queueState) {
+    await recordPromotedCandidate({
+      provider,
+      issueId,
+      repoPath,
+      runCommand: rc,
+      prUrl,
+      targetHint: transitionedTo,
+    }).catch(() => {});
+  }
+
+  if (toStateKey === "done" && fromPhase === "acceptance") {
+    await markCandidateStatus({ provider, issueId, status: "accepted", reason: summary }).catch(() => {});
+  }
+
+  if ((toStateKey === "toImprove" || toStateKey === "refining") && (fromPhase === "promotion" || fromPhase === "acceptance")) {
+    await markCandidateStatus({ provider, issueId, status: "invalidated", reason: summary }).catch(() => {});
+  }
 
   await recordLoopDiagnostic(workspaceDir, "work_finish_transition", {
     project: projectName,
