@@ -8,7 +8,7 @@ import {
   StateType,
   WorkflowEvent,
 } from "./types.js";
-import { getActiveLabel, findStateKeyByLabel, findStateByLabel } from "./queries.js";
+import { getActiveLabel, findStateKeyByLabel, findStateByLabel, getActiveLabelForQueueLabel } from "./queries.js";
 
 /**
  * Map completion result to workflow transition event name.
@@ -27,13 +27,29 @@ export function getCompletionRule(
   workflow: WorkflowConfig,
   role: Role,
   result: string,
+  currentLabel?: string | null,
 ): CompletionRule | null {
   const event = resultToEvent(result);
 
   let activeLabel: string;
   try {
-    activeLabel = getActiveLabel(workflow, role);
-  } catch { return null; }
+    if (currentLabel) {
+      const currentKey = findStateKeyByLabel(workflow, currentLabel);
+      const currentState = currentKey ? workflow.states[currentKey] : null;
+      if (currentState?.type === StateType.ACTIVE && currentState.role === role) {
+        activeLabel = currentLabel;
+      } else {
+        activeLabel = getActiveLabelForQueueLabel(workflow, role, currentLabel);
+      }
+    } else {
+      activeLabel = getActiveLabel(workflow, role);
+    }
+  } catch {
+    if (!currentLabel) return null;
+    try {
+      activeLabel = getActiveLabel(workflow, role);
+    } catch { return null; }
+  }
 
   const activeKey = findStateKeyByLabel(workflow, activeLabel);
   if (!activeKey) return null;
@@ -63,8 +79,9 @@ export function getNextStateDescription(
   workflow: WorkflowConfig,
   role: Role,
   result: string,
+  currentLabel?: string | null,
 ): string {
-  const rule = getCompletionRule(workflow, role, result);
+  const rule = getCompletionRule(workflow, role, result, currentLabel);
   if (!rule) return "";
 
   const targetState = findStateByLabel(workflow, rule.to);
