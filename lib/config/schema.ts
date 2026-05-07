@@ -122,8 +122,13 @@ export function validateWorkflowIntegrity(
     }
     const state = workflow.states[value];
     const expectedType = stateKind === "queueState" ? StateType.QUEUE : StateType.ACTIVE;
+    const expectedRole = phase === "promotion" ? "reviewer" : "tester";
     if (state?.type !== expectedType) {
       errors.push(`workflow.delivery.${phase}.${stateKind} must reference a ${expectedType} state`);
+      return;
+    }
+    if (state.role !== expectedRole) {
+      errors.push(`workflow.delivery.${phase}.${stateKind} must reference a ${expectedRole} ${expectedType} state`);
     }
   };
 

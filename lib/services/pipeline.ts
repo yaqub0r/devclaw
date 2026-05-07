@@ -295,7 +295,7 @@ export async function executeCompletion(opts: {
   }
   await provider.transitionLabel(issueId, rule.from as StateLabel, transitionedTo);
 
-  if (fromPhase === "promotion" && result === "done") {
+  if (fromPhase === "promotion" && toPhase === "acceptance") {
     await recordPromotedCandidate({
       provider,
       issueId,

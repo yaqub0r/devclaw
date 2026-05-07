@@ -3,7 +3,8 @@ import assert from "node:assert";
 import { createTestHarness, type TestHarness } from "../testing/index.js";
 import { projectTick } from "./tick.js";
 import { deliveryPass } from "./heartbeat/delivery.js";
-import { DEFAULT_WORKFLOW, getCompletionRule, renderCandidateRecord } from "../workflow/index.js";
+import { DEFAULT_WORKFLOW, getCompletionRule, getCurrentCandidate, renderCandidateRecord } from "../workflow/index.js";
+import { executeCompletion } from "./pipeline.js";
 
 describe("delivery phase routing", () => {
   let h: TestHarness;
@@ -108,6 +109,47 @@ describe("delivery phase routing", () => {
       from: "To Promote",
       to: "To Accept",
     });
+  });
+
+  it("records candidate provenance when agent promotion completes successfully", async () => {
+    h = await createTestHarness();
+    h.provider.seedIssue({
+      iid: 47,
+      title: "Agent promote",
+      labels: ["Promoting", "promotion:agent"],
+    });
+
+    await executeCompletion({
+      workspaceDir: h.workspaceDir,
+      projectSlug: h.project.slug,
+      role: "reviewer",
+      result: "approve",
+      issueId: 47,
+      provider: h.provider,
+      repoPath: h.project.repo,
+      projectName: h.project.name,
+      channels: h.project.channels,
+      workflow: h.workflow,
+      runCommand: async (argv, opts) => {
+        if (argv[0] === "git" && argv[1] === "rev-parse" && argv[2] === "HEAD") {
+          return {
+            stdout: "0123456789abcdef0123456789abcdef01234567\n",
+            stderr: "",
+            code: 0,
+            signal: null,
+            killed: false,
+            termination: "exit",
+          };
+        }
+        return h.runCommand(argv, opts as never);
+      },
+    });
+
+    const candidate = await getCurrentCandidate(h.provider, 47);
+    assert.ok(candidate);
+    assert.strictEqual(candidate?.status, "active");
+    assert.strictEqual(candidate?.commitSha, "0123456789abcdef0123456789abcdef01234567");
+    assert.strictEqual(candidate?.targetHint, "To Accept");
   });
 
   it("advances human-routed acceptance only after the candidate is explicitly accepted", async () => {
