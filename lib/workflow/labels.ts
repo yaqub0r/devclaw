@@ -1,9 +1,8 @@
 /**
  * workflow/labels.ts — Label formatting, detection, and routing helpers.
  */
-import type { WorkflowConfig, ReviewPolicy, TestPolicy } from "./types.js";
-import { ReviewPolicy as RP, TestPolicy as TP } from "./types.js";
-import { getLabelColors } from "./queries.js";
+import type { WorkflowConfig, ReviewPolicy, TestPolicy, DeliveryPolicy } from "./types.js";
+import { ReviewPolicy as RP, TestPolicy as TP, DeliveryPolicy as DP } from "./types.js";
 
 // ---------------------------------------------------------------------------
 // Step routing labels
@@ -20,7 +19,9 @@ export type StepRoutingValue = (typeof StepRouting)[keyof typeof StepRouting];
 /** Known step routing labels (created on the provider during project registration). */
 export const STEP_ROUTING_LABELS: readonly string[] = [
   "review:human", "review:agent", "review:skip",
-  "test:skip",
+  "test:skip", "test:agent",
+  "promotion:human", "promotion:agent", "promotion:skip",
+  "acceptance:human", "acceptance:agent", "acceptance:skip",
 ];
 
 /** Step routing label color. */
@@ -113,6 +114,15 @@ export function resolveTestRouting(
 ): "test:skip" | "test:agent" {
   if (policy === TP.AGENT) return "test:agent";
   return "test:skip";
+}
+
+export function resolveDeliveryRouting(
+  policy: DeliveryPolicy,
+  phase: "promotion" | "acceptance",
+): "promotion:human" | "promotion:agent" | "promotion:skip" | "acceptance:human" | "acceptance:agent" | "acceptance:skip" {
+  if (policy === DP.HUMAN) return `${phase}:human`;
+  if (policy === DP.AGENT) return `${phase}:agent`;
+  return `${phase}:skip`;
 }
 
 // ---------------------------------------------------------------------------

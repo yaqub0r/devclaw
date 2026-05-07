@@ -178,6 +178,16 @@ function resolve(config: DevClawConfig): ResolvedConfig {
     initial: config.workflow?.initial ?? DEFAULT_WORKFLOW.initial,
     reviewPolicy: config.workflow?.reviewPolicy ?? DEFAULT_WORKFLOW.reviewPolicy,
     testPolicy: config.workflow?.testPolicy ?? DEFAULT_WORKFLOW.testPolicy,
+    delivery: {
+      promotion: {
+        ...DEFAULT_WORKFLOW.delivery?.promotion,
+        ...config.workflow?.delivery?.promotion,
+      },
+      acceptance: {
+        ...DEFAULT_WORKFLOW.delivery?.acceptance,
+        ...config.workflow?.delivery?.acceptance,
+      },
+    },
     roleExecution: config.workflow?.roleExecution ?? DEFAULT_WORKFLOW.roleExecution,
     states: { ...DEFAULT_WORKFLOW.states, ...config.workflow?.states },
   };

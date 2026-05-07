@@ -18,7 +18,7 @@ import {
 import { resolveModel } from "../roles/index.js";
 import { notify, getNotificationConfig } from "./notify.js";
 import { loadConfig, type ResolvedRoleConfig } from "../config/index.js";
-import { ReviewPolicy, TestPolicy, resolveReviewRouting, resolveTestRouting, resolveNotifyChannel, isFeedbackState, hasReviewCheck, producesReviewableWork, hasTestPhase, detectOwner, getOwnerLabel, OWNER_LABEL_COLOR, getRoleLabelColor, STEP_ROUTING_COLOR, getStateLabels } from "../workflow/index.js";
+import { ReviewPolicy, TestPolicy, DeliveryPolicy, resolveReviewRouting, resolveTestRouting, resolveDeliveryRouting, resolveNotifyChannel, isFeedbackState, hasReviewCheck, producesReviewableWork, hasTestPhase, hasDeliveryPhase, detectOwner, getOwnerLabel, OWNER_LABEL_COLOR, getRoleLabelColor, STEP_ROUTING_COLOR, getStateLabels } from "../workflow/index.js";
 import { fetchPrFeedback, fetchPrContext, type PrFeedback, type PrContext } from "./pr-context.js";
 import { formatAttachmentsForTask } from "./attachments.js";
 import { loadRoleInstructions } from "./bootstrap-hook.js";
@@ -251,6 +251,26 @@ export async function dispatchTask(
       if (safeTestRouting.length > 0) await provider.removeLabels(issueId, safeTestRouting);
       await provider.ensureLabel(testLabel, STEP_ROUTING_COLOR);
       await provider.addLabel(issueId, testLabel);
+    }
+
+    if (hasDeliveryPhase(workflow, "promotion")) {
+      const promotionPolicy = workflow.delivery?.promotion?.policy ?? DeliveryPolicy.SKIP;
+      const promotionLabel = resolveDeliveryRouting(promotionPolicy, "promotion");
+      const oldPromotionRouting = issue.labels.filter((l) => l.startsWith("promotion:"));
+      const safePromotionRouting = filterNonStateLabels(oldPromotionRouting, stateLabels);
+      if (safePromotionRouting.length > 0) await provider.removeLabels(issueId, safePromotionRouting);
+      await provider.ensureLabel(promotionLabel, STEP_ROUTING_COLOR);
+      await provider.addLabel(issueId, promotionLabel);
+    }
+
+    if (hasDeliveryPhase(workflow, "acceptance")) {
+      const acceptancePolicy = workflow.delivery?.acceptance?.policy ?? DeliveryPolicy.SKIP;
+      const acceptanceLabel = resolveDeliveryRouting(acceptancePolicy, "acceptance");
+      const oldAcceptanceRouting = issue.labels.filter((l) => l.startsWith("acceptance:"));
+      const safeAcceptanceRouting = filterNonStateLabels(oldAcceptanceRouting, stateLabels);
+      if (safeAcceptanceRouting.length > 0) await provider.removeLabels(issueId, safeAcceptanceRouting);
+      await provider.ensureLabel(acceptanceLabel, STEP_ROUTING_COLOR);
+      await provider.addLabel(issueId, acceptanceLabel);
     }
 
     // Apply owner label if issue is unclaimed (auto-claim on pickup)
