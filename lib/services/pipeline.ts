@@ -19,9 +19,9 @@ import {
   getCompletionRule,
   getNextStateDescription,
   getCompletionEmoji,
+  getCurrentStateLabel,
   resolveNotifyChannel,
   findStateKeyByLabel,
-  getDeliveryPhaseConfig,
   getDeliveryPhaseForLabel,
   recordPromotedCandidate,
   markCandidateStatus,
@@ -109,8 +109,9 @@ export function getRule(
   role: string,
   result: string,
   workflow: WorkflowConfig = DEFAULT_WORKFLOW,
+  currentLabel?: string | null,
 ): CompletionRule | undefined {
-  return getCompletionRule(workflow, role, result) ?? undefined;
+  return getCompletionRule(workflow, role, result, currentLabel) ?? undefined;
 }
 
 /**
@@ -152,7 +153,9 @@ export async function executeCompletion(opts: {
   } = opts;
 
   const key = `${role}:${result}`;
-  const rule = getCompletionRule(workflow, role, result);
+  const issue = await provider.getIssue(issueId);
+  const currentLabel = getCurrentStateLabel(issue.labels, workflow);
+  const rule = getCompletionRule(workflow, role, result, currentLabel);
   if (!rule) throw new Error(`No completion rule for ${key}`);
 
   const { timeouts } = await loadConfig(workspaceDir, projectName);
@@ -200,12 +203,10 @@ export async function executeCompletion(opts: {
     }
   }
 
-  // Get issue early (for URL in notification + channel routing)
-  const issue = await provider.getIssue(issueId);
   const notifyTarget = resolveNotifyChannel(issue.labels, channels);
 
   // Get next state description from workflow
-  const nextState = getNextStateDescription(workflow, role, result);
+  const nextState = getNextStateDescription(workflow, role, result, currentLabel);
 
   // Retrieve worker name from project state (best-effort)
   let workerName: string | undefined;
@@ -294,7 +295,7 @@ export async function executeCompletion(opts: {
   }
   await provider.transitionLabel(issueId, rule.from as StateLabel, transitionedTo);
 
-  if (toPhase === "acceptance" && toStateKey && toStateKey === getDeliveryPhaseConfig(workflow, "acceptance")?.queueState) {
+  if (fromPhase === "promotion" && result === "done") {
     await recordPromotedCandidate({
       provider,
       issueId,

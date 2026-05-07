@@ -19,6 +19,7 @@ import {
   ReviewPolicy,
   TestPolicy,
   getActiveLabel,
+  getActiveLabelForQueueLabel,
   type WorkflowConfig,
   type Role,
 } from "../workflow/index.js";
@@ -124,7 +125,7 @@ export async function projectTick(opts: {
     if (!next) continue;
 
     const { issue, label: currentLabel } = next;
-    const targetLabel = getActiveLabel(workflow, role);
+    const targetLabel = getActiveLabelForQueueLabel(workflow, role, currentLabel);
 
     // Fallback policy gates for legacy issues that predate routing labels.
     if (role === "reviewer" && currentLabel !== workflow.states[workflow.delivery?.promotion?.queueState ?? ""]?.label) {

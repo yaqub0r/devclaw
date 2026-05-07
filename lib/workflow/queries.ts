@@ -76,6 +76,32 @@ export function getActiveLabel(workflow: WorkflowConfig, role: Role): string {
 }
 
 /**
+ * Get the active label that a queue label picks up into.
+ */
+export function getActiveLabelForQueueLabel(
+  workflow: WorkflowConfig,
+  role: Role,
+  queueLabel: string,
+): string {
+  const queueStateKey = findStateKeyByLabel(workflow, queueLabel);
+  if (!queueStateKey) throw new Error(`No workflow state for queue label "${queueLabel}"`);
+
+  const queueState = workflow.states[queueStateKey];
+  if (queueState.type !== StateType.QUEUE || queueState.role !== role) {
+    throw new Error(`Label "${queueLabel}" is not a ${role} queue state`);
+  }
+
+  const pickup = queueState.on?.[WorkflowEvent.PICKUP];
+  const targetKey = typeof pickup === "string" ? pickup : pickup?.target;
+  const targetState = targetKey ? workflow.states[targetKey] : null;
+  if (!targetState || targetState.type !== StateType.ACTIVE || targetState.role !== role) {
+    throw new Error(`Queue label "${queueLabel}" does not pick up into an active ${role} state`);
+  }
+
+  return targetState.label;
+}
+
+/**
  * Get the revert label for a role (first queue state for that role).
  */
 export function getRevertLabel(workflow: WorkflowConfig, role: Role): string {
@@ -87,12 +113,34 @@ export function getRevertLabel(workflow: WorkflowConfig, role: Role): string {
   for (const [, state] of Object.entries(workflow.states)) {
     if (state.type !== StateType.QUEUE || state.role !== role) continue;
     const pickup = state.on?.[WorkflowEvent.PICKUP];
-    if (pickup === activeStateKey) {
+    const targetKey = typeof pickup === "string" ? pickup : pickup?.target;
+    if (targetKey === activeStateKey) {
       return state.label;
     }
   }
 
   return getQueueLabels(workflow, role)[0] ?? "";
+}
+
+/**
+ * Get the queue label that leads into a specific active label.
+ */
+export function getQueueLabelForActiveLabel(
+  workflow: WorkflowConfig,
+  role: Role,
+  activeLabel: string,
+): string {
+  const activeStateKey = findStateKeyByLabel(workflow, activeLabel);
+  if (!activeStateKey) throw new Error(`No workflow state for active label "${activeLabel}"`);
+
+  for (const state of Object.values(workflow.states)) {
+    if (state.type !== StateType.QUEUE || state.role !== role) continue;
+    const pickup = state.on?.[WorkflowEvent.PICKUP];
+    const targetKey = typeof pickup === "string" ? pickup : pickup?.target;
+    if (targetKey === activeStateKey) return state.label;
+  }
+
+  throw new Error(`No ${role} queue state picks up into "${activeLabel}"`);
 }
 
 /**
