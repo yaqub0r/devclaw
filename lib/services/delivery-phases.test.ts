@@ -3,7 +3,7 @@ import assert from "node:assert";
 import { createTestHarness, type TestHarness } from "../testing/index.js";
 import { projectTick } from "./tick.js";
 import { deliveryPass } from "./heartbeat/delivery.js";
-import { DEFAULT_WORKFLOW, getCompletionRule } from "../workflow/index.js";
+import { DEFAULT_WORKFLOW, getCompletionRule, renderCandidateRecord } from "../workflow/index.js";
 
 describe("delivery phase routing", () => {
   let h: TestHarness;
@@ -64,7 +64,7 @@ describe("delivery phase routing", () => {
     ]);
   });
 
-  it("records candidate provenance when promotion is human-routed", async () => {
+  it("does not auto-promote human-routed delivery without an explicit candidate record", async () => {
     h = await createTestHarness();
     h.provider.seedIssue({ iid: 44, title: "Human promote", labels: ["To Promote", "promotion:human"] });
 
@@ -77,17 +77,86 @@ describe("delivery phase routing", () => {
       runCommand: h.runCommand,
     });
 
-    assert.strictEqual(transitions, 1);
+    assert.strictEqual(transitions, 0);
+    assert.deepStrictEqual(h.provider.callsTo("transitionLabel"), []);
+  });
 
-    const transitionCalls = h.provider.callsTo("transitionLabel");
-    assert.deepStrictEqual(transitionCalls.at(-1)?.args, {
-      issueId: 44,
+  it("advances human-routed promotion only after an active candidate record exists", async () => {
+    h = await createTestHarness();
+    h.provider.seedIssue({ iid: 45, title: "Human promote", labels: ["To Promote", "promotion:human"] });
+    await h.provider.addComment(45, renderCandidateRecord({
+      issueId: 45,
+      candidateId: "cand-45",
+      commitSha: "abc123",
+      targetHint: "candidate",
+      status: "active",
+      promotedAt: new Date().toISOString(),
+    }));
+
+    const transitions = await deliveryPass({
+      workspaceDir: h.workspaceDir,
+      projectName: h.project.slug,
+      workflow: h.workflow,
+      provider: h.provider,
+      repoPath: h.project.repo,
+      runCommand: h.runCommand,
+    });
+
+    assert.strictEqual(transitions, 1);
+    assert.deepStrictEqual(h.provider.callsTo("transitionLabel").at(-1)?.args, {
+      issueId: 45,
       from: "To Promote",
       to: "To Accept",
     });
+  });
 
-    const comments = await h.provider.listComments(44);
-    assert.match(comments.at(-1)?.body ?? "", /devclaw:candidate-record/);
-    assert.match(comments.at(-1)?.body ?? "", /status: active/);
+  it("advances human-routed acceptance only after the candidate is explicitly accepted", async () => {
+    h = await createTestHarness();
+    h.provider.seedIssue({ iid: 46, title: "Human accept", labels: ["To Accept", "acceptance:human"] });
+    await h.provider.addComment(46, renderCandidateRecord({
+      issueId: 46,
+      candidateId: "cand-46",
+      commitSha: "def456",
+      targetHint: "candidate",
+      status: "active",
+      promotedAt: new Date().toISOString(),
+    }));
+
+    const before = await deliveryPass({
+      workspaceDir: h.workspaceDir,
+      projectName: h.project.slug,
+      workflow: h.workflow,
+      provider: h.provider,
+      repoPath: h.project.repo,
+      runCommand: h.runCommand,
+    });
+
+    assert.strictEqual(before, 0);
+
+    await h.provider.addComment(46, renderCandidateRecord({
+      issueId: 46,
+      candidateId: "cand-46",
+      commitSha: "def456",
+      targetHint: "candidate",
+      status: "accepted",
+      promotedAt: new Date().toISOString(),
+      acceptedAt: new Date().toISOString(),
+    }));
+
+    const after = await deliveryPass({
+      workspaceDir: h.workspaceDir,
+      projectName: h.project.slug,
+      workflow: h.workflow,
+      provider: h.provider,
+      repoPath: h.project.repo,
+      runCommand: h.runCommand,
+    });
+
+    assert.strictEqual(after, 1);
+    assert.deepStrictEqual(h.provider.callsTo("transitionLabel").at(-1)?.args, {
+      issueId: 46,
+      from: "To Accept",
+      to: "Done",
+    });
   });
 });
