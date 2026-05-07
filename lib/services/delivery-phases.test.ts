@@ -3,7 +3,7 @@ import assert from "node:assert";
 import { createTestHarness, type TestHarness } from "../testing/index.js";
 import { projectTick } from "./tick.js";
 import { deliveryPass } from "./heartbeat/delivery.js";
-import { DEFAULT_WORKFLOW, getCompletionRule, renderCandidateRecord } from "../workflow/index.js";
+import { DEFAULT_WORKFLOW, getCompletionRule, renderCandidateDecision, renderCandidateRecord } from "../workflow/index.js";
 
 describe("delivery phase routing", () => {
   let h: TestHarness;
@@ -110,7 +110,7 @@ describe("delivery phase routing", () => {
     });
   });
 
-  it("advances human-routed acceptance only after the candidate is explicitly accepted", async () => {
+  it("advances human-routed acceptance only after a human acceptance decision is recorded", async () => {
     h = await createTestHarness();
     h.provider.seedIssue({ iid: 46, title: "Human accept", labels: ["To Accept", "acceptance:human"] });
     await h.provider.addComment(46, renderCandidateRecord({
@@ -133,14 +133,12 @@ describe("delivery phase routing", () => {
 
     assert.strictEqual(before, 0);
 
-    await h.provider.addComment(46, renderCandidateRecord({
+    await h.provider.addComment(46, renderCandidateDecision({
       issueId: 46,
       candidateId: "cand-46",
-      commitSha: "def456",
-      targetHint: "candidate",
       status: "accepted",
-      promotedAt: new Date().toISOString(),
-      acceptedAt: new Date().toISOString(),
+      decidedAt: new Date().toISOString(),
+      reason: "Operator accepted promoted candidate",
     }));
 
     const after = await deliveryPass({

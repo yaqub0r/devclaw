@@ -2,6 +2,7 @@ import type { IssueProvider, IssueComment } from "../providers/provider.js";
 import type { RunCommand } from "../context.js";
 
 const MARKER = "devclaw:candidate-record";
+const DECISION_MARKER = "devclaw:candidate-decision";
 
 export type CandidateStatus = "active" | "accepted" | "invalidated";
 
@@ -15,6 +16,14 @@ export type CandidateRecord = {
   promotedAt?: string;
   acceptedAt?: string;
   invalidatedAt?: string;
+  reason?: string | null;
+};
+
+export type CandidateDecision = {
+  issueId: number;
+  status: Exclude<CandidateStatus, "active">;
+  candidateId?: string | null;
+  decidedAt: string;
   reason?: string | null;
 };
 
@@ -83,13 +92,52 @@ export function renderCandidateRecord(record: CandidateRecord): string {
   return lines.join("\n");
 }
 
+export function renderCandidateDecision(decision: CandidateDecision): string {
+  const payload = JSON.stringify(decision);
+  const lines = [
+    `<!-- ${DECISION_MARKER} ${payload} -->`,
+    "## DevClaw Candidate Decision",
+    "",
+    `- status: ${decision.status}`,
+    `- candidate: ${decision.candidateId ?? "current"}`,
+  ];
+  if (decision.reason) lines.push(`- reason: ${decision.reason}`);
+  return lines.join("\n");
+}
+
 function findLatestCandidateRecord(comments: IssueComment[]): CandidateRecord | null {
   for (let i = comments.length - 1; i >= 0; i--) {
     const comment = comments[i];
+    const decision = parseCandidateDecision(comment?.body ?? "");
+    if (decision) {
+      const base = findLatestCandidateBase(comments, i - 1, decision.candidateId ?? undefined);
+      if (!base) continue;
+      return applyDecision(base, decision);
+    }
+
     const record = parseCandidateRecord(comment?.body ?? "");
     if (record) return record;
   }
   return null;
+}
+
+function findLatestCandidateBase(comments: IssueComment[], startIndex: number, candidateId?: string): CandidateRecord | null {
+  for (let i = startIndex; i >= 0; i--) {
+    const record = parseCandidateRecord(comments[i]?.body ?? "");
+    if (!record) continue;
+    if (!candidateId || !record.candidateId || record.candidateId === candidateId) return record;
+  }
+  return null;
+}
+
+function applyDecision(record: CandidateRecord, decision: CandidateDecision): CandidateRecord {
+  return {
+    ...record,
+    status: decision.status,
+    acceptedAt: decision.status === "accepted" ? decision.decidedAt : record.acceptedAt,
+    invalidatedAt: decision.status === "invalidated" ? decision.decidedAt : record.invalidatedAt,
+    reason: decision.reason ?? record.reason ?? null,
+  };
 }
 
 function parseCandidateRecord(body: string): CandidateRecord | null {
@@ -97,6 +145,16 @@ function parseCandidateRecord(body: string): CandidateRecord | null {
   if (!match?.[1]) return null;
   try {
     return JSON.parse(match[1]) as CandidateRecord;
+  } catch {
+    return null;
+  }
+}
+
+function parseCandidateDecision(body: string): CandidateDecision | null {
+  const match = body.match(new RegExp(`<!--\\s*${DECISION_MARKER}\\s+(.+?)\\s*-->`));
+  if (!match?.[1]) return null;
+  try {
+    return JSON.parse(match[1]) as CandidateDecision;
   } catch {
     return null;
   }

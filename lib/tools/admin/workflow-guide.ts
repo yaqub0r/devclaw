@@ -141,6 +141,8 @@ workflow:
 ## Routing labels
 - Promotion uses \`promotion:human\`, \`promotion:agent\`, \`promotion:skip\`
 - Acceptance uses \`acceptance:human\`, \`acceptance:agent\`, \`acceptance:skip\`
+- Human-routed promotion waits for an explicit candidate record comment.
+- Human-routed acceptance waits for an explicit candidate decision comment that marks the current candidate as \`accepted\`.
 
 ## Default behavior
 The built-in workflow defines delivery states, but both phases default to \`skip\`. That means older projects remain backward compatible until they opt in.`;
