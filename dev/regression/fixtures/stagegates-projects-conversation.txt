@@ -1,0 +1,6 @@
+[2026-05-07 21:00 UTC] Alex: We should convert the stagegates to projects so each customer flow can use the standard issue pipeline.
+[2026-05-07 21:02 UTC] Bea: Decision: we will keep the old stagegate names in a lookup table during migration.
+[2026-05-07 21:05 UTC] Alex: Action item: Casey should list every existing stagegate and the destination project slug.
+[2026-05-07 21:06 UTC] Casey: Open question: do we need one project per stagegate or should some stagegates collapse into a shared project?
+[2026-05-07 21:09 UTC] Bea: stagegate renewal maps to project renewals.
+[2026-05-07 21:11 UTC] Alex: Risk: a mixed stagegate/project period could confuse routing.

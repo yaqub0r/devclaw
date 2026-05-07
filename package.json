@@ -47,6 +47,7 @@
     "check": "tsc --noEmit",
     "watch": "tsc --noEmit --watch",
     "regression:release": "bash dev/regression/tests/run-all.sh",
+    "test:stagegates-parser": "node --test dev/scripts/parse-stagegates-conversation.test.mjs",
     "prepublishOnly": "npm run build"
   },
   "peerDependencies": {
