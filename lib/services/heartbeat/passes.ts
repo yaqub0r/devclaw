@@ -1,5 +1,5 @@
 /**
- * Heartbeat passes — health, review, review-skip, and test-skip passes.
+ * Heartbeat passes — health, review, review-skip, test-skip, and delivery passes.
  */
 import type { PluginRuntime } from "openclaw/plugin-sdk";
 import type { RunCommand } from "../../context.js";
@@ -13,6 +13,7 @@ import {
 import { reviewPass } from "./review.js";
 import { reviewSkipPass } from "./review-skip.js";
 import { testSkipPass } from "./test-skip.js";
+import { deliveryPass } from "./delivery.js";
 import type { ResolvedConfig } from "../../config/types.js";
 import { resolveNotifyChannel } from "../../workflow/index.js";
 import { notify, getNotificationConfig } from "../../dispatch/notify.js";
@@ -268,6 +269,20 @@ export async function performTestSkipPass(
   resolvedConfig: ResolvedConfig,
 ): Promise<number> {
   return testSkipPass({
+    workspaceDir,
+    projectName: projectSlug,
+    workflow: resolvedConfig.workflow,
+    provider,
+  });
+}
+
+export async function performDeliveryPass(
+  workspaceDir: string,
+  projectSlug: string,
+  provider: import("../../providers/provider.js").IssueProvider,
+  resolvedConfig: ResolvedConfig,
+): Promise<number> {
+  return deliveryPass({
     workspaceDir,
     projectName: projectSlug,
     workflow: resolvedConfig.workflow,

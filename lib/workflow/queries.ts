@@ -5,6 +5,7 @@ import {
   type WorkflowConfig,
   type StateConfig,
   type Role,
+  type DeliveryPhase,
   StateType,
   WorkflowEvent,
 } from "./types.js";
@@ -193,6 +194,33 @@ export function hasTestPhase(workflow: WorkflowConfig): boolean {
   return Object.values(workflow.states).some(
     (s) => s.role === "tester" && s.type === StateType.QUEUE,
   );
+}
+
+export function getDeliveryPhaseConfig(workflow: WorkflowConfig, phase: DeliveryPhase) {
+  return workflow.delivery?.[phase];
+}
+
+export function getDeliveryQueueLabel(workflow: WorkflowConfig, phase: DeliveryPhase): string | null {
+  const key = getDeliveryPhaseConfig(workflow, phase)?.queueState;
+  return key ? workflow.states[key]?.label ?? null : null;
+}
+
+export function getDeliveryActiveLabel(workflow: WorkflowConfig, phase: DeliveryPhase): string | null {
+  const key = getDeliveryPhaseConfig(workflow, phase)?.activeState;
+  return key ? workflow.states[key]?.label ?? null : null;
+}
+
+export function hasDeliveryPhase(workflow: WorkflowConfig, phase: DeliveryPhase): boolean {
+  return getDeliveryQueueLabel(workflow, phase) != null;
+}
+
+export function getDeliveryPhaseForLabel(workflow: WorkflowConfig, label: string): DeliveryPhase | null {
+  for (const phase of ["promotion", "acceptance"] as DeliveryPhase[]) {
+    if (getDeliveryQueueLabel(workflow, phase) === label || getDeliveryActiveLabel(workflow, phase) === label) {
+      return phase;
+    }
+  }
+  return null;
 }
 
 /**

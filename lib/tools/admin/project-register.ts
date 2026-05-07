@@ -284,7 +284,11 @@ export function createProjectRegisterTool(ctx: PluginContext) {
         testPhase: Object.values(resolvedConfig.workflow.states).some(
           (s) => s.role === "tester" && (s.type === "queue" || s.type === "active"),
         ),
-        hint: "The user can change the review policy or enable the test phase — call workflow_guide for the full reference.",
+        delivery: {
+          promotion: resolvedConfig.workflow.delivery?.promotion?.policy ?? "skip",
+          acceptance: resolvedConfig.workflow.delivery?.acceptance?.policy ?? "skip",
+        },
+        hint: "The user can change review, testing, promotion, or acceptance policy — call workflow_guide for the full reference.",
       };
 
       return jsonResult({
