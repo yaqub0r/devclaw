@@ -279,13 +279,17 @@ export async function performTestSkipPass(
 export async function performDeliveryPass(
   workspaceDir: string,
   projectSlug: string,
+  repoPath: string,
   provider: import("../../providers/provider.js").IssueProvider,
   resolvedConfig: ResolvedConfig,
+  runCommand: import("../../context.js").RunCommand,
 ): Promise<number> {
   return deliveryPass({
     workspaceDir,
     projectName: projectSlug,
     workflow: resolvedConfig.workflow,
     provider,
+    repoPath,
+    runCommand,
   });
 }

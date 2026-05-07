@@ -132,7 +132,7 @@ export async function tick(opts: {
 
       // Delivery pass: auto-transition skipped or human-completed promotion/acceptance queues
       result.totalDeliveryTransitions += await performDeliveryPass(
-        workspaceDir, slug, provider, resolvedConfig,
+        workspaceDir, slug, project.repo, provider, resolvedConfig, runCommand,
       );
 
       // Budget check: stop if we've hit the limit

@@ -18,7 +18,7 @@ import { log as auditLog } from "../../audit.js";
 import { DATA_DIR } from "../../setup/migrate-layout.js";
 import { requireWorkspaceDir, resolveChannelId, resolveProject, resolveProvider } from "../helpers.js";
 import { getAllRoleIds, isValidResult, getCompletionResults } from "../../roles/index.js";
-import { loadWorkflow } from "../../workflow/index.js";
+import { getCurrentStateLabel, loadWorkflow } from "../../workflow/index.js";
 
 /**
  * Get the current git branch name.
@@ -261,8 +261,10 @@ export function createWorkFinishTool(ctx: PluginContext) {
 
       const { provider } = await resolveProvider(project, ctx.runCommand);
       const workflow = await loadWorkflow(workspaceDir, project.name);
+      const issue = await provider.getIssue(issueId);
+      const currentLabel = getCurrentStateLabel(issue.labels, workflow);
 
-      if (!getRule(role, result, workflow))
+      if (!getRule(role, result, workflow, currentLabel))
         throw new Error(`Invalid completion: ${role}:${result}`);
 
       const repoPath = resolveRepoPath(project.repo);

@@ -1,10 +1,12 @@
 import type { IssueProvider } from "../../providers/provider.js";
+import type { RunCommand } from "../../context.js";
 import {
   Action,
   StateType,
   WorkflowEvent,
   getCurrentCandidate,
   markCandidateStatus,
+  recordPromotedCandidate,
   type WorkflowConfig,
   type StateConfig,
 } from "../../workflow/index.js";
@@ -16,8 +18,10 @@ export async function deliveryPass(opts: {
   projectName: string;
   workflow: WorkflowConfig;
   provider: IssueProvider;
+  repoPath: string;
+  runCommand: RunCommand;
 }): Promise<number> {
-  const { workspaceDir, projectName, workflow, provider } = opts;
+  const { workspaceDir, projectName, workflow, provider, repoPath, runCommand } = opts;
   let transitions = 0;
 
   for (const [phase, step] of ([
@@ -44,10 +48,19 @@ export async function deliveryPass(opts: {
 
       if (routing === "human") {
         const candidate = await getCurrentCandidate(provider, issue.iid);
-        const candidateSatisfied = phase === "promotion"
-          ? candidate?.status === "active"
-          : candidate?.status === "accepted";
-        if (!candidateSatisfied) continue;
+        if (phase === "promotion") {
+          if (candidate?.status !== "active") {
+            await recordPromotedCandidate({
+              provider,
+              issueId: issue.iid,
+              repoPath,
+              runCommand,
+              targetHint: state.label,
+            }).catch(() => {});
+          }
+        } else if (candidate?.status !== "accepted") {
+          continue;
+        }
       }
 
       const targetKey = typeof transition === "string" ? transition : transition.target;
