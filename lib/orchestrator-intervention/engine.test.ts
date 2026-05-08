@@ -91,6 +91,47 @@ describe("orchestrator intervention engine", () => {
     }
   });
 
+  it("does not auto-queue a refining issue via queue_issue after a blocked hold event", async () => {
+    const h = await createTestHarness();
+    try {
+      const issue = h.provider.seedIssue({ iid: 78, title: "Blocked", labels: ["Refining"] });
+      await upsertInterventionPolicy(h.workspaceDir, h.project.slug, {
+        id: "queue-blocked",
+        title: "Queue blocked issues",
+        mode: "auto",
+        issueId: 78,
+        event: { type: "workflow.hold", result: "blocked" },
+        action: { type: "queue_issue", issueId: 78 },
+      });
+
+      const executions = await recordAndApplyInterventionEvent({
+        workspaceDir: h.workspaceDir,
+        channelId: h.channelId,
+        agentId: "main",
+        project: h.project,
+        workflow: h.workflow,
+        provider: h.provider,
+        issue,
+        runCommand: h.runCommand,
+      }, {
+        eventType: "workflow.hold",
+        issueId: 78,
+        result: "blocked",
+        fromState: "Doing",
+        toState: "Refining",
+        source: "worker",
+      });
+
+      assert.equal(executions[0]?.executed, false);
+      assert.match(executions[0]?.error ?? "", /automatic queue_issue is not allowed from HOLD state/i);
+      const updated = await h.provider.getIssue(78);
+      assert.ok(updated.labels.includes("Refining"));
+      assert.ok(!updated.labels.includes("To Do"));
+    } finally {
+      await h.cleanup();
+    }
+  });
+
   it("creates follow-up issues in the workflow initial hold state, not the first hold state by order", async () => {
     const h = await createTestHarness();
     try {

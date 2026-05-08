@@ -67,4 +67,29 @@ describe("orchestrator_intervention tool", () => {
       await h.cleanup();
     }
   });
+
+  it("rejects auto queue_issue policies for hold events", async () => {
+    const h = await createTestHarness();
+    try {
+      const tool = createOrchestratorInterventionTool(pluginCtx as any)({
+        workspaceDir: h.workspaceDir,
+        messageChannel: "telegram",
+      });
+
+      await assert.rejects(
+        tool.execute("1", {
+          channelId: h.channelId,
+          action: "set_policy",
+          policy: {
+            title: "Queue blocked dev",
+            event: { type: "workflow.hold", role: "developer", result: "blocked" },
+            action: { type: "queue_issue", issueId: 42 },
+          },
+        }),
+        /not allowed for workflow\.hold policies/,
+      );
+    } finally {
+      await h.cleanup();
+    }
+  });
 });

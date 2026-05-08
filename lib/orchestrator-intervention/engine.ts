@@ -195,6 +195,9 @@ async function executePolicyAction(
       if (!currentLabel) throw new Error(`issue #${targetIssueId} has no recognized workflow label`);
       const currentState = findStateByLabel(ctx.workflow, currentLabel);
       if (!currentState) throw new Error(`unknown state for ${currentLabel}`);
+      if (currentState.type === StateType.HOLD) {
+        throw new Error(`automatic queue_issue is not allowed from HOLD state ${currentLabel}; require explicit human restart via task_start(confirmHoldRestart=true)`);
+      }
       const target = resolveTarget(ctx.workflow, currentLabel, currentState);
       if (target.transitioned) {
         await ctx.provider.transitionLabel(targetIssueId, currentLabel, target.targetLabel);
