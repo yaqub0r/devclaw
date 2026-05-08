@@ -7,14 +7,14 @@ import { DEFAULT_WORKFLOW } from "../../workflow/defaults.js";
 describe("task_start", () => {
   it("requires explicit confirmation to restart an issue from Refining", () => {
     assert.throws(
-      () => assertExplicitHoldRestart(42, "Refining", { label: "Refining", type: StateType.HOLD, description: "hold" }, false),
+      () => assertExplicitHoldRestart(42, "Refining", { label: "Refining", type: StateType.HOLD, description: "hold", color: "#000000" }, false),
       /confirmHoldRestart: true/,
     );
   });
 
   it("allows explicit restart from Refining when confirmHoldRestart is true", () => {
     assert.doesNotThrow(() => {
-      assertExplicitHoldRestart(42, "Refining", { label: "Refining", type: StateType.HOLD, description: "hold" }, true);
+      assertExplicitHoldRestart(42, "Refining", { label: "Refining", type: StateType.HOLD, description: "hold", color: "#000000" }, true);
     });
   });
 
