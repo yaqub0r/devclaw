@@ -56,7 +56,14 @@ describe("checkWorkerHealth", () => {
       provider: h.provider,
       sessions: null,
       workflow: h.workflow,
-      runCommand: async () => ({ stdout: "", stderr: "", exitCode: 0 }),
+      runCommand: async () => ({
+        stdout: "",
+        stderr: "",
+        code: 0,
+        signal: null,
+        killed: false,
+        termination: "exit",
+      }),
     });
 
     assert.strictEqual(fixes.length, 1);
