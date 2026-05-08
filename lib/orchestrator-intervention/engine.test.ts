@@ -48,7 +48,7 @@ describe("orchestrator intervention engine", () => {
     }
   });
 
-  it("requeues a refining issue when a hold policy matches", async () => {
+  it("does not auto-requeue a refining issue when a hold policy matches", async () => {
     const h = await createTestHarness();
     try {
       const issue = h.provider.seedIssue({ iid: 77, title: "Blocked", labels: ["Refining"] });
@@ -79,12 +79,13 @@ describe("orchestrator intervention engine", () => {
         source: "worker",
       });
 
-      assert.equal(executions[0]?.executed, true);
+      assert.equal(executions[0]?.executed, false);
+      assert.match(executions[0]?.error ?? "", /not allowed from HOLD state/i);
       const updated = await h.provider.getIssue(77);
-      assert.ok(updated.labels.includes("To Do"));
+      assert.ok(updated.labels.includes("Refining"));
+      assert.ok(!updated.labels.includes("To Do"));
       const comments = await h.provider.listComments(77);
-      assert.equal(comments.length, 1);
-      assert.match(comments[0]!.body, /Requeued after blocked/);
+      assert.equal(comments.length, 0);
     } finally {
       await h.cleanup();
     }

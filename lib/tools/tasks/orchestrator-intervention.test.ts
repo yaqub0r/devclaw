@@ -12,7 +12,7 @@ const pluginCtx = {
 };
 
 describe("orchestrator_intervention tool", () => {
-  it("saves and lists policies", async () => {
+  it("saves and lists safe policies", async () => {
     const h = await createTestHarness();
     try {
       const tool = createOrchestratorInterventionTool(pluginCtx as any)({
@@ -24,9 +24,9 @@ describe("orchestrator_intervention tool", () => {
         channelId: h.channelId,
         action: "set_policy",
         policy: {
-          title: "Requeue blocked dev",
+          title: "Comment on blocked dev",
           event: { type: "workflow.hold", role: "developer", result: "blocked" },
-          action: { type: "requeue", message: "Try again" },
+          action: { type: "comment", message: "Need human decision" },
         },
       });
 
@@ -37,7 +37,32 @@ describe("orchestrator_intervention tool", () => {
 
       const details = listed.details as { policies: Array<{ title: string }> };
       assert.equal(details.policies.length, 1);
-      assert.equal(details.policies[0]?.title, "Requeue blocked dev");
+      assert.equal(details.policies[0]?.title, "Comment on blocked dev");
+    } finally {
+      await h.cleanup();
+    }
+  });
+
+  it("rejects auto requeue policies for hold events", async () => {
+    const h = await createTestHarness();
+    try {
+      const tool = createOrchestratorInterventionTool(pluginCtx as any)({
+        workspaceDir: h.workspaceDir,
+        messageChannel: "telegram",
+      });
+
+      await assert.rejects(
+        tool.execute("1", {
+          channelId: h.channelId,
+          action: "set_policy",
+          policy: {
+            title: "Requeue blocked dev",
+            event: { type: "workflow.hold", role: "developer", result: "blocked" },
+            action: { type: "requeue", message: "Try again" },
+          },
+        }),
+        /not allowed for workflow\.hold policies/,
+      );
     } finally {
       await h.cleanup();
     }
