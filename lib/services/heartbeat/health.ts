@@ -686,13 +686,17 @@ export async function scanOrphanedLabels(opts: {
 
       if (autoFix) {
         try {
-          const revertTarget = await resolveOrphanRevertLabel(
-            provider, issue.iid, role, queueLabel, workflow,
-          );
-          await provider.transitionLabel(issue.iid, activeLabel, revertTarget);
-          fix.fixed = true;
-          fix.labelReverted = `${activeLabel} → ${revertTarget}`;
-          fix.issue.expectedLabel = revertTarget;
+          const liveIssue = await fetchIssue(provider, issue.iid);
+          const liveLabel = liveIssue ? getCurrentStateLabel(liveIssue.labels, workflow) : null;
+          if (liveLabel === activeLabel) {
+            const revertTarget = await resolveOrphanRevertLabel(
+              provider, issue.iid, role, queueLabel, workflow,
+            );
+            await provider.transitionLabel(issue.iid, activeLabel, revertTarget);
+            fix.fixed = true;
+            fix.labelReverted = `${activeLabel} → ${revertTarget}`;
+            fix.issue.expectedLabel = revertTarget;
+          }
         } catch {
           fix.labelRevertFailed = true;
         }

@@ -102,6 +102,37 @@ describe("scanOrphanedLabels", () => {
       });
     });
 
+    it("should not overwrite a live Refining hold when active-label listing is stale", async () => {
+      h.provider.seedIssue({ iid: 42, title: "Blocked task", labels: ["Doing"] });
+
+      const originalListIssuesByLabel = h.provider.listIssuesByLabel.bind(h.provider);
+      h.provider.listIssuesByLabel = async (label: string) => {
+        const issues = await originalListIssuesByLabel(label);
+        const issue = await h.provider.getIssue(42);
+        issue.labels = ["Refining"];
+        return issues.map((candidate) => candidate.iid === 42 ? { ...candidate, labels: ["Doing"] } : candidate);
+      };
+
+      const fixes = await scanOrphanedLabels({
+        workspaceDir: h.workspaceDir,
+        projectSlug: h.project.slug,
+        project: h.project,
+        role: "developer",
+        autoFix: true,
+        provider: h.provider,
+        workflow: h.workflow,
+      });
+
+      assert.strictEqual(fixes.length, 1);
+      assert.strictEqual(fixes[0]!.fixed, false);
+      assert.strictEqual(fixes[0]!.labelReverted, undefined, "Should not requeue after live hold landed");
+
+      const issue = await h.provider.getIssue(42);
+      assert.ok(issue.labels.includes("Refining"), `Expected Refining to be preserved, got: ${issue.labels}`);
+      assert.ok(!issue.labels.includes("To Do"), `Should not requeue blocked issue, got: ${issue.labels}`);
+      assert.strictEqual(h.provider.callsTo("transitionLabel").length, 0, "Should not transition label after hold landed");
+    });
+
     it("should revert to 'To Improve' when issue has open PR (feedback cycle)", async () => {
       h.provider.seedIssue({ iid: 42, title: "Test issue", labels: ["Doing"] });
       h.provider.setPrStatus(42, { state: PrState.OPEN, url: "https://github.com/test/pr/1" });
