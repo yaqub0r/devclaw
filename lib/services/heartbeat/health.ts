@@ -232,6 +232,16 @@ export async function checkWorkerHealth(opts: {
       async function revertLabel(fix: HealthFix, from: StateLabel, to: StateLabel) {
         if (!issueIdNum) return;
         try {
+          const latestIssue = await fetchIssue(provider, issueIdNum);
+          const liveLabel = latestIssue
+            ? getCurrentStateLabel(latestIssue.labels, workflow)
+            : null;
+
+          // Do not overwrite a newer workflow state with a stale health repair.
+          // This specifically protects blocked HOLD transitions like Doing -> Refining
+          // from being clobbered back into queue by a stale heartbeat snapshot.
+          if (liveLabel !== from) return;
+
           await provider.transitionLabel(issueIdNum, from, to);
           await recordLoopDiagnostic(workspaceDir, "health_requeue", {
             project: project.name,
