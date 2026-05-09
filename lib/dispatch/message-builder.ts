@@ -26,6 +26,15 @@ export function buildTaskMessage(opts: {
   resolvedRole?: ResolvedRoleConfig;
   prContext?: PrContext;
   prFeedback?: PrFeedback;
+  checkoutContract?: {
+    targetRef?: string;
+    targetSha?: string;
+    targetBranch?: string;
+    expectedWorktreePath?: string;
+    requiredCleanTree?: boolean;
+    requireIsolatedWorktree?: boolean;
+    decisiveVerdictRequiresMatch?: boolean;
+  };
   /** Pre-formatted attachment context string (from formatAttachmentsForTask) */
   attachmentContext?: string;
 }): string {
@@ -70,7 +79,7 @@ export function buildTaskMessage(opts: {
   if (opts.prContext) parts.push(...formatPrContext(opts.prContext));
   if (opts.prFeedback) {
     parts.push(...formatPrFeedback(opts.prFeedback, baseBranch));
-    
+
     // Defensive warning if branch name is missing (shouldn't happen in practice)
     if (!opts.prFeedback.branchName && opts.prFeedback.reason === "merge_conflict") {
       parts.push(
@@ -83,6 +92,34 @@ export function buildTaskMessage(opts: {
       );
     }
   }
+
+  if (opts.checkoutContract) {
+    const c = opts.checkoutContract;
+    parts.push(...[
+      ``,
+      `## Required Checkout Contract`,
+      `Use an isolated worktree or other clean checkout for decisive validation. Do not trust a shared mutable workspace.`,
+      c.targetBranch ? `- Target branch: \`${c.targetBranch}\`` : undefined,
+      c.expectedWorktreePath ? `- Expected worktree path: \`${c.expectedWorktreePath}\`` : undefined,
+      c.targetRef ? `- Target ref: \`${c.targetRef}\`` : `- Target ref: resolve from the linked PR/base branch before validating`,
+      c.targetSha ? `- Target commit: \`${c.targetSha}\`` : `- Target commit: record the exact commit you validated`,
+      `- Required clean tree: ${c.requiredCleanTree === false ? "recommended" : "yes"}`,
+      `- Required isolated worktree: ${c.requireIsolatedWorktree === false ? "recommended" : "yes"}`,
+      `- Definitive pass/fail or approve/reject only after HEAD matches the target commit and the tree is clean`,
+      ``,
+      `Before giving a decisive verdict, record this provenance in your task_comment or summary:`,
+      `- repo path`,
+      `- worktree path`,
+      `- branch/ref`,
+      `- \`git rev-parse HEAD\``,
+      `- dirty/clean status from \`git status --short\``,
+      c.targetSha ? `- confirmation that HEAD == \`${c.targetSha}\`` : `- the target commit you intended to validate`,
+      ``,
+      `If the expected branch or isolated worktree is missing, stop and report it as a checkout-contract failure instead of continuing in an ambient shared checkout.`,
+      `Refuse a definitive verdict if the checkout is dirty or does not match the target commit. Use work_finish("blocked") if needed.`,
+    ].filter(Boolean) as string[]);
+  }
+
   if (opts.attachmentContext) parts.push(opts.attachmentContext);
 
   parts.push(
