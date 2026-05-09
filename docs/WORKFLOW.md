@@ -366,6 +366,53 @@ These prompts should instruct the tester to always call `task_comment` before `w
 
 ---
 
+## Delivery Phases (optional)
+
+Delivery extends the workflow after technical review and optional testing.
+
+The current built-in phases are:
+- **To Promote / Promoting**
+- **To Accept / Accepting**
+
+These phases are intentionally about **candidate promotion** and **candidate acceptance**, not generic extra testing.
+
+### Important current rule
+
+Release should usually be **human-initiated**. A project may automate parts of release execution, but promotion should not be treated as automatic forward motion just because implementation, review, or testing completed.
+
+### Delivery flow shape
+
+```mermaid
+flowchart TD
+  A[Candidate ready in source lane] --> B{Human initiates promotion?}
+  B -- no --> A
+  B -- yes --> C[Promote candidate from source lane to target lane]
+  C --> D[Record candidate identity and promotion receipt]
+  D --> E[Run lane-specific verification]
+  E --> F{Acceptance decision}
+  F -- accept --> G[Record acceptance receipt]
+  G --> H[Candidate accepted in target lane]
+  F -- reject --> I[Invalidate candidate]
+  I --> J[Demotion or rollback path]
+  F -- refine --> K[Return to refinement or improvement]
+  F -- blocked --> L[Pause for human decision]
+```
+
+### Current implementation versus target contract
+
+Current DevClaw provides the delivery-phase hooks, routing labels, and candidate-provenance plumbing.
+
+The full operator-facing release-agent contract still needs to be layered on top, especially for:
+- project-defined lanes or environments
+- allowed source → target promotion paths
+- proof-of-release receipts
+- shared default acceptance criteria with per-project overrides
+- retry, repeat, and override behavior
+
+For the current design target, see [`dev/design/release-agent-contract.md`](../dev/design/release-agent-contract.md).
+
+---
+
 ## Customizing the Workflow
 
 ### Adding or Modifying States

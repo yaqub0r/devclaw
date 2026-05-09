@@ -136,7 +136,13 @@ workflow:
 - \`activeState\` must point to an active state for the correct role.
 - Promotion should represent candidate promotion, not generic testing.
 - Acceptance should represent acceptance of the promoted candidate.
+- Release should usually be human-initiated, even if parts of execution are automated.
 - Environment-specific deploy mechanics stay in project runbooks, not core workflow semantics.
+
+## Current implementation versus target contract
+- Today, workflow config covers delivery policies and the states they use.
+- The broader release-agent contract still needs project-defined lanes/environments, allowed source → target promotion paths, proof-of-release receipts, shared acceptance defaults, and repeat/override behavior.
+- See \`dev/design/release-agent-contract.md\` in the repo for the current design target.
 
 ## Routing labels
 - Promotion uses \`promotion:human\`, \`promotion:agent\`, \`promotion:skip\`

@@ -164,6 +164,12 @@ The point of the export is to publish local truth, not replace it.
 
 ## Promotion issue requirement
 
+Generic release-agent contract and terminology for promotion, acceptance, proof of release, rollback, and operator initiation now live in:
+
+- `dev/design/release-agent-contract.md`
+
+Use that design doc as the generic model. This runbook remains the DevClaw-specific mapping of that model onto local lanes such as `devclaw-local-dev`, `devclaw-local-current`, live self-hosted validation, and upstream handoff.
+
 Do not promote code to DevClaw official without a local issue that covers the full promotion from start to finish.
 
 That issue is not just "prep". It owns the entire promotion workflow.
