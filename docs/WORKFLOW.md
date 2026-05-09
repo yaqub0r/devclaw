@@ -384,9 +384,10 @@ Release initiation should be **policy-controlled**. Like PR handling, a project 
 
 ```mermaid
 flowchart TD
-  A[Candidate ready in source lane] --> B{Human initiates promotion?}
+  A[Candidate ready in source lane] --> B{Promotion initiated by policy?}
   B -- no --> A
-  B -- yes --> C[Promote candidate from source lane to target lane]
+  B -- human --> C[Promote candidate from source lane to target lane]
+  B -- agent --> C
   C --> D[Record candidate identity and promotion receipt]
   D --> E[Run lane-specific verification]
   E --> F{Acceptance decision}
