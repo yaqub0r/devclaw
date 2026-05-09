@@ -41,6 +41,8 @@ Role prompts are resolved per-project with fallback:
 1. `devclaw/projects/<project>/prompts/<role>.md`
 2. `devclaw/prompts/<role>.md`
 
+There is no separate release-agent prompt file. Promotion uses the reviewer prompt. Acceptance uses the tester prompt.
+
 ### What can go wrong
 
 - Architect calls `work_finish(done)` without creating a task — **no code guard**

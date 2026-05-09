@@ -371,6 +371,7 @@ devclaw/
 ├── workflow.yaml                     (workspace-level workflow overrides)
 ├── prompts/                          (workspace defaults — fallback)
 │   ├── developer.md
+│   ├── reviewer.md
 │   ├── tester.md
 │   └── architect.md
 └── projects/
@@ -378,14 +379,22 @@ devclaw/
     │   ├── workflow.yaml             (project-specific workflow overrides)
     │   └── prompts/
     │       ├── developer.md   "Run npm test before committing. Deploy URL: staging.example.com"
+    │       ├── reviewer.md    "Promotion review rules. Required evidence for candidate signoff."
     │       └── tester.md      "Check OAuth flow. Verify mobile responsiveness."
     └── my-api/
         └── prompts/
             ├── developer.md   "Run cargo test. Follow REST conventions in CONTRIBUTING.md"
+            ├── reviewer.md    "Review API changes and promotion evidence."
             └── tester.md      "Verify all endpoints return correct status codes."
 ```
 
 Deployment steps, test commands, coding standards, acceptance criteria — all injected at dispatch time, per project, per role.
+
+There is no separate `release-agent.md` prompt file today. Delivery phases reuse existing worker roles:
+- promotion / `To Promote` / `Promoting` use the **reviewer** prompt
+- acceptance / `To Accept` / `Accepting` use the **tester** prompt
+
+Release policy and lane semantics belong in workflow/config and runbooks, not only in prompts.
 
 ---
 

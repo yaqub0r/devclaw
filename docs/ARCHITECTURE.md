@@ -546,6 +546,8 @@ sequenceDiagram
 
 The source path is logged for production traceability: `Bootstrap hook: injected developer instructions for project "my-app" from /path/to/prompts/developer.md`.
 
+There is no dedicated release-agent prompt file. Promotion uses the reviewer role prompt, and acceptance uses the tester role prompt.
+
 ## Data flow map
 
 Every piece of data and where it lives:
@@ -757,7 +759,7 @@ See [CONFIGURATION.md](CONFIGURATION.md) for the full reference.
 | Worker state | `<workspace>/devclaw/projects.json` | Per-project worker state |
 | Workflow config (workspace) | `<workspace>/devclaw/workflow.yaml` | Workspace-level role/workflow overrides |
 | Workflow config (project) | `<workspace>/devclaw/projects/<project>/workflow.yaml` | Project-specific overrides |
-| Default role instructions | `<workspace>/devclaw/prompts/<role>.md` | Default `developer.md`, `tester.md`, `architect.md` |
+| Default role instructions | `<workspace>/devclaw/prompts/<role>.md` | Default `developer.md`, `reviewer.md`, `tester.md`, `architect.md` |
 | Project role instructions | `<workspace>/devclaw/projects/<project>/prompts/<role>.md` | Per-project role instruction overrides |
 | Audit log | `<workspace>/devclaw/log/audit.log` | NDJSON event log |
 | Session transcripts | `~/.openclaw/agents/<agent>/sessions/<uuid>.jsonl` | Conversation history per session |

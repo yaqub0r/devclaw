@@ -314,7 +314,13 @@ Each role can have a system prompt file:
 - Workspace default: \`<dataDir>/prompts/<role>.md\`
 - Project override: \`<dataDir>/projects/<name>/prompts/<role>.md\`
 
-If a role has no prompt file, the worker gets a generic system prompt. When enabling a new role (like tester), create its prompt file.`;
+If a role has no prompt file, the worker gets a generic system prompt. When enabling a new role (like tester), create its prompt file.
+
+There is no separate release-agent prompt file today. Delivery phases reuse existing roles:
+- promotion uses the reviewer prompt
+- acceptance uses the tester prompt
+
+Keep release lanes, routing policy, and proof requirements in workflow/config and runbooks, not only in prompt text.`;
 }
 
 function buildReviewSection(): string {

@@ -412,6 +412,16 @@ Projects define:
 
 For the operator-facing contract, see [`dev/design/release-agent-contract.md`](../dev/design/release-agent-contract.md).
 
+### Prompt files for delivery phases
+
+There is no separate `release-agent.md` prompt file today.
+
+Delivery phases reuse existing worker roles:
+- **promotion** uses the reviewer role and therefore `prompts/reviewer.md`
+- **acceptance** uses the tester role and therefore `prompts/tester.md`
+
+Put role-specific execution instructions in those prompt files. Put lane definitions, routing policy, and release proof requirements in workflow/config and project runbooks.
+
 ---
 
 ## Customizing the Workflow
