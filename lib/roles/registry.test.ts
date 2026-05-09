@@ -33,6 +33,7 @@ describe("role registry", () => {
     assert.ok(ids.includes("tester"));
     assert.ok(ids.includes("architect"));
     assert.ok(ids.includes("reviewer"));
+    assert.ok(ids.includes("deployer"));
   });
 
   it("should validate role IDs", () => {
@@ -40,6 +41,7 @@ describe("role registry", () => {
     assert.strictEqual(isValidRole("tester"), true);
     assert.strictEqual(isValidRole("architect"), true);
     assert.strictEqual(isValidRole("reviewer"), true);
+    assert.strictEqual(isValidRole("deployer"), true);
     assert.strictEqual(isValidRole("nonexistent"), false);
   });
 
@@ -61,6 +63,7 @@ describe("levels", () => {
     assert.deepStrictEqual([...getLevelsForRole("tester")], ["junior", "medior", "senior"]);
     assert.deepStrictEqual([...getLevelsForRole("architect")], ["junior", "senior"]);
     assert.deepStrictEqual([...getLevelsForRole("reviewer")], ["junior", "senior"]);
+    assert.deepStrictEqual([...getLevelsForRole("deployer")], ["junior", "senior"]);
   });
 
   it("should return empty for unknown role", () => {
@@ -133,6 +136,7 @@ describe("models", () => {
     assert.strictEqual(getDefaultModel("developer", "medior"), "anthropic/claude-sonnet-4-5");
     assert.strictEqual(getDefaultModel("tester", "medior"), "anthropic/claude-sonnet-4-5");
     assert.strictEqual(getDefaultModel("architect", "senior"), "anthropic/claude-opus-4-6");
+    assert.strictEqual(getDefaultModel("deployer", "senior"), "anthropic/claude-sonnet-4-5");
   });
 
   it("should return all default models", () => {
@@ -192,6 +196,7 @@ describe("completion results", () => {
     assert.deepStrictEqual([...getCompletionResults("tester")], ["pass", "fail", "refine", "blocked"]);
     assert.deepStrictEqual([...getCompletionResults("architect")], ["done", "blocked"]);
     assert.deepStrictEqual([...getCompletionResults("reviewer")], ["approve", "reject", "blocked"]);
+    assert.deepStrictEqual([...getCompletionResults("deployer")], ["done", "blocked"]);
   });
 
   it("should validate results", () => {
@@ -203,6 +208,8 @@ describe("completion results", () => {
     assert.strictEqual(isValidResult("reviewer", "reject"), true);
     assert.strictEqual(isValidResult("reviewer", "escalate"), false);
     assert.strictEqual(isValidResult("reviewer", "done"), false);
+    assert.strictEqual(isValidResult("deployer", "done"), true);
+    assert.strictEqual(isValidResult("deployer", "approve"), false);
   });
 });
 
@@ -213,6 +220,7 @@ describe("session key pattern", () => {
     assert.ok(pattern.includes("tester"));
     assert.ok(pattern.includes("architect"));
     assert.ok(pattern.includes("reviewer"));
+    assert.ok(pattern.includes("deployer"));
   });
 
   it("should work as regex", () => {
@@ -222,6 +230,7 @@ describe("session key pattern", () => {
     assert.ok(regex.test("tester"));
     assert.ok(regex.test("architect"));
     assert.ok(regex.test("reviewer"));
+    assert.ok(regex.test("deployer"));
     assert.ok(!regex.test("nonexistent"));
   });
 });

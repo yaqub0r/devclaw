@@ -26,6 +26,10 @@ roles:
     models:
       junior: anthropic/claude-haiku-4-5
       senior: anthropic/claude-sonnet-4-5
+  deployer:
+    models:
+      junior: anthropic/claude-haiku-4-5
+      senior: anthropic/claude-sonnet-4-5
 
 workflow:
   initial: planning
@@ -154,7 +158,47 @@ workflow:
       label: Testing
       color: "#9b59b6"
       on:
-        PASS:
+        PASS: toPromote
+        FAIL:
+          target: toImprove
+          actions:
+            - reopenIssue
+        REFINE: refining
+        BLOCKED: refining
+    toPromote:
+      type: queue
+      role: deployer
+      label: To Promote
+      color: "#1d76db"
+      priority: 2
+      on:
+        PICKUP: promoting
+        SKIP: toAccept
+        PROMOTED: toAccept
+        FAIL: toImprove
+        DEMOTED: toImprove
+        BLOCKED: refining
+    promoting:
+      type: active
+      role: deployer
+      label: Promoting
+      color: "#6ea8fe"
+      on:
+        COMPLETE: toAccept
+        BLOCKED: refining
+    toAccept:
+      type: queue
+      role: deployer
+      label: To Accept
+      color: "#20c997"
+      priority: 2
+      on:
+        PICKUP: accepting
+        SKIP:
+          target: done
+          actions:
+            - closeIssue
+        ACCEPTED:
           target: done
           actions:
             - closeIssue
@@ -162,7 +206,22 @@ workflow:
           target: toImprove
           actions:
             - reopenIssue
+        DEMOTED:
+          target: toImprove
+          actions:
+            - reopenIssue
         REFINE: refining
+        BLOCKED: refining
+    accepting:
+      type: active
+      role: deployer
+      label: Accepting
+      color: "#8ce0c4"
+      on:
+        COMPLETE:
+          target: done
+          actions:
+            - closeIssue
         BLOCKED: refining
     done:
       type: terminal
