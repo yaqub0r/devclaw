@@ -196,6 +196,14 @@ Override the project-level policy for a single issue using labels:
 
 **Source:** [`lib/workflow/queries.ts`](../lib/workflow/queries.ts) — `resolveReviewRouting()`
 
+### Reviewer Prompt Configuration
+
+Agent review uses the reviewer role prompt files:
+- Default: `devclaw/prompts/reviewer.md`
+- Per-project: `devclaw/projects/<project>/prompts/reviewer.md`
+
+The same reviewer prompt also governs agent-driven promotion work in `To Promote` / `Promoting`.
+
 ---
 
 ## Test Phase (optional)

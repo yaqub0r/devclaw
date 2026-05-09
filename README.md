@@ -74,7 +74,7 @@ Each project is fully isolated — own queue, workers, sessions, and state. Work
 
 - **[Scheduling engine](#automatic-scheduling)** — `work_heartbeat` continuously scans queues, dispatches workers, and drives DEV → review → DEV [feedback loops](#how-tasks-flow-between-roles)
 - **[Project isolation](#execution-modes)** — parallel workers per project, parallel projects across the system
-- **[Role instructions](#custom-instructions-per-project)** — per-project, per-role prompts injected at dispatch time
+- **[Role instructions](#custom-instructions-per-project)** — per-project, per-role prompts injected via the bootstrap hook
 
 ### Process enforcement
 
@@ -364,7 +364,7 @@ Workers can also comment during work — QA leaves review feedback, DEV posts im
 
 ### Custom instructions per project
 
-Each project gets instruction files that workers receive with every task they pick up:
+Each project gets instruction files that worker sessions load via the `agent:bootstrap` hook:
 
 ```
 devclaw/
@@ -388,7 +388,7 @@ devclaw/
             └── tester.md      "Verify all endpoints return correct status codes."
 ```
 
-Deployment steps, test commands, coding standards, acceptance criteria — all injected at dispatch time, per project, per role.
+Deployment steps, test commands, coding standards, acceptance criteria — all injected into worker sessions from these role prompt files.
 
 There is no separate `release-agent.md` prompt file today. Delivery phases reuse existing worker roles:
 - promotion / `To Promote` / `Promoting` use the **reviewer** prompt
