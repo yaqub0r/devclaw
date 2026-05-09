@@ -202,8 +202,6 @@ Agent review uses the reviewer role prompt files:
 - Default: `devclaw/prompts/reviewer.md`
 - Per-project: `devclaw/projects/<project>/prompts/reviewer.md`
 
-The same reviewer prompt also governs agent-driven promotion work in `To Promote` / `Promoting`.
-
 ---
 
 ## Test Phase (optional)
@@ -422,7 +420,9 @@ For the operator-facing contract, see [`dev/design/release-agent-contract.md`](.
 
 ### Prompt files for delivery phases
 
-The design direction is a dedicated `release.md` prompt surface for release work.
+Release work uses a dedicated `release.md` prompt surface:
+- Default: `devclaw/prompts/release.md`
+- Per-project: `devclaw/projects/<project>/prompts/release.md`
 
 Put release-execution instructions in that prompt surface. Put lane definitions, routing policy, and release proof requirements in workflow/config and project runbooks.
 

@@ -54,7 +54,7 @@ A promotion request identifies at minimum:
 
 ### Prompt surface
 
-Release-agent design uses a dedicated `release.md` prompt surface.
+Release work uses a dedicated `release.md` prompt surface.
 
 That prompt is where release-execution behavior belongs. It is not the source of truth for lanes, routing policy, allowed promotion paths, or proof requirements. Those remain structural workflow/config and runbook concerns.
 

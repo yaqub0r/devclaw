@@ -31,6 +31,7 @@ Instructions injected into the LLM context. The agent *should* follow them but *
 | `devclaw/prompts/developer.md` | Bootstrap hook → `WORKER_INSTRUCTIONS.md` | Work in worktrees, don't merge PR, no closing keywords in PR description |
 | `devclaw/prompts/reviewer.md` | Bootstrap hook → `WORKER_INSTRUCTIONS.md` | Review diff only, call task_comment first, then approve/reject |
 | `devclaw/prompts/tester.md` | Bootstrap hook → `WORKER_INSTRUCTIONS.md` | Run tests, always call task_comment with findings |
+| `devclaw/prompts/release.md` | Bootstrap hook → `WORKER_INSTRUCTIONS.md` | Promotion steps, lane checks, release evidence, rollback handling |
 | `AGENTS.md` | Workspace context file | Orchestrator must never write code, priority ordering, tool restrictions |
 | `SOUL.md` / `IDENTITY.md` | Workspace context file | Personality, communication style |
 | `buildTaskMessage()` | Appended to task message | Mandatory completion block: "you MUST call work_finish" with valid results |
@@ -41,7 +42,7 @@ Role prompts are resolved per-project with fallback:
 1. `devclaw/projects/<project>/prompts/<role>.md`
 2. `devclaw/prompts/<role>.md`
 
-Release-agent design should add a dedicated `release.md` prompt surface.
+Release work uses `release.md` as its dedicated prompt surface.
 
 ### What can go wrong
 

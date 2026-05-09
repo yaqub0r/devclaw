@@ -380,6 +380,7 @@ Each role in the `workers` record has a `WorkerState` object:
 │   │   ├── developer.md           ← Default developer instructions
 │   │   ├── reviewer.md            ← Default reviewer instructions
 │   │   ├── tester.md              ← Default tester instructions
+│   │   ├── release.md             ← Default release instructions
 │   │   └── architect.md           ← Default architect instructions
 │   ├── projects/
 │   │   ├── my-webapp/
@@ -388,12 +389,14 @@ Each role in the `workers` record has a `WorkerState` object:
 │   │   │       ├── developer.md   ← Project-specific developer instructions
 │   │   │       ├── reviewer.md    ← Project-specific reviewer instructions
 │   │   │       ├── tester.md      ← Project-specific tester instructions
+│   │   │       ├── release.md     ← Project-specific release instructions
 │   │   │       └── architect.md   ← Project-specific architect instructions
 │   │   └── another-project/
 │   │       └── prompts/
 │   │           ├── developer.md
 │   │           ├── reviewer.md
-│   │           └── tester.md
+│   │           ├── tester.md
+│   │           └── release.md
 │   └── log/
 │       └── audit.log              ← NDJSON event log (auto-managed)
 ├── AGENTS.md                      ← Agent identity documentation
@@ -404,9 +407,9 @@ Each role in the `workers` record has a `WorkerState` object:
 
 Role instructions are injected into worker sessions via the `agent:bootstrap` hook at session startup. The hook loads instructions from `devclaw/projects/<project>/prompts/<role>.md`, falling back to `devclaw/prompts/<role>.md`.
 
-Edit to customize: deployment steps, test commands, acceptance criteria, coding standards.
+Edit to customize: deployment steps, test commands, acceptance criteria, coding standards, promotion steps, and proof-of-release behavior.
 
-Release-agent design should introduce a dedicated `release.md` prompt surface.
+Release work uses `release.md` as its dedicated prompt surface.
 
 Release lanes, routing policy, and proof requirements belong in workflow/config and runbooks, not only in prompt text.
 

@@ -373,24 +373,27 @@ devclaw/
 │   ├── developer.md
 │   ├── reviewer.md
 │   ├── tester.md
+│   ├── release.md
 │   └── architect.md
 └── projects/
     ├── my-webapp/
     │   ├── workflow.yaml             (project-specific workflow overrides)
     │   └── prompts/
     │       ├── developer.md   "Run npm test before committing. Deploy URL: staging.example.com"
-    │       ├── reviewer.md    "Promotion review rules. Required evidence for candidate signoff."
-    │       └── tester.md      "Check OAuth flow. Verify mobile responsiveness."
+    │       ├── reviewer.md    "Code review rules and PR acceptance policy."
+    │       ├── tester.md      "Check OAuth flow. Verify mobile responsiveness."
+    │       └── release.md     "Promotion steps, lane checks, proof-of-release requirements."
     └── my-api/
         └── prompts/
             ├── developer.md   "Run cargo test. Follow REST conventions in CONTRIBUTING.md"
-            ├── reviewer.md    "Review API changes and promotion evidence."
-            └── tester.md      "Verify all endpoints return correct status codes."
+            ├── reviewer.md    "Review API changes and PR quality."
+            ├── tester.md      "Verify all endpoints return correct status codes."
+            └── release.md     "Promote approved builds between lanes and record evidence."
 ```
 
-Deployment steps, test commands, coding standards, acceptance criteria — all injected into worker sessions from these role prompt files.
+Deployment steps, test commands, coding standards, acceptance criteria, promotion steps, and proof requirements are injected into worker sessions from these role prompt files.
 
-Release-agent design should use a dedicated `release.md` prompt surface rather than treating reviewer/tester prompt reuse as the intended contract.
+Release work uses `release.md` as its dedicated prompt surface.
 
 Release policy, lane semantics, and proof requirements still belong in workflow/config and runbooks, not only in prompts.
 
