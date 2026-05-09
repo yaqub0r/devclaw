@@ -82,9 +82,25 @@ roles:
 
 ### Workflow States
 
-The workflow section defines the state machine for issue lifecycle — states, transitions, review policy, and the optional test phase.
+The workflow section defines the state machine for issue lifecycle — states, transitions, review policy, the optional test phase, and optional delivery policies for promotion and acceptance.
 
-See **[Workflow Reference](WORKFLOW.md)** for the full state machine documentation, including state types, built-in actions, review policy options, and how to enable the test phase.
+See **[Workflow Reference](WORKFLOW.md)** for the full state machine documentation, including state types, built-in actions, review policy options, how to enable the test phase, and the current delivery-phase contract.
+
+### Release configuration
+
+Workflow config expresses at minimum:
+- promotion policy (`skip`, `agent`, `human`)
+- acceptance policy (`skip`, `agent`, `human`)
+- the queue and active states used for those phases
+
+Release-agent configuration should also define:
+- project-defined lane or environment names
+- allowed source → target promotion paths
+- shared default acceptance criteria
+- required release evidence or proof receipts
+- retry and override behavior for repeated promotions
+
+For the operator-facing contract, see [`../dev/design/deployer-contract.md`](../dev/design/deployer-contract.md).
 
 ### Timeouts
 
@@ -362,19 +378,26 @@ Each role in the `workers` record has a `WorkerState` object:
 │   ├── workflow.yaml              ← Workspace-level config overrides
 │   ├── prompts/
 │   │   ├── developer.md           ← Default developer instructions
+│   │   ├── reviewer.md            ← Default reviewer instructions
 │   │   ├── tester.md              ← Default tester instructions
+│   │   ├── deployer.md            ← Default Deployer instructions
 │   │   └── architect.md           ← Default architect instructions
 │   ├── projects/
 │   │   ├── my-webapp/
 │   │   │   ├── workflow.yaml      ← Project-specific config overrides
 │   │   │   └── prompts/
 │   │   │       ├── developer.md   ← Project-specific developer instructions
+│   │   │       ├── reviewer.md    ← Project-specific reviewer instructions
 │   │   │       ├── tester.md      ← Project-specific tester instructions
+│   │   │       ├── deployer.md    ← Project-specific Deployer instructions
 │   │   │       └── architect.md   ← Project-specific architect instructions
 │   │   └── another-project/
 │   │       └── prompts/
 │   │           ├── developer.md
-│   │           └── tester.md
+│   │           ├── reviewer.md
+│   │           ├── tester.md
+│   │           ├── deployer.md
+│   │           └── architect.md
 │   └── log/
 │       └── audit.log              ← NDJSON event log (auto-managed)
 ├── AGENTS.md                      ← Agent identity documentation
@@ -385,7 +408,11 @@ Each role in the `workers` record has a `WorkerState` object:
 
 Role instructions are injected into worker sessions via the `agent:bootstrap` hook at session startup. The hook loads instructions from `devclaw/projects/<project>/prompts/<role>.md`, falling back to `devclaw/prompts/<role>.md`.
 
-Edit to customize: deployment steps, test commands, acceptance criteria, coding standards.
+Edit to customize: deployment steps, test commands, acceptance criteria, coding standards, promotion steps, and proof-of-release behavior.
+
+The Deployer uses `deployer.md` as its dedicated prompt surface.
+
+Release lanes, routing policy, and proof requirements belong in workflow/config and runbooks, not only in prompt text.
 
 **Source:** [`lib/dispatch/bootstrap-hook.ts`](../lib/dispatch/bootstrap-hook.ts)
 

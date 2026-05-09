@@ -31,6 +31,7 @@ Instructions injected into the LLM context. The agent *should* follow them but *
 | `devclaw/prompts/developer.md` | Bootstrap hook → `WORKER_INSTRUCTIONS.md` | Work in worktrees, don't merge PR, no closing keywords in PR description |
 | `devclaw/prompts/reviewer.md` | Bootstrap hook → `WORKER_INSTRUCTIONS.md` | Review diff only, call task_comment first, then approve/reject |
 | `devclaw/prompts/tester.md` | Bootstrap hook → `WORKER_INSTRUCTIONS.md` | Run tests, always call task_comment with findings |
+| `devclaw/prompts/deployer.md` | Bootstrap hook → `WORKER_INSTRUCTIONS.md` | Promotion steps, lane checks, release evidence, rollback handling |
 | `AGENTS.md` | Workspace context file | Orchestrator must never write code, priority ordering, tool restrictions |
 | `SOUL.md` / `IDENTITY.md` | Workspace context file | Personality, communication style |
 | `buildTaskMessage()` | Appended to task message | Mandatory completion block: "you MUST call work_finish" with valid results |
@@ -40,6 +41,8 @@ Instructions injected into the LLM context. The agent *should* follow them but *
 Role prompts are resolved per-project with fallback:
 1. `devclaw/projects/<project>/prompts/<role>.md`
 2. `devclaw/prompts/<role>.md`
+
+The Deployer uses `deployer.md` as its dedicated prompt surface.
 
 ### What can go wrong
 
@@ -115,6 +118,13 @@ Three-layer merge: **built-in defaults → workspace yaml → project yaml**. Va
 | Setting | Default | Effect |
 |---|---|---|
 | `workflow.reviewPolicy` | `human` | `human` / `agent` / `auto` — controls review routing |
+| `workflow.testPolicy` | `skip` | `skip` / `agent` — controls test routing |
+| `workflow.delivery.promotion.policy` | `skip` | `skip` / `agent` / `human` — controls promotion routing |
+| `workflow.delivery.acceptance.policy` | `skip` | `skip` / `agent` / `human` — controls acceptance routing |
+| `workflow.delivery.promotion.queueState` | `toPromote` | Queue state used for promotion |
+| `workflow.delivery.promotion.activeState` | `promoting` | Active state used for promotion |
+| `workflow.delivery.acceptance.queueState` | `toAccept` | Queue state used for acceptance |
+| `workflow.delivery.acceptance.activeState` | `accepting` | Active state used for acceptance |
 | `roles.<role>.models` | Registry defaults | Which model runs at each level |
 | `roles.<role>.levels` | Registry defaults | Available level names |
 | `roles.<role>.completionResults` | Registry defaults | Valid results for `work_finish` |
@@ -131,7 +141,14 @@ Three-layer merge: **built-in defaults → workspace yaml → project yaml**. Va
 | `review:human` | Force human PR review |
 | `review:agent` | Force agent PR review |
 | `review:skip` | Skip review |
+| `test:agent` | Route through tester phase |
 | `test:skip` | Skip test phase |
+| `promotion:human` | Route promotion through human-controlled delivery pass |
+| `promotion:agent` | Route promotion through agent reviewer pickup |
+| `promotion:skip` | Skip promotion and advance on heartbeat |
+| `acceptance:human` | Route acceptance through human-controlled delivery pass |
+| `acceptance:agent` | Route acceptance through agent tester pickup |
+| `acceptance:skip` | Skip acceptance and close on heartbeat |
 
 ---
 
@@ -157,6 +174,18 @@ For issues in review states with `review:human` + eyes marker:
 - Changes requested / has comments → To Improve (developer re-dispatched)
 - Merge conflict → To Improve
 - Merge failure → To Improve
+
+### Delivery pass — promotion and acceptance routing
+
+For issues in delivery queue states:
+- `promotion:agent` → reviewer pickup path (`To Promote` → `Promoting`)
+- `promotion:skip` → heartbeat advances promotion without reviewer pickup
+- `promotion:human` → heartbeat advances only when a current candidate record exists with status `active`
+- `acceptance:agent` → tester pickup path (`To Accept` → `Accepting`)
+- `acceptance:skip` → heartbeat marks the candidate `accepted`, advances, and closes per workflow
+- `acceptance:human` → heartbeat advances only when a current candidate record exists with status `accepted`
+
+The delivery pass uses the configured promotion and acceptance queue states, reads per-issue routing labels, and performs deterministic label transitions plus close/reopen actions from the workflow statechart.
 
 ### Tick pass — queue scanning
 
@@ -190,7 +219,10 @@ GitHub/GitLab settings that DevClaw reads but does not configure.
 | Can't finish with wrong role:result pair | Code (`isValidResult`) | No |
 | Can't run two workers of same role | Code (slot check) | No |
 | Review routing (human/agent/auto) | Code (computed label) | No |
+| Test routing (`test:agent` / `test:skip`) | Code (computed label) | No |
+| Delivery routing (`promotion:*`, `acceptance:*`) | Code (computed label) | No |
 | Auto-merge only for managed issues | Code (eyes reaction filter) | No |
 | Stale worker cleanup | Heartbeat (autonomous) | N/A |
 | PR approval detection | Heartbeat (autonomous) | N/A |
+| Delivery-phase advancement for skip/human routes | Heartbeat (autonomous) | N/A |
 | Branch protection | GitHub/GitLab | N/A |

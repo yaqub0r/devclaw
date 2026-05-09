@@ -22,7 +22,7 @@ export function createWorkflowGuideTool(_ctx: PluginContext) {
       `Reference guide for editing workflow.yaml. ` +
       `Call this BEFORE making any workflow configuration changes. ` +
       `Returns the full config structure, all valid values (enums, free-form fields), ` +
-      `the three-layer override system, and common recipes like enabling the test phase ` +
+      `the three-layer override system, and common recipes like enabling the test or delivery phases ` +
       `or changing the review policy.`,
     parameters: {
       type: "object",
@@ -31,9 +31,9 @@ export function createWorkflowGuideTool(_ctx: PluginContext) {
           type: "string",
           description:
             "Optional: narrow to a specific topic. " +
-            'Options: "overview", "states", "roles", "review", "testing", "timeouts", "overrides". ' +
+            'Options: "overview", "states", "roles", "review", "testing", "delivery", "timeouts", "overrides". ' +
             "Omit for the full guide.",
-          enum: ["overview", "states", "roles", "review", "testing", "timeouts", "overrides"],
+          enum: ["overview", "states", "roles", "review", "testing", "delivery", "timeouts", "overrides"],
         },
       },
     },
@@ -49,6 +49,7 @@ export function createWorkflowGuideTool(_ctx: PluginContext) {
         roles: buildRolesSection(),
         review: buildReviewSection(),
         testing: buildTestingSection(),
+        delivery: buildDeliverySection(),
         timeouts: buildTimeoutsSection(),
         overrides: buildOverridesSection(dataDir),
       };
@@ -105,6 +106,50 @@ workflow:
   reviewPolicy: agent
 \`\`\`
 This changes only the senior developer model and review policy; everything else inherits.`;
+}
+
+function buildDeliverySection(): string {
+  return `# Delivery Phases
+
+Delivery is modeled as two optional workflow phases after testing:
+- **promotion**: candidate promotion into a release lane
+- **acceptance**: acceptance of the promoted candidate
+
+## Delivery config shape
+
+\`\`\`yaml
+workflow:
+  delivery:
+    promotion:
+      policy: skip   # skip | agent | human
+      queueState: toPromote
+      activeState: promoting
+    acceptance:
+      policy: skip   # skip | agent | human
+      queueState: toAccept
+      activeState: accepting
+\`\`\`
+
+## Rules
+- If a delivery phase is omitted or set to \`skip\`, existing projects keep working unchanged.
+- \`queueState\` must point to a queue state for the correct role.
+- \`activeState\` must point to an active state for the correct role.
+- Promotion should represent candidate promotion, not generic testing.
+- Acceptance should represent acceptance of the promoted candidate.
+- Release initiation should be policy-controlled, and may be human- or agent-initiated depending on project policy.
+- Environment-specific deploy mechanics stay in project runbooks, not core workflow semantics.
+
+## Release-agent contract
+- Workflow config covers delivery policies and the states they use.
+- Release-agent config also defines project lanes or environments, allowed source → target promotion paths, proof-of-release receipts, shared acceptance defaults, and repeat or override behavior.
+- See \`dev/design/deployer-contract.md\` in the repo for the operator-facing contract.
+
+## Routing labels
+- Promotion uses \`promotion:human\`, \`promotion:agent\`, \`promotion:skip\`
+- Acceptance uses \`acceptance:human\`, \`acceptance:agent\`, \`acceptance:skip\`
+
+## Default behavior
+The built-in workflow defines delivery states, but both phases default to \`skip\`. That means older projects remain backward compatible until they opt in.`;
 }
 
 function buildStatesSection(): string {
@@ -209,7 +254,7 @@ sync_labels channelId=-100123       # sync one project
 function buildRolesSection(): string {
   return `# Roles Configuration
 
-## Built-in roles (4 defaults — can override or disable)
+## Built-in roles (5 defaults — can override or disable)
 
 | Role       | Default levels          | Default level | Completion results         |
 |-----------|------------------------|---------------|----------------------------|
@@ -217,6 +262,7 @@ function buildRolesSection(): string {
 | \`tester\`   | junior, medior, senior | medior        | pass, fail, refine, blocked|
 | \`architect\` | junior, senior         | junior        | done, blocked              |
 | \`reviewer\`  | junior, senior         | junior        | approve, reject, blocked   |
+| \`deployer\`  | junior, senior         | junior        | done, blocked              |
 
 ## Role config fields
 
@@ -239,6 +285,7 @@ function buildRolesSection(): string {
 
 Architect junior defaults to \`anthropic/claude-sonnet-4-5\`.
 Reviewer senior defaults to \`anthropic/claude-sonnet-4-5\`.
+Deployer senior defaults to \`anthropic/claude-sonnet-4-5\`.
 
 ## Disabling a role
 
@@ -269,7 +316,11 @@ Each role can have a system prompt file:
 - Workspace default: \`<dataDir>/prompts/<role>.md\`
 - Project override: \`<dataDir>/projects/<name>/prompts/<role>.md\`
 
-If a role has no prompt file, the worker gets a generic system prompt. When enabling a new role (like tester), create its prompt file.`;
+If a role has no prompt file, the worker gets a generic system prompt. When enabling a new role (like tester or deployer), create its prompt file.
+
+The Deployer uses a dedicated \`deployer.md\` prompt surface.
+
+Keep release lanes, routing policy, and proof requirements in workflow/config and runbooks, not only in prompt text.`;
 }
 
 function buildReviewSection(): string {

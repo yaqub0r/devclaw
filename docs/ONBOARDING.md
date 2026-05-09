@@ -155,7 +155,7 @@ Go to the Telegram/WhatsApp group for the project and tell the orchestrator agen
 The agent calls `project_register`, which atomically:
 - Validates the repo and auto-detects GitHub/GitLab from remote
 - Creates all state labels (idempotent)
-- Scaffolds role instruction files (`devclaw/projects/<project>/prompts/developer.md`, `tester.md`, `architect.md`)
+- Scaffolds role instruction files (`devclaw/projects/<project>/prompts/developer.md`, `reviewer.md`, `tester.md`, `deployer.md`, `architect.md`)
 - Adds the project entry to `projects.json`
 - Logs the registration event
 
