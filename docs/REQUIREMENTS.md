@@ -30,7 +30,7 @@ DevClaw orchestrates AI development agents across GitHub and GitLab projects. Th
 
 **Layer 2 — Workflow State Machine** controls _when_ work moves. Label-driven state transitions on the issue tracker. Heartbeat scans queues, dispatches workers, handles PR lifecycle. Configured per-workspace or per-project in `workflow.yaml`.
 
-**Layer 3 — Role Prompts** controls _how_ work is done. System-level instructions injected into worker sessions via the bootstrap hook. Per-role (`developer.md`, `reviewer.md`, `tester.md`, `release.md`, `architect.md`) and per-project overrides. Release work uses `release.md` as its dedicated prompt surface.
+**Layer 3 — Role Prompts** controls _how_ work is done. System-level instructions injected into worker sessions via the bootstrap hook. Per-role (`developer.md`, `reviewer.md`, `tester.md`, `deployer.md`, `architect.md`) and per-project overrides. The Deployer uses `deployer.md` as its dedicated prompt surface.
 
 **Layer 4 — Task Instructions** controls _what_ work is done. Built from issue description, comments, PR feedback, attachments. Constructed fresh on each dispatch. Includes mandatory completion instructions (`work_finish` call).
 

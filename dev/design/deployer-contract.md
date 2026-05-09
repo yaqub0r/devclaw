@@ -1,6 +1,6 @@
-# Release agent contract
+# Deployer contract
 
-This document describes the operator-facing contract for the DevClaw release agent.
+This document describes the operator-facing contract for the DevClaw Deployer.
 
 Use it as the manual for how release promotion and acceptance are meant to work.
 
@@ -54,7 +54,7 @@ A promotion request identifies at minimum:
 
 ### Prompt surface
 
-Release work uses a dedicated `release.md` prompt surface.
+The Deployer uses a dedicated `deployer.md` prompt surface.
 
 That prompt is where release-execution behavior belongs. It is not the source of truth for lanes, routing policy, allowed promotion paths, or proof requirements. Those remain structural workflow/config and runbook concerns.
 
@@ -68,7 +68,7 @@ A promoted candidate is tied to an exact identity, such as:
 
 ### 4. Proof of release is mandatory
 
-The release agent proves that it released the intended version.
+The Deployer proves that it released the intended version.
 
 Minimum proof includes:
 - source candidate identity
@@ -136,7 +136,7 @@ The contract defines:
 
 This contract lives primarily in project config and workflow semantics, not only in prompts.
 
-Prompts can explain how a project uses the release agent, but they are not the sole source of truth for:
+Prompts can explain how a project uses the Deployer, but they are not the sole source of truth for:
 - lane names
 - allowed promotion paths
 - acceptance authority
@@ -145,7 +145,7 @@ Prompts can explain how a project uses the release agent, but they are not the s
 
 ## Operator checklist
 
-A usable release-agent project setup defines at least:
+A usable Deployer project setup defines at least:
 - release lanes or environments
 - allowed promotion paths between lanes
 - candidate identity requirements

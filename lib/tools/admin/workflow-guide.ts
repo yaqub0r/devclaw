@@ -142,7 +142,7 @@ workflow:
 ## Release-agent contract
 - Workflow config covers delivery policies and the states they use.
 - Release-agent config also defines project lanes or environments, allowed source → target promotion paths, proof-of-release receipts, shared acceptance defaults, and repeat or override behavior.
-- See \`dev/design/release-agent-contract.md\` in the repo for the operator-facing contract.
+- See \`dev/design/deployer-contract.md\` in the repo for the operator-facing contract.
 
 ## Routing labels
 - Promotion uses \`promotion:human\`, \`promotion:agent\`, \`promotion:skip\`
@@ -316,7 +316,7 @@ Each role can have a system prompt file:
 
 If a role has no prompt file, the worker gets a generic system prompt. When enabling a new role (like tester or release), create its prompt file.
 
-Release work uses a dedicated \`release.md\` prompt surface.
+The Deployer uses a dedicated \`deployer.md\` prompt surface.
 
 Keep release lanes, routing policy, and proof requirements in workflow/config and runbooks, not only in prompt text.`;
 }

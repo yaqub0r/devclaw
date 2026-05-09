@@ -373,7 +373,7 @@ devclaw/
 │   ├── developer.md
 │   ├── reviewer.md
 │   ├── tester.md
-│   ├── release.md
+│   ├── deployer.md
 │   └── architect.md
 └── projects/
     ├── my-webapp/
@@ -382,18 +382,18 @@ devclaw/
     │       ├── developer.md   "Run npm test before committing. Deploy URL: staging.example.com"
     │       ├── reviewer.md    "Code review rules and PR acceptance policy."
     │       ├── tester.md      "Check OAuth flow. Verify mobile responsiveness."
-    │       └── release.md     "Promotion steps, lane checks, proof-of-release requirements."
+    │       └── deployer.md    "Promotion steps, lane checks, proof-of-release requirements."
     └── my-api/
         └── prompts/
             ├── developer.md   "Run cargo test. Follow REST conventions in CONTRIBUTING.md"
             ├── reviewer.md    "Review API changes and PR quality."
             ├── tester.md      "Verify all endpoints return correct status codes."
-            └── release.md     "Promote approved builds between lanes and record evidence."
+            └── deployer.md    "Promote approved builds between lanes and record evidence."
 ```
 
 Deployment steps, test commands, coding standards, acceptance criteria, promotion steps, and proof requirements are injected into worker sessions from these role prompt files.
 
-Release work uses `release.md` as its dedicated prompt surface.
+The Deployer uses `deployer.md` as its dedicated prompt surface.
 
 Release policy, lane semantics, and proof requirements still belong in workflow/config and runbooks, not only in prompts.
 

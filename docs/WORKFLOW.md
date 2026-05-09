@@ -407,7 +407,7 @@ flowchart TD
 
 ### Release-agent contract
 
-Delivery phases work together with the release-agent contract.
+Delivery phases work together with the Deployer contract.
 
 Projects define:
 - lanes or environments
@@ -416,13 +416,13 @@ Projects define:
 - acceptance criteria and authority
 - retry, repeat, and override behavior
 
-For the operator-facing contract, see [`dev/design/release-agent-contract.md`](../dev/design/release-agent-contract.md).
+For the operator-facing contract, see [`dev/design/deployer-contract.md`](../dev/design/deployer-contract.md).
 
 ### Prompt files for delivery phases
 
-Release work uses a dedicated `release.md` prompt surface:
-- Default: `devclaw/prompts/release.md`
-- Per-project: `devclaw/projects/<project>/prompts/release.md`
+The Deployer uses a dedicated `deployer.md` prompt surface:
+- Default: `devclaw/prompts/deployer.md`
+- Per-project: `devclaw/projects/<project>/prompts/deployer.md`
 
 Put release-execution instructions in that prompt surface. Put lane definitions, routing policy, and release proof requirements in workflow/config and project runbooks.
 
