@@ -14,7 +14,7 @@ describe("executeCompletion delivery provenance", () => {
   it("records an active candidate when promotion completes into acceptance", async () => {
     h = await createTestHarness({
       workers: {
-        reviewer: { active: true, issueId: "26", level: "junior" },
+        deployer: { active: true, issueId: "26", level: "junior" },
       },
     });
     h.provider.seedIssue({ iid: 26, title: "Promote PR", labels: ["Promoting"] });
@@ -23,8 +23,8 @@ describe("executeCompletion delivery provenance", () => {
       workspaceDir: h.workspaceDir,
       projectSlug: h.project.slug,
       channels: h.project.channels,
-      role: "reviewer",
-      result: "approve",
+      role: "deployer",
+      result: "done",
       issueId: 26,
       summary: "Promoted candidate",
       provider: h.provider,

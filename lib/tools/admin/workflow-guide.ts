@@ -254,7 +254,7 @@ sync_labels channelId=-100123       # sync one project
 function buildRolesSection(): string {
   return `# Roles Configuration
 
-## Built-in roles (4 defaults — can override or disable)
+## Built-in roles (5 defaults — can override or disable)
 
 | Role       | Default levels          | Default level | Completion results         |
 |-----------|------------------------|---------------|----------------------------|
@@ -262,6 +262,7 @@ function buildRolesSection(): string {
 | \`tester\`   | junior, medior, senior | medior        | pass, fail, refine, blocked|
 | \`architect\` | junior, senior         | junior        | done, blocked              |
 | \`reviewer\`  | junior, senior         | junior        | approve, reject, blocked   |
+| \`deployer\`  | junior, senior         | junior        | done, blocked              |
 
 ## Role config fields
 
@@ -284,6 +285,7 @@ function buildRolesSection(): string {
 
 Architect junior defaults to \`anthropic/claude-sonnet-4-5\`.
 Reviewer senior defaults to \`anthropic/claude-sonnet-4-5\`.
+Deployer senior defaults to \`anthropic/claude-sonnet-4-5\`.
 
 ## Disabling a role
 
@@ -314,7 +316,7 @@ Each role can have a system prompt file:
 - Workspace default: \`<dataDir>/prompts/<role>.md\`
 - Project override: \`<dataDir>/projects/<name>/prompts/<role>.md\`
 
-If a role has no prompt file, the worker gets a generic system prompt. When enabling a new role (like tester or release), create its prompt file.
+If a role has no prompt file, the worker gets a generic system prompt. When enabling a new role (like tester or deployer), create its prompt file.
 
 The Deployer uses a dedicated \`deployer.md\` prompt surface.
 

@@ -52,6 +52,8 @@ function getRefiningCommentPrefix(role: string): string {
       return "👁️ **REVIEWER**";
     case "architect":
       return "🏗️ **ARCHITECT**";
+    case "deployer":
+      return "🚚 **DEPLOYER**";
     default:
       return "🎛️ **ORCHESTRATOR**";
   }

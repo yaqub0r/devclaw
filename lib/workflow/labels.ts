@@ -135,6 +135,7 @@ const ROLE_LABEL_COLORS: Record<string, string> = {
   tester: "#5319e7",
   architect: "#0075ca",
   reviewer: "#d93f0b",
+  deployer: "#1d76db",
 };
 
 /**

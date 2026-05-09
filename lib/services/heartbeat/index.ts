@@ -130,6 +130,7 @@ async function processAllAgents(
     totalReviewTransitions: 0,
     totalReviewSkipTransitions: 0,
     totalTestSkipTransitions: 0,
+    totalDeliveryTransitions: 0,
   };
 
   // Ensure defaults are fresh on every startup (prompts, workflow, etc.)
