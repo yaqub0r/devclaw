@@ -390,11 +390,9 @@ devclaw/
 
 Deployment steps, test commands, coding standards, acceptance criteria — all injected into worker sessions from these role prompt files.
 
-There is no separate `release-agent.md` prompt file today. Delivery phases reuse existing worker roles:
-- promotion / `To Promote` / `Promoting` use the **reviewer** prompt
-- acceptance / `To Accept` / `Accepting` use the **tester** prompt
+Release-agent design should use a dedicated `release.md` prompt surface rather than treating reviewer/tester prompt reuse as the intended contract.
 
-Release policy and lane semantics belong in workflow/config and runbooks, not only in prompts.
+Release policy, lane semantics, and proof requirements still belong in workflow/config and runbooks, not only in prompts.
 
 ---
 

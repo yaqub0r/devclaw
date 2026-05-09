@@ -52,6 +52,12 @@ A promotion request identifies at minimum:
 - the target lane
 - the promotion policy or type
 
+### Prompt surface
+
+Release-agent design uses a dedicated `release.md` prompt surface.
+
+That prompt is where release-execution behavior belongs. It is not the source of truth for lanes, routing policy, allowed promotion paths, or proof requirements. Those remain structural workflow/config and runbook concerns.
+
 ### 3. Candidate identity is mandatory
 
 A promoted candidate is tied to an exact identity, such as:

@@ -546,7 +546,7 @@ sequenceDiagram
 
 The source path is logged for production traceability: `Bootstrap hook: injected developer instructions for project "my-app" from /path/to/prompts/developer.md`.
 
-There is no dedicated release-agent prompt file. Promotion uses the reviewer role prompt, and acceptance uses the tester role prompt.
+Release-agent design should add a dedicated `release.md` prompt surface rather than making reviewer/tester prompt reuse the intended contract.
 
 ## Data flow map
 

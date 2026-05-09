@@ -406,9 +406,7 @@ Role instructions are injected into worker sessions via the `agent:bootstrap` ho
 
 Edit to customize: deployment steps, test commands, acceptance criteria, coding standards.
 
-There is no separate `release-agent.md` prompt file in the current system. Delivery phases reuse existing worker roles:
-- promotion uses `reviewer.md`
-- acceptance uses `tester.md`
+Release-agent design should introduce a dedicated `release.md` prompt surface.
 
 Release lanes, routing policy, and proof requirements belong in workflow/config and runbooks, not only in prompt text.
 
