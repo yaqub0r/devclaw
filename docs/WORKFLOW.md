@@ -399,18 +399,18 @@ flowchart TD
   F -- blocked --> L[Pause for human decision]
 ```
 
-### Current implementation versus target contract
+### Release-agent contract
 
-Current DevClaw provides the delivery-phase hooks, routing labels, and candidate-provenance plumbing.
+Delivery phases work together with the release-agent contract.
 
-The full operator-facing release-agent contract still needs to be layered on top, especially for:
-- project-defined lanes or environments
+Projects define:
+- lanes or environments
 - allowed source → target promotion paths
 - proof-of-release receipts
-- shared default acceptance criteria with per-project overrides
+- acceptance criteria and authority
 - retry, repeat, and override behavior
 
-For the current design target, see [`dev/design/release-agent-contract.md`](../dev/design/release-agent-contract.md).
+For the operator-facing contract, see [`dev/design/release-agent-contract.md`](../dev/design/release-agent-contract.md).
 
 ---
 

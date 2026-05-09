@@ -1,8 +1,8 @@
 # Release agent contract
 
-This document describes the intended operator-facing contract for the DevClaw release agent.
+This document describes the operator-facing contract for the DevClaw release agent.
 
-It is a design target for the next implementation pass. The current codebase already supports delivery-phase hooks such as `To Promote`, `Promoting`, `To Accept`, and `Accepting`, but it does not yet fully implement the contract below.
+Use it as the manual for how release promotion and acceptance are meant to work.
 
 ## Core idea
 
@@ -38,15 +38,15 @@ flowchart TD
 
 ### 1. Lanes are project-defined
 
-Projects should define release lanes or environments structurally in config.
+Projects define release lanes or environments structurally in config.
 
-Examples might be `dev`, `staging`, `production`, `local-current`, or something project-specific, but DevClaw core should not hardcode those names.
+Examples might be `dev`, `staging`, `production`, `local-current`, or something project-specific, but DevClaw core does not hardcode those names.
 
 ### 2. Promotion is source to target
 
-Promotion should mean moving an exact candidate from one named lane to another named lane.
+Promotion means moving an exact candidate from one named lane to another named lane.
 
-A promotion request should at minimum identify:
+A promotion request identifies at minimum:
 - the candidate
 - the source lane
 - the target lane
@@ -54,7 +54,7 @@ A promotion request should at minimum identify:
 
 ### 3. Candidate identity is mandatory
 
-A promoted candidate must be tied to an exact identity, such as:
+A promoted candidate is tied to an exact identity, such as:
 - commit SHA
 - PR URL
 - branch
@@ -62,9 +62,9 @@ A promoted candidate must be tied to an exact identity, such as:
 
 ### 4. Proof of release is mandatory
 
-The release agent must prove that it released the intended version.
+The release agent proves that it released the intended version.
 
-Minimum proof should include:
+Minimum proof includes:
 - source candidate identity
 - source lane
 - target lane
@@ -77,9 +77,9 @@ Core rule:
 
 ### 5. Acceptance is candidate-specific
 
-Acceptance should apply to a specific promoted candidate, not the issue in general.
+Acceptance applies to a specific promoted candidate, not the issue in general.
 
-Acceptance should record:
+Acceptance records:
 - who accepted it
 - where it was accepted
 - what evidence was used
@@ -87,7 +87,7 @@ Acceptance should record:
 
 ### 6. Acceptance defaults should be strong but configurable
 
-Suggested default acceptance criteria:
+Default acceptance criteria:
 - candidate identity present
 - source lane and target lane recorded
 - proof of target state present
@@ -95,7 +95,7 @@ Suggested default acceptance criteria:
 - accepter identity recorded
 - explicit outcome recorded
 
-Projects should be able to override:
+Projects can override:
 - who can accept
 - required evidence
 - required checks
@@ -104,21 +104,21 @@ Projects should be able to override:
 
 ### 7. Acceptance outcomes should be explicit
 
-Suggested standard outcomes:
+Standard outcomes:
 - `accept`
 - `reject`
 - `refine`
 - `blocked`
 
-Rejecting acceptance should invalidate the candidate, not just vaguely reopen the issue.
+Rejecting acceptance invalidates the candidate, not just vaguely reopens the issue.
 
 ### 8. Rollback and demotion must be explicit
 
-If a promoted candidate fails acceptance or later validation, the system should explicitly mark it invalid and record the demotion or rollback path.
+If a promoted candidate fails acceptance or later validation, the system explicitly marks it invalid and records the demotion or rollback path.
 
 ### 9. Preconditions and repeat behavior must be defined
 
-The contract should define:
+The contract defines:
 - what must already be true before promotion is allowed
 - what should happen on repeated promotion attempts
   - no-op
@@ -128,34 +128,23 @@ The contract should define:
 
 ## Config versus prompts
 
-This contract should live primarily in project config and workflow semantics, not only in prompts.
+This contract lives primarily in project config and workflow semantics, not only in prompts.
 
-Prompts can explain how a project uses the release agent, but they should not be the sole source of truth for:
+Prompts can explain how a project uses the release agent, but they are not the sole source of truth for:
 - lane names
 - allowed promotion paths
 - acceptance authority
 - required evidence
 - lane-specific rules
 
-## Current implementation status
+## Operator checklist
 
-Current DevClaw already provides:
-- delivery phases for promotion and acceptance
-- routing policies `human`, `agent`, and `skip`
-- candidate provenance comments
-- role-aware validation for promotion and acceptance states
-
-Current DevClaw does not yet fully provide:
-- operator-defined lanes or environments in config
-- source to target promotion semantics
-- human-initiation UX as a first-class release start rule
-- a strong proof-of-release schema
-- shared default acceptance criteria with easy per-project overrides
-- documented retry and idempotency behavior
-
-## Relationship to existing issues
-
-- `#216` root delivery-phase effort
-- `#217` architect design guidance
-- `#218` first-class delivery-phase implementation
-- `#232` release-agent contract definition
+A usable release-agent project setup defines at least:
+- release lanes or environments
+- allowed promotion paths between lanes
+- candidate identity requirements
+- proof-of-release requirements
+- acceptance authority and outcomes
+- rollback or demotion behavior
+- preconditions for promotion
+- retry and override behavior for repeated promotions

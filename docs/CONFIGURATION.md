@@ -86,21 +86,21 @@ The workflow section defines the state machine for issue lifecycle — states, t
 
 See **[Workflow Reference](WORKFLOW.md)** for the full state machine documentation, including state types, built-in actions, review policy options, how to enable the test phase, and the current delivery-phase contract.
 
-### Delivery configuration today versus planned contract
+### Release configuration
 
-Current workflow config can express:
+Workflow config expresses at minimum:
 - promotion policy (`skip`, `agent`, `human`)
 - acceptance policy (`skip`, `agent`, `human`)
 - the queue and active states used for those phases
 
-Current workflow config does **not** yet fully express the intended operator-facing release contract. In particular, the following are still a design target rather than a finished config surface:
+Release-agent configuration should also define:
 - project-defined lane or environment names
 - allowed source → target promotion paths
 - shared default acceptance criteria
 - required release evidence or proof receipts
 - retry and override behavior for repeated promotions
 
-For the target contract being documented ahead of implementation, see [`../dev/design/release-agent-contract.md`](../dev/design/release-agent-contract.md).
+For the operator-facing contract, see [`../dev/design/release-agent-contract.md`](../dev/design/release-agent-contract.md).
 
 ### Timeouts
 

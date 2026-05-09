@@ -139,10 +139,10 @@ workflow:
 - Release initiation should be policy-controlled, and may be human- or agent-initiated depending on project policy.
 - Environment-specific deploy mechanics stay in project runbooks, not core workflow semantics.
 
-## Current implementation versus target contract
-- Today, workflow config covers delivery policies and the states they use.
-- The broader release-agent contract still needs project-defined lanes/environments, allowed source → target promotion paths, proof-of-release receipts, shared acceptance defaults, and repeat/override behavior.
-- See \`dev/design/release-agent-contract.md\` in the repo for the current design target.
+## Release-agent contract
+- Workflow config covers delivery policies and the states they use.
+- Release-agent config also defines project lanes or environments, allowed source → target promotion paths, proof-of-release receipts, shared acceptance defaults, and repeat or override behavior.
+- See \`dev/design/release-agent-contract.md\` in the repo for the operator-facing contract.
 
 ## Routing labels
 - Promotion uses \`promotion:human\`, \`promotion:agent\`, \`promotion:skip\`
