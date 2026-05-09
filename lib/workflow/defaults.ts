@@ -101,7 +101,7 @@ export const DEFAULT_WORKFLOW: WorkflowConfig = {
     },
     toPromote: {
       type: StateType.QUEUE,
-      role: "reviewer",
+      role: "deployer",
       label: "To Promote",
       color: "#1d76db",
       priority: 2,
@@ -116,18 +116,17 @@ export const DEFAULT_WORKFLOW: WorkflowConfig = {
     },
     promoting: {
       type: StateType.ACTIVE,
-      role: "reviewer",
+      role: "deployer",
       label: "Promoting",
       color: "#6ea8fe",
       on: {
-        [WorkflowEvent.APPROVE]: "toAccept",
-        [WorkflowEvent.REJECT]: "toImprove",
+        [WorkflowEvent.COMPLETE]: "toAccept",
         [WorkflowEvent.BLOCKED]: "refining",
       },
     },
     toAccept: {
       type: StateType.QUEUE,
-      role: "tester",
+      role: "deployer",
       label: "To Accept",
       color: "#20c997",
       priority: 2,
@@ -143,13 +142,11 @@ export const DEFAULT_WORKFLOW: WorkflowConfig = {
     },
     accepting: {
       type: StateType.ACTIVE,
-      role: "tester",
+      role: "deployer",
       label: "Accepting",
       color: "#8ce0c4",
       on: {
-        [WorkflowEvent.PASS]: { target: "done", actions: [Action.CLOSE_ISSUE] },
-        [WorkflowEvent.FAIL]: { target: "toImprove", actions: [Action.REOPEN_ISSUE] },
-        [WorkflowEvent.REFINE]: "refining",
+        [WorkflowEvent.COMPLETE]: { target: "done", actions: [Action.CLOSE_ISSUE] },
         [WorkflowEvent.BLOCKED]: "refining",
       },
     },

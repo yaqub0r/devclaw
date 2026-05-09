@@ -12,9 +12,9 @@ describe("delivery phase routing", () => {
     if (h) await h.cleanup();
   });
 
-  it("derives reviewer/tester completion rules from delivery active states", () => {
-    const promoteRule = getCompletionRule(DEFAULT_WORKFLOW, "reviewer", "approve", "Promoting");
-    const acceptRule = getCompletionRule(DEFAULT_WORKFLOW, "tester", "pass", "Accepting");
+  it("derives deployer completion rules from delivery active states", () => {
+    const promoteRule = getCompletionRule(DEFAULT_WORKFLOW, "deployer", "done", "Promoting");
+    const acceptRule = getCompletionRule(DEFAULT_WORKFLOW, "deployer", "done", "Accepting");
 
     assert.deepStrictEqual(promoteRule, {
       from: "Promoting",
@@ -31,31 +31,32 @@ describe("delivery phase routing", () => {
   it("dispatches delivery queues into their matching active states", async () => {
     h = await createTestHarness({
       workers: {
-        reviewer: { active: false, issueId: null, sessionKey: null },
-        tester: { active: false, issueId: null, sessionKey: null },
+        deployer: { active: false, issueId: null, sessionKey: null },
       },
     });
 
     h.provider.seedIssue({ iid: 42, title: "Promote candidate", labels: ["To Promote", "promotion:agent"] });
     h.provider.seedIssue({ iid: 43, title: "Accept candidate", labels: ["To Accept", "acceptance:agent"] });
 
-    const reviewerTick = await projectTick({
+    const promotionTick = await projectTick({
       workspaceDir: h.workspaceDir,
       projectSlug: h.project.slug,
       provider: h.provider,
-      targetRole: "reviewer",
-      runCommand: h.runCommand,
-    });
-    const testerTick = await projectTick({
-      workspaceDir: h.workspaceDir,
-      projectSlug: h.project.slug,
-      provider: h.provider,
-      targetRole: "tester",
+      targetRole: "deployer",
       runCommand: h.runCommand,
     });
 
-    assert.strictEqual(reviewerTick.pickups.length, 1);
-    assert.strictEqual(testerTick.pickups.length, 1);
+    assert.strictEqual(promotionTick.pickups.length, 1);
+
+    const acceptanceTick = await projectTick({
+      workspaceDir: h.workspaceDir,
+      projectSlug: h.project.slug,
+      provider: h.provider,
+      targetRole: "deployer",
+      runCommand: h.runCommand,
+    });
+
+    assert.strictEqual(acceptanceTick.pickups.length, 1);
 
     const transitions = h.provider.callsTo("transitionLabel");
     assert.deepStrictEqual(transitions.map((call) => call.args), [
