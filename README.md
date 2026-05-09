@@ -382,13 +382,15 @@ devclaw/
     │       ├── developer.md   "Run npm test before committing. Deploy URL: staging.example.com"
     │       ├── reviewer.md    "Code review rules and PR acceptance policy."
     │       ├── tester.md      "Check OAuth flow. Verify mobile responsiveness."
-    │       └── deployer.md    "Promotion steps, lane checks, proof-of-release requirements."
+    │       ├── deployer.md    "Promotion steps, lane checks, proof-of-release requirements."
+    │       └── architect.md   "Research alternatives and create implementation-ready tasks."
     └── my-api/
         └── prompts/
             ├── developer.md   "Run cargo test. Follow REST conventions in CONTRIBUTING.md"
             ├── reviewer.md    "Review API changes and PR quality."
             ├── tester.md      "Verify all endpoints return correct status codes."
-            └── deployer.md    "Promote approved builds between lanes and record evidence."
+            ├── deployer.md    "Promote approved builds between lanes and record evidence."
+            └── architect.md   "Research architecture tradeoffs before implementation."
 ```
 
 Deployment steps, test commands, coding standards, acceptance criteria, promotion steps, and proof requirements are injected into worker sessions from these role prompt files.

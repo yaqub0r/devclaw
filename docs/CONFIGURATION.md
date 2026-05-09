@@ -396,7 +396,8 @@ Each role in the `workers` record has a `WorkerState` object:
 │   │           ├── developer.md
 │   │           ├── reviewer.md
 │   │           ├── tester.md
-│   │           └── deployer.md
+│   │           ├── deployer.md
+│   │           └── architect.md
 │   └── log/
 │       └── audit.log              ← NDJSON event log (auto-managed)
 ├── AGENTS.md                      ← Agent identity documentation
