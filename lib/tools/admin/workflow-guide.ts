@@ -136,7 +136,7 @@ workflow:
 - \`activeState\` must point to an active state for the correct role.
 - Promotion should represent candidate promotion, not generic testing.
 - Acceptance should represent acceptance of the promoted candidate.
-- Release should usually be human-initiated, even if parts of execution are automated.
+- Release initiation should be policy-controlled, and may be human- or agent-initiated depending on project policy.
 - Environment-specific deploy mechanics stay in project runbooks, not core workflow semantics.
 
 ## Current implementation versus target contract

@@ -13,7 +13,7 @@ Release is a distinct process from implementation, review, and testing.
 - Testing answers: does it behave technically as expected?
 - Release answers: should this exact candidate move from one lane to another, and can we prove that it did?
 
-Release should usually be **human-initiated**, even if parts of the execution are automated.
+Release initiation should be **policy-controlled**, not automatic. Like PR handling, it may be human-initiated or agent-initiated depending on project policy.
 
 ## Flow
 

@@ -378,7 +378,7 @@ These phases are intentionally about **candidate promotion** and **candidate acc
 
 ### Important current rule
 
-Release should usually be **human-initiated**. A project may automate parts of release execution, but promotion should not be treated as automatic forward motion just because implementation, review, or testing completed.
+Release initiation should be **policy-controlled**. Like PR handling, a project may choose human or agent initiation, but promotion should not be treated as automatic forward motion just because implementation, review, or testing completed.
 
 ### Delivery flow shape
 
