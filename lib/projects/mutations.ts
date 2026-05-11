@@ -13,7 +13,10 @@ export function getRoleWorker(
   project: Project,
   role: string,
 ): RoleWorkerState {
-  return project.workers[role] ?? { levels: {} };
+  if (!project.workers[role]) {
+    project.workers[role] = { levels: {} };
+  }
+  return project.workers[role]!;
 }
 
 /**

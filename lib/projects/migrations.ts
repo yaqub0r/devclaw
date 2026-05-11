@@ -13,6 +13,7 @@
  */
 
 import type { RoleWorkerState, SlotState, Project, Channel } from "./types.js";
+import { ROLE_REGISTRY } from "../roles/registry.js";
 
 // ---------------------------------------------------------------------------
 // Role aliases — old role IDs → canonical IDs
@@ -229,6 +230,14 @@ export function migrateProject(project: Project): boolean {
     }
   } else {
     project.workers = {};
+    changed = true;
+  }
+
+  for (const role of Object.keys(ROLE_REGISTRY)) {
+    if (!project.workers[role]) {
+      project.workers[role] = { levels: {} };
+      changed = true;
+    }
   }
 
   // Telegram channels: legacy topicId → messageThreadId; drop topicId (canonical field only)

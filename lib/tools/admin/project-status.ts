@@ -12,6 +12,7 @@ import { requireWorkspaceDir, resolveChannelId, resolveProject } from "../helper
 import { ExecutionMode, StateType } from "../../workflow/index.js";
 import { loadConfig } from "../../config/index.js";
 import { loadInstanceName } from "../../instance.js";
+import { getRoleWorker, reconcileSlots } from "../../projects/index.js";
 
 export function createProjectStatusTool(ctx: PluginContext) {
   return (toolCtx: ToolContext) => ({
@@ -61,8 +62,14 @@ export function createProjectStatusTool(ctx: PluginContext) {
         activeSlots: number;
         levels: Record<string, Array<{ active: boolean; issueId: string | null; startTime: string | null }>>;
       }> = {};
-      for (const [role, rw] of Object.entries(project.workers)) {
+      const roles = new Set([
+        ...Object.keys(projectConfig.roles),
+        ...Object.keys(project.workers),
+      ]);
+      for (const role of roles) {
         const levelMaxWorkers = projectConfig.roles[role]?.levelMaxWorkers ?? {};
+        const rw = getRoleWorker(project, role);
+        reconcileSlots(rw, levelMaxWorkers);
         let activeSlots = 0;
         const levels: Record<string, Array<{ active: boolean; issueId: string | null; startTime: string | null }>> = {};
         for (const [level, slots] of Object.entries(rw.levels)) {

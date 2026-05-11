@@ -342,6 +342,45 @@ describe("readProjects migration", () => {
 
     await fs.rm(tmpDir, { recursive: true });
   });
+
+  it("should backfill newly registered roles into existing project worker state", async () => {
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "devclaw-proj-"));
+    const dataDir = path.join(tmpDir, "devclaw");
+    await fs.mkdir(dataDir, { recursive: true });
+
+    const raw = {
+      projects: {
+        p1: {
+          slug: "p1",
+          name: "P1",
+          repo: "~/p1",
+          groupName: "P1",
+          deployUrl: "",
+          baseBranch: "main",
+          deployBranch: "main",
+          channels: [{ channelId: "-100", channel: "telegram", name: "primary", events: ["*"] }],
+          workers: {
+            developer: emptyRoleWorkerState({ junior: 1 }),
+            tester: emptyRoleWorkerState({ junior: 1 }),
+            architect: emptyRoleWorkerState({ senior: 1 }),
+            reviewer: emptyRoleWorkerState({ junior: 1 }),
+          },
+        },
+      },
+    };
+    await fs.writeFile(path.join(dataDir, "projects.json"), JSON.stringify(raw), "utf-8");
+
+    const data = await readProjects(tmpDir);
+    assert.ok(data.projects.p1.workers.deployer, "should backfill deployer worker state");
+    assert.deepStrictEqual(data.projects.p1.workers.deployer.levels, {});
+
+    const disk = JSON.parse(await fs.readFile(path.join(dataDir, "projects.json"), "utf-8")) as {
+      projects: { p1: { workers: Record<string, { levels: Record<string, unknown> }> } };
+    };
+    assert.ok(disk.projects.p1.workers.deployer, "should persist backfilled deployer worker state to disk");
+
+    await fs.rm(tmpDir, { recursive: true });
+  });
 });
 
 describe("per-level slot helpers", () => {
