@@ -3,6 +3,7 @@
  */
 import type { ResolvedRoleConfig } from "../config/index.js";
 import { formatPrContext, formatPrFeedback, type PrContext, type PrFeedback } from "./pr-context.js";
+import { buildBootstrapContractSection } from "./worktree-bootstrap.js";
 import { getFallbackEmoji } from "../roles/index.js";
 
 /**
@@ -84,6 +85,17 @@ export function buildTaskMessage(opts: {
     }
   }
   if (opts.attachmentContext) parts.push(opts.attachmentContext);
+
+  if (role === "developer" || role === "tester") {
+    parts.push(...buildBootstrapContractSection({
+      repo,
+      baseBranch,
+      role,
+      issueId,
+      issueTitle,
+      feedbackBranchName: opts.prFeedback?.branchName,
+    }));
+  }
 
   parts.push(
     ``,

@@ -12,28 +12,27 @@ Read the comments carefully — they often contain clarifications, decisions, or
 
 ## Workflow
 
-### 1. Create a worktree
+### 1. Bootstrap the worker worktree
 
-**NEVER work in the main checkout.** Create a dedicated git worktree as a sibling to the repo:
+**NEVER work in the main checkout.** Use the bootstrap contract from the task message.
 
-```bash
-# Example: repo is at ~/git/myproject
-# Worktree goes to ~/git/myproject.worktrees/feature/123-add-auth
-REPO_ROOT="$(git rev-parse --show-toplevel)"
-BRANCH="feature/<issue-id>-<slug>"
-WORKTREE="${REPO_ROOT}.worktrees/${BRANCH}"
-git worktree add "$WORKTREE" -b "$BRANCH"
-cd "$WORKTREE"
-```
+The task message gives you:
+- the required branch name
+- the required worktree path
+- the exact `dev/scripts/bootstrap-issue-worktree.sh ...` command to run
 
-The `.worktrees/` directory sits NEXT TO the repo folder (not inside it). This keeps the main checkout clean for the orchestrator and other workers. If a worktree already exists from a previous task on the same branch, verify it's clean before reusing it.
+That bootstrap command is the source of truth. Run it before validation. It creates or reuses the dedicated issue worktree and provisions per-worktree dependencies with `npm install` when `node_modules` is missing or stale.
+
+The `.worktrees/` directory sits NEXT TO the repo folder (not inside it). This keeps the main checkout clean for the orchestrator and other workers.
 
 ### 2. Implement the changes
 
 - Read the issue description and comments thoroughly
 - Make the changes described in the issue
 - Follow existing code patterns and conventions in the project
-- Run tests/linting if the project has them configured
+- Run validation from the bootstrapped worktree
+- Required handoff target: `npm run build` must pass
+- Best-effort target: run `npm run check`
 
 ### 3. Commit and push
 
@@ -70,7 +69,19 @@ When your task message includes a **PR Feedback** section, it means a reviewer r
 5. Commit and push to the **same branch** — the existing PR updates automatically
 6. Call `work_finish` as usual
 
-### 5. Call work_finish
+### 5. Classify failures correctly
+
+Do not collapse every problem into a product blocker.
+
+- **environment/bootstrap failure**: worktree creation failed, dependencies could not be installed, required tooling is missing, or local validation cannot start
+- **ambient validation noise**: repo-wide failures already exist and are not caused by your issue changes
+- **issue-local implementation failure**: your issue changes are still incorrect or incomplete
+
+If `npm run check` is noisy for ambient reasons but your issue changes are correct and `npm run build` passes, summarize the ambient noise clearly and still complete the implementation normally.
+
+If you must block, include the category name in the `work_finish` summary.
+
+### 6. Call work_finish
 
 ```
 work_finish({ role: "developer", result: "done", projectSlug: "<from task message>", summary: "<what you did>" })
