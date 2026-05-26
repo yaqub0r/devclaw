@@ -7,6 +7,7 @@ import { runDeployEngine } from "./engine.js";
 import { runWorkflowDeployment } from "./workflow.js";
 import { TestProvider } from "../testing/test-provider.js";
 import type { DeploymentConfig } from "../config/types.js";
+import { renderCandidateRecord } from "../workflow/candidate-provenance.js";
 
 const deployment: DeploymentConfig = {
   lanes: {
@@ -27,7 +28,7 @@ const deployment: DeploymentConfig = {
       promoting: { action: "promote", sourceLane: "build", targetLane: "staging", issueLinkage: "workflow" },
     },
   },
-  candidate: { sources: ["explicit"] },
+  candidate: { sources: ["explicit", "issueCandidate"] },
   policy: { allowDirectWithoutIssue: true },
 };
 
@@ -36,6 +37,12 @@ describe("deploy engine", () => {
     const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "devclaw-deploy-engine-"));
     const provider = new TestProvider();
     provider.seedIssue({ iid: 7, labels: ["Promoting"] });
+    await provider.addComment(7, renderCandidateRecord({
+      issueId: 7,
+      candidateId: "sha123",
+      commitSha: "sha123",
+      status: "active",
+    }));
     let executedCommand: string[] | undefined;
     let executedEnv: Record<string, string> | undefined;
     const runCommand = async (argv: string[], opts?: { env?: Record<string, string> }) => {
@@ -78,6 +85,7 @@ describe("deploy engine", () => {
     assert.equal(direct.receipt.targetLane, workflow.receipt.targetLane);
     assert.equal(direct.receipt.transitionKey, workflow.receipt.transitionKey);
     assert.equal(direct.receipt.candidate?.ref, "sha123");
+    assert.equal(workflow.receipt.candidate?.ref, "sha123");
     assert.equal(workflow.receipt.issueLinkage, "workflow");
     assert.ok(workflow.receipt.linkedIssueCommentId);
     assert.ok(direct.receipt.receiptPath);
@@ -90,6 +98,12 @@ describe("deploy engine", () => {
     const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "devclaw-deploy-receipt-"));
     const provider = new TestProvider();
     provider.seedIssue({ iid: 9, labels: ["Promoting"] });
+    await provider.addComment(9, renderCandidateRecord({
+      issueId: 9,
+      candidateId: "sha123",
+      commitSha: "sha123",
+      status: "active",
+    }));
     const project = { name: "demo", deployBranch: "main", deployUrl: "", repo: "/tmp/repo" } as any;
 
     const result = await runWorkflowDeployment({
