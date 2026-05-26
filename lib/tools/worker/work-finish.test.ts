@@ -11,22 +11,15 @@
  */
 import { describe, it, before, after } from "node:test";
 import assert from "node:assert";
-import { mkdtemp, writeFile, readFile, rm } from "node:fs/promises";
+import { mkdtemp, writeFile, readFile, rm, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
 // Helper to create a mock audit log with a merge_conflict transition
 async function createMockAuditLog(workspaceDir: string, issueId: number, hasMergeConflict: boolean): Promise<void> {
   const logDir = join(workspaceDir, "devclaw", "log");
-  
-  // Ensure directory exists
-  try {
-    await writeFile(join(workspaceDir, "devclaw", "placeholder"), "");
-  } catch {
-    // ignore
-  }
-  
-  const auditPath = join(workspaceDir, "devclaw", "log", "audit.log");
+  await mkdir(logDir, { recursive: true });
+  const auditPath = join(logDir, "audit.log");
   const entries = [];
   
   // Add some dummy entries
@@ -141,7 +134,9 @@ describe("work_finish: PR validation and conflict resolution", () => {
     });
 
     it("should skip malformed JSON lines in audit log", async () => {
-      const auditPath = join(tempDir, "devclaw", "log", "audit.log");
+      const logDir = join(tempDir, "devclaw", "log");
+      await mkdir(logDir, { recursive: true });
+      const auditPath = join(logDir, "audit.log");
       const entries = [
         JSON.stringify({ event: "valid", issueId: 999 }),
         "{ invalid json",
