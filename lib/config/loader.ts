@@ -85,7 +85,7 @@ function buildDefaultConfig(): DevClawConfig {
       completionResults: [...reg.completionResults],
     };
   }
-  return { roles, workflow: DEFAULT_WORKFLOW };
+  return { roles, workflow: DEFAULT_WORKFLOW, deployment: {} };
 }
 
 /**
@@ -209,7 +209,10 @@ function resolve(config: DevClawConfig): ResolvedConfig {
   };
 
   return {
-    roles, workflow, timeouts,
+    roles,
+    workflow,
+    deployment: config.deployment ?? {},
+    timeouts,
     instanceName: config.instance?.name,
   };
 }

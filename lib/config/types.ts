@@ -6,6 +6,64 @@
  */
 import type { WorkflowConfig } from "../workflow/index.js";
 
+export type DeploymentAction = "deploy" | "promote" | "accept" | "rollback";
+export type CandidateSource = "explicit" | "issueCandidate" | "issuePr" | "gitHead";
+export type IssueLinkageMode = "none" | "comment" | "workflow";
+
+export type DeploymentLaneConfig = {
+  aliases?: string[];
+  description?: string;
+  humanOnly?: boolean;
+  protected?: boolean;
+  rollbackTargets?: string[];
+  legacyBranch?: string;
+  legacyUrl?: string;
+};
+
+export type DeploymentCommandConfig = {
+  run: string;
+  cwd?: string;
+  timeoutMs?: number;
+};
+
+export type DeploymentEvidenceProfile = {
+  required?: string[];
+  commentSummary?: boolean;
+};
+
+export type DeploymentTransitionConfig = {
+  action: DeploymentAction;
+  from?: string;
+  to: string;
+  command: string;
+  evidence?: string;
+  requireCandidate?: boolean;
+};
+
+export type DeploymentWorkflowStateConfig = {
+  action: DeploymentAction;
+  targetLane: string;
+  sourceLane?: string;
+  issueLinkage?: IssueLinkageMode;
+};
+
+export type DeploymentConfig = {
+  lanes?: Record<string, DeploymentLaneConfig>;
+  commands?: Record<string, DeploymentCommandConfig>;
+  evidenceProfiles?: Record<string, DeploymentEvidenceProfile>;
+  transitions?: DeploymentTransitionConfig[];
+  workflow?: {
+    states?: Record<string, DeploymentWorkflowStateConfig>;
+  };
+  candidate?: {
+    sources?: CandidateSource[];
+  };
+  policy?: {
+    allowDirectWithoutIssue?: boolean;
+    requireHumanForProtectedLanes?: boolean;
+  };
+};
+
 /**
  * Role override in workflow.yaml. All fields optional — only override what you need.
  * Set to `false` to disable a role entirely for a project.
@@ -53,6 +111,7 @@ export type InstanceConfig = {
 export type DevClawConfig = {
   roles?: Record<string, RoleOverride | false>;
   workflow?: Partial<WorkflowConfig>;
+  deployment?: DeploymentConfig;
   timeouts?: TimeoutConfig;
   instance?: InstanceConfig;
 };
@@ -79,6 +138,7 @@ export type ResolvedTimeouts = {
 export type ResolvedConfig = {
   roles: Record<string, ResolvedRoleConfig>;
   workflow: WorkflowConfig;
+  deployment: DeploymentConfig;
   timeouts: ResolvedTimeouts;
   /** Instance name override from config. Undefined = use auto-generated from instance.json. */
   instanceName?: string;

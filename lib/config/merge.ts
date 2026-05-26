@@ -7,7 +7,7 @@
  * - `false` for a role: marks it as disabled
  * - Primitives: override
  */
-import type { DevClawConfig, RoleOverride } from "./types.js";
+import type { DeploymentConfig, DevClawConfig, RoleOverride } from "./types.js";
 
 /**
  * Merge a config overlay on top of a base config.
@@ -73,6 +73,10 @@ export function mergeConfig(
     }
   }
 
+  if (base.deployment || overlay.deployment) {
+    merged.deployment = mergeDeploymentConfig(base.deployment, overlay.deployment);
+  }
+
   // Merge timeouts
   if (base.timeouts || overlay.timeouts) {
     merged.timeouts = { ...base.timeouts, ...overlay.timeouts };
@@ -100,4 +104,46 @@ function mergeRoleOverride(
     ...(overlay.levels ? { levels: overlay.levels } : {}),
     ...(overlay.completionResults ? { completionResults: overlay.completionResults } : {}),
   };
+}
+
+function mergeDeploymentConfig(
+  base?: DeploymentConfig,
+  overlay?: DeploymentConfig,
+): DeploymentConfig {
+  return {
+    ...base,
+    ...overlay,
+    lanes: mergeRecordObjects(base?.lanes, overlay?.lanes),
+    commands: mergeRecordObjects(base?.commands, overlay?.commands),
+    evidenceProfiles: mergeRecordObjects(base?.evidenceProfiles, overlay?.evidenceProfiles),
+    workflow: base?.workflow || overlay?.workflow
+      ? {
+          ...base?.workflow,
+          ...overlay?.workflow,
+          states: mergeRecordObjects(base?.workflow?.states, overlay?.workflow?.states),
+        }
+      : undefined,
+    candidate: base?.candidate || overlay?.candidate
+      ? { ...base?.candidate, ...overlay?.candidate }
+      : undefined,
+    policy: base?.policy || overlay?.policy
+      ? { ...base?.policy, ...overlay?.policy }
+      : undefined,
+    transitions: overlay?.transitions ?? base?.transitions,
+  };
+}
+
+function mergeRecordObjects<T extends object>(
+  base?: Record<string, T>,
+  overlay?: Record<string, T>,
+): Record<string, T> | undefined {
+  if (!base && !overlay) return undefined;
+
+  const merged: Record<string, T> = { ...(base ?? {}) };
+  for (const [key, value] of Object.entries(overlay ?? {})) {
+    merged[key] = key in merged
+      ? { ...merged[key], ...value }
+      : value;
+  }
+  return merged;
 }

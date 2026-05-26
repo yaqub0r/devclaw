@@ -100,6 +100,44 @@ Release-agent configuration should also define:
 - required release evidence or proof receipts
 - retry and override behavior for repeated promotions
 
+The first-class `deployment:` block is the semantic source of truth for lanes, transitions, commands, workflow-state mapping, candidate resolution order, and direct-deploy policy.
+
+```yaml
+deployment:
+  lanes:
+    build: { aliases: [candidate] }
+    staging: { aliases: [stage], rollbackTargets: [build] }
+    production: { aliases: [prod], rollbackTargets: [staging] }
+  commands:
+    promote-to-staging:
+      run: echo "Promote ${CANDIDATE_REF} from ${SOURCE_LANE} to ${TARGET_LANE}"
+    rollback-production-to-staging:
+      run: echo "Rollback ${CANDIDATE_REF} from ${SOURCE_LANE} to ${TARGET_LANE}"
+  transitions:
+    - action: promote
+      from: build
+      to: staging
+      command: promote-to-staging
+    - action: rollback
+      from: production
+      to: staging
+      command: rollback-production-to-staging
+  workflow:
+    states:
+      promoting:
+        action: promote
+        sourceLane: build
+        targetLane: staging
+```
+
+For every deploy action, `sourceLane` means the origin lane and `targetLane` means the destination lane. Rollback uses the same directionality, for example `production -> staging`.
+
+Deploy commands are executed as fixed shell programs with dynamic values passed through environment variables like `CANDIDATE_REF`, `SOURCE_LANE`, and `TARGET_LANE`. That keeps configured commands ergonomic while avoiding direct string interpolation of tool input into the shell program text.
+
+Legacy project metadata like `deployBranch` and `deployUrl` still acts as a fallback default, but it is no longer the semantic source of truth.
+
+Receipts are persisted after any linked issue comment is posted, so the durable JSON receipt and issue summary stay aligned.
+
 For the operator-facing contract, see [`../dev/design/deployer-contract.md`](../dev/design/deployer-contract.md).
 
 ### Timeouts
