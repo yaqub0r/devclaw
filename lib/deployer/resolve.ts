@@ -55,10 +55,12 @@ export function selectTransition(config: DeploymentConfig, action: DeploymentAct
 }
 
 export function validateRollbackLegality(config: DeploymentConfig, sourceLane: string | null, targetLane: string): void {
-  if (!sourceLane) return;
-  const allowed = config.lanes?.[targetLane]?.rollbackTargets ?? [];
-  if (allowed.length > 0 && !allowed.includes(sourceLane)) {
-    throw new Error(`Rollback from ${targetLane} to ${sourceLane} is not allowed by deployment config`);
+  if (!sourceLane) {
+    throw new Error("Rollback requires sourceLane to identify the lane being rolled back from");
+  }
+  const allowed = config.lanes?.[sourceLane]?.rollbackTargets ?? [];
+  if (allowed.length > 0 && !allowed.includes(targetLane)) {
+    throw new Error(`Rollback from ${sourceLane} to ${targetLane} is not allowed by deployment config`);
   }
 }
 
@@ -122,10 +124,11 @@ export async function resolveDeployDecision(opts: {
 
   if (opts.request.action === "rollback") validateRollbackLegality(config, sourceLane, targetLane);
 
-  const laneCfg = config.lanes?.[targetLane];
+  const policyLane = opts.request.action === "rollback" ? sourceLane ?? targetLane : targetLane;
+  const laneCfg = policyLane ? config.lanes?.[policyLane] : undefined;
   if (laneCfg?.humanOnly || (laneCfg?.protected && config.policy?.requireHumanForProtectedLanes)) {
     if (opts.request.invocation.kind === "direct") {
-      throw new Error(`Lane ${targetLane} is human-only for direct deploys`);
+      throw new Error(`Lane ${policyLane} is human-only for direct deploys`);
     }
   }
 

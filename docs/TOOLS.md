@@ -343,12 +343,14 @@ Direct operational deploy entrypoint backed by the shared deployer engine.
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `channelId` | string | Yes | Current chat/group ID |
-| `action` | `promote` \| `accept` \| `rollback` | Yes | Deploy action |
-| `targetLane` | string | Yes | Canonical lane or alias |
-| `sourceLane` | string | No | Source lane or alias |
+| `action` | `deploy` \| `promote` \| `accept` \| `rollback` | Yes | Deploy action |
+| `targetLane` | string | Yes | Destination lane or alias |
+| `sourceLane` | string | No | Origin lane or alias |
 | `candidateRef` | string | No | Explicit candidate identity |
 | `issueId` | number | No | Optional issue linkage for comment receipts |
 | `dryRun` | boolean | No | Resolve and receipt without executing the command |
+
+`deploy_run` uses the same shared engine and receipt model as workflow-backed delivery. When issue linkage is enabled, the durable receipt is written only after the linked comment outcome is known.
 
 **What it does atomically:**
 

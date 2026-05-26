@@ -20,7 +20,7 @@ export async function runWorkflowDeployment(opts: {
     throw new Error(`No deployment.workflow.states entry configured for ${opts.currentStateKey}`);
   }
 
-  const result = await runDeployEngine({
+  return runDeployEngine({
     workspaceDir: opts.workspaceDir,
     project: opts.project,
     repoPath: opts.repoPath,
@@ -35,9 +35,8 @@ export async function runWorkflowDeployment(opts: {
       issueLinkage: mapping.issueLinkage ?? "workflow",
       invocation: { kind: "workflow", stateKey: opts.currentStateKey },
     },
+    finalizeReceipt: async (receipt) => {
+      receipt.linkedIssueCommentId = await opts.provider.addComment(opts.issueId, renderDeployReceiptSummary(receipt));
+    },
   });
-
-  const commentId = await opts.provider.addComment(opts.issueId, renderDeployReceiptSummary(result.receipt));
-  result.receipt.linkedIssueCommentId = commentId;
-  return result;
 }

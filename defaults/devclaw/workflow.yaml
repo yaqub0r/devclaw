@@ -270,7 +270,7 @@ deployment:
     accept-on-staging:
       run: echo "Accept ${CANDIDATE_REF} on ${TARGET_LANE}"
     rollback-from-production:
-      run: echo "Rollback ${TARGET_LANE} to ${SOURCE_LANE} using ${CANDIDATE_REF}"
+      run: echo "Rollback ${CANDIDATE_REF} from ${SOURCE_LANE} to ${TARGET_LANE}"
   evidenceProfiles:
     promotion:
       required: [command, candidate]
@@ -297,8 +297,8 @@ deployment:
       command: accept-on-staging
       evidence: acceptance
     - action: rollback
-      from: staging
-      to: production
+      from: production
+      to: staging
       command: rollback-from-production
       evidence: rollback
   workflow:

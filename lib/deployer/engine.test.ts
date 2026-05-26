@@ -36,7 +36,11 @@ describe("deploy engine", () => {
     const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "devclaw-deploy-engine-"));
     const provider = new TestProvider();
     provider.seedIssue({ iid: 7, labels: ["Promoting"] });
-    const runCommand = async () => ({ stdout: "ok\n", stderr: "", code: 0, signal: null, killed: false as const });
+    let executedCommand: string[] | undefined;
+    const runCommand = async (argv: string[]) => {
+      executedCommand = argv;
+      return { stdout: "ok\n", stderr: "", code: 0, signal: null, killed: false as const };
+    };
     const project = { name: "demo", deployBranch: "main", deployUrl: "", repo: "/tmp/repo" } as any;
 
     const direct = await runDeployEngine({
@@ -74,5 +78,57 @@ describe("deploy engine", () => {
     assert.equal(direct.receipt.candidate?.ref, "sha123");
     assert.equal(workflow.receipt.issueLinkage, "workflow");
     assert.ok(workflow.receipt.linkedIssueCommentId);
+    assert.ok(direct.receipt.receiptPath);
+    assert.equal(direct.receipt.linkedIssueCommentId, undefined);
+    assert.match(executedCommand?.[2] ?? "", /'sha123'/);
+  });
+
+  it("persists linked issue comment ids into the durable receipt", async () => {
+    const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "devclaw-deploy-receipt-"));
+    const provider = new TestProvider();
+    provider.seedIssue({ iid: 9, labels: ["Promoting"] });
+    const project = { name: "demo", deployBranch: "main", deployUrl: "", repo: "/tmp/repo" } as any;
+
+    const result = await runWorkflowDeployment({
+      workspaceDir,
+      project,
+      repoPath: "/tmp/repo",
+      provider,
+      issueId: 9,
+      currentStateKey: "promoting",
+      config: deployment,
+      runCommand: (async () => ({ stdout: "ok\n", stderr: "", code: 0, signal: null, killed: false as const })) as any,
+    });
+
+    const persisted = JSON.parse(await fs.readFile(result.receipt.receiptPath!, "utf-8"));
+    assert.equal(persisted.linkedIssueCommentId, result.receipt.linkedIssueCommentId);
+    assert.ok(persisted.linkedIssueCommentId);
+  });
+
+  it("shell-escapes interpolated candidate values before execution", async () => {
+    const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "devclaw-deploy-escape-"));
+    let executed: string[] | undefined;
+    const project = { name: "demo", deployBranch: "main", deployUrl: "", repo: "/tmp/repo" } as any;
+
+    await runDeployEngine({
+      workspaceDir,
+      project,
+      repoPath: "/tmp/repo",
+      config: deployment,
+      runCommand: (async (argv: string[]) => {
+        executed = argv;
+        return { stdout: "ok\n", stderr: "", code: 0, signal: null, killed: false as const };
+      }) as any,
+      request: {
+        action: "promote",
+        sourceLane: "build",
+        targetLane: "staging",
+        candidateRef: "bad'; touch /tmp/pwned; echo '",
+        invocation: { kind: "direct" },
+      },
+    });
+
+    assert.ok(executed);
+    assert.match(executed?.[2] ?? "", /'bad'"'"'; touch \/tmp\/pwned; echo '"'"''/);
   });
 });

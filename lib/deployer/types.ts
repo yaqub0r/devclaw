@@ -64,6 +64,8 @@ export type DeployReceipt = {
   configSnapshot?: Pick<DeploymentConfig, "policy">;
 };
 
+export type DeployReceiptFinalizer = (receipt: DeployReceipt) => Promise<void>;
+
 export type DeployEngineResult = {
   decision: DeployDecision;
   receipt: DeployReceipt;

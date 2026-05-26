@@ -19,9 +19,10 @@ describe("deployer resolve helpers", () => {
     assert.equal(resolveLaneAlias(config, "missing"), null);
   });
 
-  it("validates rollback legality", () => {
-    assert.doesNotThrow(() => validateRollbackLegality(config, "build", "staging"));
-    assert.throws(() => validateRollbackLegality(config, "build", "production"), /not allowed/);
+  it("validates rollback legality with source as the rolled back lane and target as the destination lane", () => {
+    assert.doesNotThrow(() => validateRollbackLegality(config, "staging", "build"));
+    assert.throws(() => validateRollbackLegality(config, "production", "build"), /not allowed/);
+    assert.throws(() => validateRollbackLegality(config, null, "build"), /requires sourceLane/);
   });
 
   it("backfills legacy deployment defaults", () => {

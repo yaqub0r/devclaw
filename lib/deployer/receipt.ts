@@ -4,10 +4,14 @@ import { DATA_DIR } from "../setup/migrate-layout.js";
 import { log as auditLog } from "../audit.js";
 import type { DeployReceipt } from "./types.js";
 
+function getDeployReceiptPath(workspaceDir: string, projectName: string, receipt: DeployReceipt): string {
+  return join(workspaceDir, DATA_DIR, "deploy", projectName, `${receipt.timestamp.replace(/[:.]/g, "-")}-${receipt.id}.json`);
+}
+
 export async function writeDeployReceipt(workspaceDir: string, projectName: string, receipt: DeployReceipt): Promise<string> {
   const dir = join(workspaceDir, DATA_DIR, "deploy", projectName);
   await mkdir(dir, { recursive: true });
-  const filePath = join(dir, `${receipt.timestamp.replace(/[:.]/g, "-")}-${receipt.id}.json`);
+  const filePath = getDeployReceiptPath(workspaceDir, projectName, receipt);
   await writeFile(filePath, JSON.stringify(receipt, null, 2) + "\n", "utf-8");
   await auditLog(workspaceDir, "deploy_receipt", {
     project: projectName,
@@ -19,7 +23,14 @@ export async function writeDeployReceipt(workspaceDir: string, projectName: stri
     success: receipt.success,
     receiptPath: filePath,
     invocation: receipt.invocation.kind,
+    linkedIssueCommentId: receipt.linkedIssueCommentId ?? null,
   });
+  return filePath;
+}
+
+export async function updateDeployReceipt(workspaceDir: string, projectName: string, receipt: DeployReceipt): Promise<string> {
+  const filePath = receipt.receiptPath ?? getDeployReceiptPath(workspaceDir, projectName, receipt);
+  await writeFile(filePath, JSON.stringify(receipt, null, 2) + "\n", "utf-8");
   return filePath;
 }
 

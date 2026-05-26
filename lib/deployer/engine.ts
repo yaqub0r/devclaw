@@ -4,10 +4,14 @@ import type { DeploymentConfig } from "../config/types.js";
 import type { IssueProvider } from "../providers/provider.js";
 import { writeDeployReceipt } from "./receipt.js";
 import { resolveDeployDecision } from "./resolve.js";
-import type { DeployEngineResult, DeployReceipt, DeployRequest } from "./types.js";
+import type { DeployEngineResult, DeployReceipt, DeployReceiptFinalizer, DeployRequest } from "./types.js";
+
+function shellEscape(value: string): string {
+  return `'${value.replace(/'/g, `'"'"'`)}'`;
+}
 
 function interpolate(template: string, vars: Record<string, string>): string {
-  return template.replace(/\$\{([A-Z_]+)\}/g, (_m, key) => vars[key] ?? "");
+  return template.replace(/\$\{([A-Z_]+)\}/g, (_m, key) => shellEscape(vars[key] ?? ""));
 }
 
 export async function runDeployEngine(opts: {
@@ -18,6 +22,7 @@ export async function runDeployEngine(opts: {
   request: DeployRequest;
   runCommand: RunCommand;
   provider?: IssueProvider;
+  finalizeReceipt?: DeployReceiptFinalizer;
 }): Promise<DeployEngineResult> {
   const decision = await resolveDeployDecision({
     request: opts.request,
@@ -76,6 +81,10 @@ export async function runDeployEngine(opts: {
     evidence: opts.config.evidenceProfiles?.[decision.evidenceProfile ?? ""]?.required ?? [],
     configSnapshot: { policy: opts.config.policy },
   };
+
+  if (opts.finalizeReceipt) {
+    await opts.finalizeReceipt(receipt);
+  }
 
   receipt.receiptPath = await writeDeployReceipt(opts.workspaceDir, opts.project.name, receipt);
   return { decision, receipt };

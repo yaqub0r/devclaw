@@ -107,14 +107,21 @@ deployment:
   lanes:
     build: { aliases: [candidate] }
     staging: { aliases: [stage], rollbackTargets: [build] }
+    production: { aliases: [prod], rollbackTargets: [staging] }
   commands:
     promote-to-staging:
       run: echo "Promote ${CANDIDATE_REF} from ${SOURCE_LANE} to ${TARGET_LANE}"
+    rollback-production-to-staging:
+      run: echo "Rollback ${CANDIDATE_REF} from ${SOURCE_LANE} to ${TARGET_LANE}"
   transitions:
     - action: promote
       from: build
       to: staging
       command: promote-to-staging
+    - action: rollback
+      from: production
+      to: staging
+      command: rollback-production-to-staging
   workflow:
     states:
       promoting:
@@ -123,7 +130,11 @@ deployment:
         targetLane: staging
 ```
 
+For every deploy action, `sourceLane` means the origin lane and `targetLane` means the destination lane. Rollback uses the same directionality, for example `production -> staging`.
+
 Legacy project metadata like `deployBranch` and `deployUrl` still acts as a fallback default, but it is no longer the semantic source of truth.
+
+Receipts are persisted after any linked issue comment is posted, so the durable JSON receipt and issue summary stay aligned.
 
 For the operator-facing contract, see [`../dev/design/deployer-contract.md`](../dev/design/deployer-contract.md).
 

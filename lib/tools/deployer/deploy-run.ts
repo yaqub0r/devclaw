@@ -18,8 +18,8 @@ export function createDeployRunTool(ctx: PluginContext) {
         channelId: { type: "string" },
         messageThreadId: { type: "number" },
         action: { type: "string", enum: ["deploy", "promote", "accept", "rollback"] },
-        targetLane: { type: "string" },
-        sourceLane: { type: "string" },
+        targetLane: { type: "string", description: "Destination lane or alias" },
+        sourceLane: { type: "string", description: "Origin lane or alias" },
         candidateRef: { type: "string" },
         issueId: { type: "number" },
         issueLinkage: { type: "string", enum: ["none", "comment", "workflow"] },
@@ -60,13 +60,14 @@ export function createDeployRunTool(ctx: PluginContext) {
           issueLinkage,
           invocation: { kind: "direct" },
         },
+        finalizeReceipt: async (receipt) => {
+          if (params.issueId && issueLinkage !== "none") {
+            receipt.linkedIssueCommentId = await provider.addComment(params.issueId as number, renderDeployReceiptSummary(receipt));
+          }
+        },
       });
 
-      let linkedIssueCommentId: number | null = null;
-      if (params.issueId && issueLinkage !== "none") {
-        linkedIssueCommentId = await provider.addComment(params.issueId as number, renderDeployReceiptSummary(result.receipt));
-        result.receipt.linkedIssueCommentId = linkedIssueCommentId;
-      }
+      const linkedIssueCommentId = result.receipt.linkedIssueCommentId ?? null;
 
       return jsonResult({
         success: result.receipt.success,
