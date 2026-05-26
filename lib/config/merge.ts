@@ -73,6 +73,38 @@ export function mergeConfig(
     }
   }
 
+  if (base.deployment || overlay.deployment) {
+    merged.deployment = {
+      ...base.deployment,
+      ...overlay.deployment,
+      lanes: base.deployment?.lanes || overlay.deployment?.lanes
+        ? { ...base.deployment?.lanes, ...overlay.deployment?.lanes }
+        : undefined,
+      commands: base.deployment?.commands || overlay.deployment?.commands
+        ? { ...base.deployment?.commands, ...overlay.deployment?.commands }
+        : undefined,
+      evidenceProfiles: base.deployment?.evidenceProfiles || overlay.deployment?.evidenceProfiles
+        ? { ...base.deployment?.evidenceProfiles, ...overlay.deployment?.evidenceProfiles }
+        : undefined,
+      workflow: base.deployment?.workflow || overlay.deployment?.workflow
+        ? {
+            ...base.deployment?.workflow,
+            ...overlay.deployment?.workflow,
+            states: base.deployment?.workflow?.states || overlay.deployment?.workflow?.states
+              ? { ...base.deployment?.workflow?.states, ...overlay.deployment?.workflow?.states }
+              : undefined,
+          }
+        : undefined,
+      candidate: base.deployment?.candidate || overlay.deployment?.candidate
+        ? { ...base.deployment?.candidate, ...overlay.deployment?.candidate }
+        : undefined,
+      policy: base.deployment?.policy || overlay.deployment?.policy
+        ? { ...base.deployment?.policy, ...overlay.deployment?.policy }
+        : undefined,
+      transitions: overlay.deployment?.transitions ?? base.deployment?.transitions,
+    };
+  }
+
   // Merge timeouts
   if (base.timeouts || overlay.timeouts) {
     merged.timeouts = { ...base.timeouts, ...overlay.timeouts };

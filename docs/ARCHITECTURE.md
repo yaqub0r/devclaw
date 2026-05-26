@@ -548,6 +548,12 @@ The source path is logged for production traceability: `Bootstrap hook: injected
 
 The Deployer uses a dedicated `deployer.md` prompt surface.
 
+Delivery execution now runs through one shared deployer engine:
+- workflow-backed delivery states call a thin workflow wrapper
+- direct operational deploys call a thin `deploy_run` tool wrapper
+- both paths resolve lanes, transitions, candidate identity, commands, and evidence from `deployment:` config
+- both paths emit the same durable deploy receipt shape
+
 ## Data flow map
 
 Every piece of data and where it lives:

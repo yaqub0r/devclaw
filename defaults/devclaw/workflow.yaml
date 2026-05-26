@@ -245,3 +245,76 @@ workflow:
       color: "#f39c12"
       on:
         APPROVE: todo
+
+deployment:
+  lanes:
+    build:
+      aliases: [candidate]
+      description: Candidate built from merged work
+      legacyBranch: development
+    staging:
+      aliases: [stage]
+      rollbackTargets: [build]
+      legacyUrl: https://staging.example.com
+    production:
+      aliases: [prod]
+      humanOnly: true
+      protected: true
+      rollbackTargets: [staging]
+      legacyUrl: https://app.example.com
+  commands:
+    deploy-to-build:
+      run: echo "Deploy ${CANDIDATE_REF} to ${TARGET_LANE}"
+    promote-to-staging:
+      run: echo "Promote ${CANDIDATE_REF} from ${SOURCE_LANE} to ${TARGET_LANE}"
+    accept-on-staging:
+      run: echo "Accept ${CANDIDATE_REF} on ${TARGET_LANE}"
+    rollback-from-production:
+      run: echo "Rollback ${TARGET_LANE} to ${SOURCE_LANE} using ${CANDIDATE_REF}"
+  evidenceProfiles:
+    promotion:
+      required: [command, candidate]
+      commentSummary: true
+    acceptance:
+      required: [command, candidate]
+      commentSummary: true
+    rollback:
+      required: [command, candidate]
+      commentSummary: true
+  transitions:
+    - action: deploy
+      to: build
+      command: deploy-to-build
+      evidence: promotion
+    - action: promote
+      from: build
+      to: staging
+      command: promote-to-staging
+      evidence: promotion
+    - action: accept
+      from: staging
+      to: staging
+      command: accept-on-staging
+      evidence: acceptance
+    - action: rollback
+      from: staging
+      to: production
+      command: rollback-from-production
+      evidence: rollback
+  workflow:
+    states:
+      promoting:
+        action: promote
+        sourceLane: build
+        targetLane: staging
+        issueLinkage: workflow
+      accepting:
+        action: accept
+        sourceLane: staging
+        targetLane: staging
+        issueLinkage: workflow
+  candidate:
+    sources: [issueCandidate, issuePr, gitHead]
+  policy:
+    allowDirectWithoutIssue: true
+    requireHumanForProtectedLanes: true

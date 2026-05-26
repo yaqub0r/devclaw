@@ -18,7 +18,9 @@ import { log as auditLog } from "../../audit.js";
 import { DATA_DIR } from "../../setup/migrate-layout.js";
 import { requireWorkspaceDir, resolveChannelId, resolveProject, resolveProvider } from "../helpers.js";
 import { getAllRoleIds, isValidResult, getCompletionResults } from "../../roles/index.js";
-import { getCurrentStateLabel, loadWorkflow } from "../../workflow/index.js";
+import { findStateKeyByLabel, getCurrentStateLabel, loadWorkflow } from "../../workflow/index.js";
+import { loadConfig } from "../../config/index.js";
+import { runWorkflowDeployment } from "../../deployer/workflow.js";
 
 /**
  * Get the current git branch name.
@@ -261,6 +263,7 @@ export function createWorkFinishTool(ctx: PluginContext) {
 
       const { provider } = await resolveProvider(project, ctx.runCommand);
       const workflow = await loadWorkflow(workspaceDir, project.name);
+      const resolvedConfig = await loadConfig(workspaceDir, project.name);
       const issue = await provider.getIssue(issueId);
       const currentLabel = getCurrentStateLabel(issue.labels, workflow);
 
@@ -269,6 +272,25 @@ export function createWorkFinishTool(ctx: PluginContext) {
 
       const repoPath = resolveRepoPath(project.repo);
       const pluginConfig = ctx.pluginConfig;
+
+      if (role === "deployer" && result === "done" && currentLabel) {
+        const stateKey = findStateKeyByLabel(workflow, currentLabel);
+        if (stateKey && resolvedConfig.deployment.workflow?.states?.[stateKey]) {
+          const deployResult = await runWorkflowDeployment({
+            workspaceDir,
+            project,
+            repoPath,
+            provider,
+            issueId,
+            currentStateKey: stateKey,
+            config: resolvedConfig.deployment,
+            runCommand: ctx.runCommand,
+          });
+          if (!deployResult.receipt.success) {
+            throw new Error(`Deployment command failed for ${stateKey}: ${deployResult.receipt.stderr || deployResult.receipt.stdout || deployResult.receipt.exitCode}`);
+          }
+        }
+      }
 
       // For developers marking work as done, validate that a PR exists
       if (role === "developer" && result === "done") {

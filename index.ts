@@ -34,6 +34,7 @@ import { createOnboardTool } from "./lib/tools/admin/onboard.js";
 import { createAutoConfigureModelsTool } from "./lib/tools/admin/autoconfigure-models.js";
 import { createWorkflowGuideTool } from "./lib/tools/admin/workflow-guide.js";
 import { createConfigTool } from "./lib/tools/admin/config.js";
+import { createDeployRunTool } from "./lib/tools/deployer/deploy-run.js";
 
 // Infrastructure
 import { registerCli } from "./lib/setup/cli.js";
@@ -128,6 +129,7 @@ const plugin = {
     api.registerTool(createAutoConfigureModelsTool(ctx), { names: ["autoconfigure_models"] });
     api.registerTool(createWorkflowGuideTool(ctx), { names: ["workflow_guide"] });
     api.registerTool(createConfigTool(ctx), { names: ["config"] });
+    api.registerTool(createDeployRunTool(ctx), { names: ["deploy_run"] });
 
     // CLI, services & hooks
     api.registerCli(({ program }: { program: any }) => registerCli(program, ctx), {
@@ -138,7 +140,7 @@ const plugin = {
     registerAttachmentHook(api, ctx);
 
     api.logger.info(
-      `DevClaw plugin registered (24 tools, 1 CLI command group, 1 service, 3 hooks) | build=${formatBuildProvenanceSummary(provenance)} | provenance=${JSON.stringify(provenance)}`,
+      `DevClaw plugin registered (25 tools, 1 CLI command group, 1 service, 3 hooks) | build=${formatBuildProvenanceSummary(provenance)} | provenance=${JSON.stringify(provenance)}`,
     );
   },
 };

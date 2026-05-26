@@ -100,6 +100,31 @@ Release-agent configuration should also define:
 - required release evidence or proof receipts
 - retry and override behavior for repeated promotions
 
+The first-class `deployment:` block is the semantic source of truth for lanes, transitions, commands, workflow-state mapping, candidate resolution order, and direct-deploy policy.
+
+```yaml
+deployment:
+  lanes:
+    build: { aliases: [candidate] }
+    staging: { aliases: [stage], rollbackTargets: [build] }
+  commands:
+    promote-to-staging:
+      run: echo "Promote ${CANDIDATE_REF} from ${SOURCE_LANE} to ${TARGET_LANE}"
+  transitions:
+    - action: promote
+      from: build
+      to: staging
+      command: promote-to-staging
+  workflow:
+    states:
+      promoting:
+        action: promote
+        sourceLane: build
+        targetLane: staging
+```
+
+Legacy project metadata like `deployBranch` and `deployUrl` still acts as a fallback default, but it is no longer the semantic source of truth.
+
 For the operator-facing contract, see [`../dev/design/deployer-contract.md`](../dev/design/deployer-contract.md).
 
 ### Timeouts

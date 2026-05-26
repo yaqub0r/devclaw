@@ -336,6 +336,20 @@ One-time project setup. Creates state labels, scaffolds project directory with o
 | `deployUrl` | string | No | Deployment URL |
 | `roleExecution` | `"parallel"` \| `"sequential"` | No | DEVELOPER/TESTER parallelism. Default: `"parallel"`. |
 
+### `deploy_run`
+
+Direct operational deploy entrypoint backed by the shared deployer engine.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `channelId` | string | Yes | Current chat/group ID |
+| `action` | `promote` \| `accept` \| `rollback` | Yes | Deploy action |
+| `targetLane` | string | Yes | Canonical lane or alias |
+| `sourceLane` | string | No | Source lane or alias |
+| `candidateRef` | string | No | Explicit candidate identity |
+| `issueId` | number | No | Optional issue linkage for comment receipts |
+| `dryRun` | boolean | No | Resolve and receipt without executing the command |
+
 **What it does atomically:**
 
 1. Validates project not already registered
