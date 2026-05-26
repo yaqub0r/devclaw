@@ -37,8 +37,10 @@ describe("deploy engine", () => {
     const provider = new TestProvider();
     provider.seedIssue({ iid: 7, labels: ["Promoting"] });
     let executedCommand: string[] | undefined;
-    const runCommand = async (argv: string[]) => {
+    let executedEnv: Record<string, string> | undefined;
+    const runCommand = async (argv: string[], opts?: { env?: Record<string, string> }) => {
       executedCommand = argv;
+      executedEnv = opts?.env;
       return { stdout: "ok\n", stderr: "", code: 0, signal: null, killed: false as const };
     };
     const project = { name: "demo", deployBranch: "main", deployUrl: "", repo: "/tmp/repo" } as any;
@@ -80,7 +82,8 @@ describe("deploy engine", () => {
     assert.ok(workflow.receipt.linkedIssueCommentId);
     assert.ok(direct.receipt.receiptPath);
     assert.equal(direct.receipt.linkedIssueCommentId, undefined);
-    assert.match(executedCommand?.[2] ?? "", /'sha123'/);
+    assert.equal(executedCommand?.[2], 'echo "promote ${CANDIDATE_REF} ${SOURCE_LANE} ${TARGET_LANE}"');
+    assert.equal(executedEnv?.CANDIDATE_REF, "sha123");
   });
 
   it("persists linked issue comment ids into the durable receipt", async () => {
@@ -105,9 +108,10 @@ describe("deploy engine", () => {
     assert.ok(persisted.linkedIssueCommentId);
   });
 
-  it("shell-escapes interpolated candidate values before execution", async () => {
+  it("passes dynamic deploy values via env instead of interpolating them into the shell program", async () => {
     const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "devclaw-deploy-escape-"));
     let executed: string[] | undefined;
+    let executedEnv: Record<string, string> | undefined;
     const project = { name: "demo", deployBranch: "main", deployUrl: "", repo: "/tmp/repo" } as any;
 
     await runDeployEngine({
@@ -115,8 +119,9 @@ describe("deploy engine", () => {
       project,
       repoPath: "/tmp/repo",
       config: deployment,
-      runCommand: (async (argv: string[]) => {
+      runCommand: (async (argv: string[], opts?: { env?: Record<string, string> }) => {
         executed = argv;
+        executedEnv = opts?.env;
         return { stdout: "ok\n", stderr: "", code: 0, signal: null, killed: false as const };
       }) as any,
       request: {
@@ -129,6 +134,7 @@ describe("deploy engine", () => {
     });
 
     assert.ok(executed);
-    assert.match(executed?.[2] ?? "", /'bad'"'"'; touch \/tmp\/pwned; echo '"'"''/);
+    assert.equal(executed?.[2], 'echo "promote ${CANDIDATE_REF} ${SOURCE_LANE} ${TARGET_LANE}"');
+    assert.equal(executedEnv?.CANDIDATE_REF, "bad'; touch /tmp/pwned; echo '");
   });
 });

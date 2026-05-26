@@ -6,12 +6,8 @@ import { writeDeployReceipt } from "./receipt.js";
 import { resolveDeployDecision } from "./resolve.js";
 import type { DeployEngineResult, DeployReceipt, DeployReceiptFinalizer, DeployRequest } from "./types.js";
 
-function shellEscape(value: string): string {
-  return `'${value.replace(/'/g, `'"'"'`)}'`;
-}
-
-function interpolate(template: string, vars: Record<string, string>): string {
-  return template.replace(/\$\{([A-Z_]+)\}/g, (_m, key) => shellEscape(vars[key] ?? ""));
+function buildDeployEnv(vars: Record<string, string>): NodeJS.ProcessEnv {
+  return Object.fromEntries(Object.entries(vars).map(([key, value]) => [key, value]));
 }
 
 export async function runDeployEngine(opts: {
@@ -42,7 +38,8 @@ export async function runDeployEngine(opts: {
     PROJECT: opts.project.name,
   };
 
-  const command = interpolate(decision.command, vars);
+  const command = decision.command;
+  const commandEnv = buildDeployEnv(vars);
   let stdout = "";
   let stderr = "";
   let exitCode = 0;
@@ -51,6 +48,7 @@ export async function runDeployEngine(opts: {
     const result = await opts.runCommand(["bash", "-lc", command], {
       cwd: decision.cwd ?? opts.repoPath,
       timeoutMs: decision.timeoutMs,
+      env: commandEnv,
     });
     stdout = result.stdout ?? "";
     stderr = result.stderr ?? "";

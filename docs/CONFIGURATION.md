@@ -132,6 +132,8 @@ deployment:
 
 For every deploy action, `sourceLane` means the origin lane and `targetLane` means the destination lane. Rollback uses the same directionality, for example `production -> staging`.
 
+Deploy commands are executed as fixed shell programs with dynamic values passed through environment variables like `CANDIDATE_REF`, `SOURCE_LANE`, and `TARGET_LANE`. That keeps configured commands ergonomic while avoiding direct string interpolation of tool input into the shell program text.
+
 Legacy project metadata like `deployBranch` and `deployUrl` still acts as a fallback default, but it is no longer the semantic source of truth.
 
 Receipts are persisted after any linked issue comment is posted, so the durable JSON receipt and issue summary stay aligned.

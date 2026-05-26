@@ -136,7 +136,7 @@ Delivery work now flows through one shared deployer engine with two thin entrypo
 - workflow-backed deployer states such as `Promoting` and `Accepting`
 - the direct `deploy_run` tool for explicit operational deploy commands
 
-The `deployment:` config block is the semantic source of truth for lane aliases, legal transitions, candidate resolution, command selection, rollback policy, and evidence requirements. Both entrypoints emit the same durable receipt shape, and receipts are finalized after optional linked issue comments so on-disk audit data matches the issue-visible outcome.
+The `deployment:` config block is the semantic source of truth for lane aliases, legal transitions, candidate resolution, command selection, rollback policy, and evidence requirements. Both entrypoints emit the same durable receipt shape, receipts are finalized after optional linked issue comments so on-disk audit data matches the issue-visible outcome, and command templates run with deploy values injected through env rather than shell-string interpolation.
 
 ## System overview
 
