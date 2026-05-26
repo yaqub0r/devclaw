@@ -28,14 +28,32 @@ NODE_MODULES="${WORKTREE}/node_modules"
 
 mkdir -p "$(dirname "$WORKTREE")"
 
-git -C "$REPO_ROOT" fetch origin "$BASE_BRANCH" >/dev/null 2>&1 || true
+REMOTE_BASE_REF="refs/remotes/origin/${BASE_BRANCH}"
+LOCAL_BASE_REF="refs/heads/${BASE_BRANCH}"
+BASE_START_POINT=""
+
+if git -C "$REPO_ROOT" fetch origin "$BASE_BRANCH" >/dev/null 2>&1; then
+  if git -C "$REPO_ROOT" show-ref --verify --quiet "$REMOTE_BASE_REF"; then
+    BASE_START_POINT="origin/${BASE_BRANCH}"
+  fi
+fi
+
+if [[ -z "$BASE_START_POINT" ]] && git -C "$REPO_ROOT" show-ref --verify --quiet "$LOCAL_BASE_REF"; then
+  BASE_START_POINT="$BASE_BRANCH"
+  printf 'bootstrap warning: using local %s because origin/%s is unavailable\n' "$BASE_BRANCH" "$BASE_BRANCH" >&2
+fi
+
+if [[ -z "$BASE_START_POINT" ]]; then
+  printf 'bootstrap error: could not resolve base branch %s from origin or local refs\n' "$BASE_BRANCH" >&2
+  exit 1
+fi
 
 if [[ -d "$WORKTREE/.git" || -f "$WORKTREE/.git" ]]; then
   :
 elif git -C "$REPO_ROOT" show-ref --verify --quiet "refs/heads/$BRANCH_NAME"; then
   git -C "$REPO_ROOT" worktree add "$WORKTREE" "$BRANCH_NAME"
 else
-  git -C "$REPO_ROOT" worktree add "$WORKTREE" -b "$BRANCH_NAME" "$BASE_BRANCH"
+  git -C "$REPO_ROOT" worktree add "$WORKTREE" -b "$BRANCH_NAME" "$BASE_START_POINT"
 fi
 
 cd "$WORKTREE"
