@@ -212,6 +212,36 @@ describe("canonical PR dispatch routing", () => {
     }
   });
 
+  it("returns authoritative canonical PR context only with a loaded diff", async () => {
+    const workspaceDir = await mkdtemp(path.join(os.tmpdir(), "devclaw-pr-context-success-"));
+    try {
+      const provider = new TestProvider();
+      provider.seedIssue({ iid: 76, title: "Canonical review", labels: ["To Review"] });
+      provider.setPrStatus(76, {
+        state: PrState.OPEN,
+        url: "https://example.com/pr/76",
+        number: 76,
+        sourceBranch: "issue/76-canonical-review",
+      });
+      provider.prDiffs.set(76, "diff --git a/a.ts b/a.ts");
+      await recordCanonicalPr(workspaceDir, "test-project", 76, {
+        number: 76,
+        url: "https://example.com/pr/76",
+        title: "Canonical review",
+        sourceBranch: "issue/76-canonical-review",
+      }, PrState.OPEN);
+
+      const prContext = await fetchPrContext(provider, 76, { workspaceDir, projectSlug: "test-project" });
+      assert.deepStrictEqual(prContext, {
+        url: "https://example.com/pr/76",
+        diff: "diff --git a/a.ts b/a.ts",
+        canonical: true,
+      });
+    } finally {
+      await rm(workspaceDir, { recursive: true, force: true });
+    }
+  });
+
   it("preserves canonical feedback routing even when comments are empty", async () => {
     const workspaceDir = await mkdtemp(path.join(os.tmpdir(), "devclaw-pr-feedback-"));
     try {
@@ -238,5 +268,24 @@ describe("canonical PR dispatch routing", () => {
     } finally {
       await rm(workspaceDir, { recursive: true, force: true });
     }
+  });
+
+  it("keeps legacy issue-scoped review context non-canonical", async () => {
+    const provider = new TestProvider();
+    provider.seedIssue({ iid: 80, title: "Legacy review", labels: ["To Review"] });
+    provider.setPrStatus(80, {
+      state: PrState.OPEN,
+      url: "https://example.com/pr/80",
+      number: 80,
+      sourceBranch: "issue/80-legacy-review",
+    });
+    provider.prDiffs.set(80, "diff --git a/legacy.ts b/legacy.ts");
+
+    const prContext = await fetchPrContext(provider, 80);
+    assert.deepStrictEqual(prContext, {
+      url: "https://example.com/pr/80",
+      diff: "diff --git a/legacy.ts b/legacy.ts",
+      canonical: false,
+    });
   });
 });
