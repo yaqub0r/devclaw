@@ -44,12 +44,22 @@ export type PrState = (typeof PrState)[keyof typeof PrState];
 export type PrStatus = {
   state: PrState;
   url: string | null;
+  /** Provider-native PR/MR number or IID. */
+  number?: number;
   /** MR/PR title (e.g. "feat: add login page"). */
   title?: string;
   /** Source branch name (e.g. "feature/7-blog-cms"). */
   sourceBranch?: string;
   /** false = has merge conflicts. undefined = unknown or not applicable. */
   mergeable?: boolean;
+};
+
+export type PrIdentity = {
+  number: number;
+  url: string;
+  title?: string;
+  sourceBranch?: string;
+  repo?: string;
 };
 
 /** A review comment on a PR/MR. */
@@ -86,10 +96,16 @@ export interface IssueProvider {
   reopenIssue(issueId: number): Promise<void>;
   getMergedMRUrl(issueId: number): Promise<string | null>;
   getPrStatus(issueId: number): Promise<PrStatus>;
-  mergePr(issueId: number): Promise<void>;
+  getLinkedPrs(issueId: number): Promise<PrIdentity[]>;
+  getPrByUrl(prUrl: string): Promise<PrIdentity | null>;
+  getPrByNumber(prNumber: number): Promise<PrIdentity | null>;
+  getPrStatusByUrl(prUrl: string): Promise<PrStatus | null>;
+  mergePr(issueId: number, opts?: { prUrl?: string; prNumber?: number }): Promise<void>;
   getPrDiff(issueId: number): Promise<string | null>;
+  getPrDiffByUrl(prUrl: string): Promise<string | null>;
   /** Get review comments on the PR linked to an issue. */
   getPrReviewComments(issueId: number): Promise<PrReviewComment[]>;
+  getPrReviewCommentsByUrl(prUrl: string): Promise<PrReviewComment[]>;
   /**
    * Check if work for an issue is already present on the base branch via git history.
    * Used as a fallback when no PR exists (e.g., work committed directly to main).

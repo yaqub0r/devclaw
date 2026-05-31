@@ -1,8 +1,15 @@
-import { describe, it, expect } from "vitest";
-import { formatPrFeedback, type PrFeedback } from "./pr-context.js";
+import { describe, it } from "node:test";
+import assert from "node:assert";
+import { mkdtemp, rm } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { fetchPrContext, fetchPrFeedback, formatPrFeedback, type PrFeedback } from "./pr-context.js";
+import { TestProvider } from "../testing/test-provider.js";
+import { PrState } from "../providers/provider.js";
+import { recordCanonicalPr } from "../services/canonical-pr.js";
 
 describe("formatPrFeedback", () => {
-  it("returns empty array when no comments", () => {
+  it("preserves canonical PR context even when no comments were retrieved", () => {
     const feedback: PrFeedback = {
       url: "https://github.com/user/repo/pull/123",
       branchName: "feature/123-test",
@@ -10,7 +17,10 @@ describe("formatPrFeedback", () => {
       comments: [],
     };
     const result = formatPrFeedback(feedback, "main");
-    expect(result).toEqual([]);
+    const text = result.join("\n");
+    assert.match(text, /https:\/\/github.com\/user\/repo\/pull\/123/);
+    assert.match(text, /No review comment bodies were retrieved/);
+    assert.match(text, /feature\/123-test/);
   });
 
   it("includes branch name in conflict resolution instructions", () => {
@@ -30,10 +40,10 @@ describe("formatPrFeedback", () => {
     const result = formatPrFeedback(feedback, "main");
     const text = result.join("\n");
 
-    expect(text).toContain("feature/456-test");
-    expect(text).toContain("🔹 Branch: `feature/456-test`");
-    expect(text).toContain("git checkout feature/456-test");
-    expect(text).toContain("git push --force-with-lease origin feature/456-test");
+    assert.match(text, /feature\/456-test/);
+    assert.match(text, /🔹 Branch: `feature\/456-test`/);
+    assert.match(text, /git checkout feature\/456-test/);
+    assert.match(text, /git push --force-with-lease origin feature\/456-test/);
   });
 
   it("uses fallback branch name when not provided", () => {
@@ -52,8 +62,8 @@ describe("formatPrFeedback", () => {
     const result = formatPrFeedback(feedback, "main");
     const text = result.join("\n");
 
-    expect(text).toContain("your-branch");
-    expect(text).toContain("🔹 Branch: `your-branch`");
+    assert.match(text, /your-branch/);
+    assert.match(text, /🔹 Branch: `your-branch`/);
   });
 
   it("includes step-by-step instructions for conflict resolution", () => {
@@ -73,17 +83,14 @@ describe("formatPrFeedback", () => {
     const result = formatPrFeedback(feedback, "develop");
     const text = result.join("\n");
 
-    // Check all steps are present
-    expect(text).toContain("1. Fetch and check out the PR branch");
-    expect(text).toContain("2. Rebase onto `develop`");
-    expect(text).toContain("3. Resolve any conflicts");
-    expect(text).toContain("4. Force-push to the SAME branch");
-    expect(text).toContain("5. Verify the PR shows as mergeable");
-
-    // Check warning about not creating new PR
-    expect(text).toContain("⚠️ Do NOT create a new PR");
-    expect(text).toContain("Do NOT switch branches");
-    expect(text).toContain("Update THIS PR only");
+    assert.match(text, /1\. Fetch and check out the PR branch/);
+    assert.match(text, /2\. Rebase onto `develop`/);
+    assert.match(text, /3\. Resolve any conflicts/);
+    assert.match(text, /4\. Force-push to the SAME branch/);
+    assert.match(text, /5\. Verify the PR shows as mergeable/);
+    assert.match(text, /⚠️ Do NOT create a new PR/);
+    assert.match(text, /Do NOT switch branches/);
+    assert.match(text, /Update THIS canonical PR only/);
   });
 
   it("correctly formats changes_requested feedback", () => {
@@ -103,10 +110,9 @@ describe("formatPrFeedback", () => {
     const result = formatPrFeedback(feedback, "main");
     const text = result.join("\n");
 
-    expect(text).toContain("⚠️ Changes were requested");
-    expect(text).toContain("Please make these changes");
-    // Should NOT have conflict resolution instructions
-    expect(text).not.toContain("Conflict Resolution Instructions");
+    assert.match(text, /⚠️ Changes were requested/);
+    assert.match(text, /Please make these changes/);
+    assert.doesNotMatch(text, /Conflict Resolution Instructions/);
   });
 
   it("includes comment location information when available", () => {
@@ -128,7 +134,7 @@ describe("formatPrFeedback", () => {
     const result = formatPrFeedback(feedback, "main");
     const text = result.join("\n");
 
-    expect(text).toContain("(src/index.ts:42)");
+    assert.match(text, /\(src\/index\.ts:42\)/);
   });
 
   it("uses correct base branch in rebase command", () => {
@@ -146,14 +152,64 @@ describe("formatPrFeedback", () => {
       ],
     };
 
-    // Test with "main" base branch
     let result = formatPrFeedback(feedback, "main");
     let text = result.join("\n");
-    expect(text).toContain("git rebase main");
+    assert.match(text, /git rebase main/);
 
-    // Test with "develop" base branch
     result = formatPrFeedback(feedback, "develop");
     text = result.join("\n");
-    expect(text).toContain("git rebase develop");
+    assert.match(text, /git rebase develop/);
+  });
+});
+
+describe("canonical PR dispatch routing", () => {
+  it("fails closed when canonical status lookup no longer resolves", async () => {
+    const workspaceDir = await mkdtemp(path.join(os.tmpdir(), "devclaw-pr-context-"));
+    try {
+      const provider = new TestProvider();
+      provider.seedIssue({ iid: 77, title: "Review me", labels: ["To Review"] });
+      provider.setLinkedPrs(77, [{ number: 77, url: "https://example.com/pr/77", title: "Review me", sourceBranch: "issue/77-review-me" }]);
+      await recordCanonicalPr(workspaceDir, "test-project", 77, {
+        number: 77,
+        url: "https://example.com/pr/77",
+        title: "Review me",
+        sourceBranch: "issue/77-review-me",
+      }, PrState.OPEN);
+
+      await assert.rejects(
+        () => fetchPrContext(provider, 77, { workspaceDir, projectSlug: "test-project" }),
+        /stored PR https:\/\/example\.com\/pr\/77 no longer resolves/,
+      );
+    } finally {
+      await rm(workspaceDir, { recursive: true, force: true });
+    }
+  });
+
+  it("preserves canonical feedback routing even when comments are empty", async () => {
+    const workspaceDir = await mkdtemp(path.join(os.tmpdir(), "devclaw-pr-feedback-"));
+    try {
+      const provider = new TestProvider();
+      provider.seedIssue({ iid: 78, title: "Needs changes", labels: ["To Improve"] });
+      provider.setPrStatus(78, {
+        state: PrState.CHANGES_REQUESTED,
+        url: "https://example.com/pr/78",
+        number: 78,
+        sourceBranch: "issue/78-needs-changes",
+      });
+      await recordCanonicalPr(workspaceDir, "test-project", 78, {
+        number: 78,
+        url: "https://example.com/pr/78",
+        title: "Needs changes",
+        sourceBranch: "issue/78-needs-changes",
+      }, PrState.CHANGES_REQUESTED);
+
+      const feedback = await fetchPrFeedback(provider, 78, { workspaceDir, projectSlug: "test-project" });
+      assert.ok(feedback);
+      assert.strictEqual(feedback?.url, "https://example.com/pr/78");
+      assert.strictEqual(feedback?.reason, "changes_requested");
+      assert.deepStrictEqual(feedback?.comments, []);
+    } finally {
+      await rm(workspaceDir, { recursive: true, force: true });
+    }
   });
 });

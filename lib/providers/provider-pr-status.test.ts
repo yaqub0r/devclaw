@@ -6,7 +6,7 @@
  *
  * Run with: npx tsx --test lib/providers/provider-pr-status.test.ts
  */
-import { describe, it, mock } from "node:test";
+import { describe, it } from "node:test";
 import assert from "node:assert";
 import type { RunCommand } from "../context.js";
 import { GitHubProvider } from "./github.js";
@@ -26,7 +26,6 @@ describe("GitHubProvider.getPrStatus — closed PR handling", () => {
   it("returns url:null when no PR has ever been created", async () => {
     const provider = new GitHubProvider({ repoPath: "/fake", runCommand: mockRunCommand });
 
-    // findPrsForIssue returns [] for open and merged, findPrsViaTimeline returns null (GraphQL unavailable)
     (provider as any).findPrsForIssue = async () => [];
     (provider as any).findPrsViaTimeline = async () => null;
 
@@ -103,7 +102,6 @@ describe("GitHubProvider.getPrStatus — closed PR handling", () => {
       }
       return [];
     };
-    // Simulate no changes-requested reviews and no comments
     (provider as any).hasChangesRequestedReview = async () => false;
     (provider as any).hasUnacknowledgedReviews = async () => false;
     (provider as any).hasConversationComments = async () => false;
@@ -146,7 +144,6 @@ describe("GitHubProvider.getPrStatus — closed PR handling", () => {
     const provider = new GitHubProvider({ repoPath: "/fake", runCommand: mockRunCommand });
 
     (provider as any).findPrsForIssue = async () => [];
-    // Timeline has only OPEN PRs — none should trigger closed-PR path
     (provider as any).findPrsViaTimeline = async (_id: number, state: string) => {
       if (state === "all") {
         return [{ number: 10, title: "", body: "", headRefName: "", url: "https://github.com/owner/repo/pull/10", mergedAt: null, reviewDecision: null, state: "OPEN", mergeable: null }];
@@ -156,8 +153,6 @@ describe("GitHubProvider.getPrStatus — closed PR handling", () => {
 
     const status = await provider.getPrStatus(42);
 
-    // OPEN PR in timeline but findPrsForIssue("open") returned [] → shouldn't reach here normally,
-    // but the CLOSED fallback path should not pick it up.
     assert.strictEqual(status.state, PrState.CLOSED);
     assert.strictEqual(status.url, null, "OPEN state in timeline should not match closed-PR path");
   });
@@ -183,7 +178,6 @@ describe("GitHubProvider.getPrStatus — closed PR handling", () => {
       }
       return [];
     };
-    // Simulate no changes-requested reviews and no comments
     (provider as any).hasChangesRequestedReview = async () => false;
     (provider as any).hasUnacknowledgedReviews = async () => false;
     (provider as any).hasConversationComments = async () => false;
@@ -257,6 +251,92 @@ describe("GitHubProvider.getPrStatus — closed PR handling", () => {
     assert.strictEqual(status.state, PrState.OPEN);
     assert.strictEqual(status.url, unknownPrUrl);
     assert.strictEqual(status.mergeable, undefined, "mergeable: UNKNOWN should remain undefined (no assumption)");
+  });
+});
+
+describe("GitHubProvider.getPrStatusByUrl", () => {
+  it("preserves comment-only feedback semantics for canonical PR routing", async () => {
+    const provider = new GitHubProvider({ repoPath: "/fake", runCommand: mockRunCommand });
+
+    (provider as any).gh = async () => JSON.stringify({
+      number: 44,
+      title: "feat: canonical pr",
+      headRefName: "issue/244-canonical-pr-ledger",
+      url: "https://github.com/owner/repo/pull/44",
+      state: "OPEN",
+      reviewDecision: null,
+      mergeable: "MERGEABLE",
+    });
+    (provider as any).hasChangesRequestedReview = async () => false;
+    (provider as any).hasUnacknowledgedReviews = async () => true;
+    (provider as any).hasConversationComments = async () => false;
+
+    const status = await provider.getPrStatusByUrl("https://github.com/owner/repo/pull/44");
+
+    assert.ok(status);
+    assert.strictEqual(status.state, PrState.HAS_COMMENTS);
+    assert.strictEqual(status.mergeable, true);
+  });
+
+  it("preserves changes-requested fallback when reviewDecision is empty", async () => {
+    const provider = new GitHubProvider({ repoPath: "/fake", runCommand: mockRunCommand });
+
+    (provider as any).gh = async () => JSON.stringify({
+      number: 45,
+      title: "feat: canonical pr",
+      headRefName: "issue/244-canonical-pr-ledger",
+      url: "https://github.com/owner/repo/pull/45",
+      state: "OPEN",
+      reviewDecision: null,
+      mergeable: "UNKNOWN",
+    });
+    (provider as any).hasChangesRequestedReview = async () => true;
+    (provider as any).hasUnacknowledgedReviews = async () => false;
+    (provider as any).hasConversationComments = async () => false;
+
+    const status = await provider.getPrStatusByUrl("https://github.com/owner/repo/pull/45");
+
+    assert.ok(status);
+    assert.strictEqual(status.state, PrState.CHANGES_REQUESTED);
+    assert.strictEqual(status.mergeable, undefined);
+  });
+});
+
+describe("GitHubProvider canonical URL helpers", () => {
+  it("throws when diff lookup fails after PR identity resolves", async () => {
+    const provider = new GitHubProvider({ repoPath: "/fake", runCommand: mockRunCommand });
+    (provider as any).getPrByUrl = async () => ({
+      number: 46,
+      url: "https://github.com/owner/repo/pull/46",
+      title: "feat: canonical pr",
+      sourceBranch: "issue/244-canonical-pr-ledger",
+    });
+    (provider as any).gh = async () => {
+      throw new Error("gh diff failed");
+    };
+
+    await assert.rejects(
+      provider.getPrDiffByUrl("https://github.com/owner/repo/pull/46"),
+      /gh diff failed/,
+    );
+  });
+
+  it("throws when review comment retrieval fails after PR identity resolves", async () => {
+    const provider = new GitHubProvider({ repoPath: "/fake", runCommand: mockRunCommand });
+    (provider as any).getPrByUrl = async () => ({
+      number: 47,
+      url: "https://github.com/owner/repo/pull/47",
+      title: "feat: canonical pr",
+      sourceBranch: "issue/244-canonical-pr-ledger",
+    });
+    (provider as any).gh = async () => {
+      throw new Error("gh reviews failed");
+    };
+
+    await assert.rejects(
+      provider.getPrReviewCommentsByUrl("https://github.com/owner/repo/pull/47"),
+      /gh reviews failed/,
+    );
   });
 });
 
@@ -352,7 +432,168 @@ describe("GitLabProvider.getPrStatus — closed MR handling", () => {
     const status = await provider.getPrStatus(42);
 
     assert.strictEqual(status.state, PrState.CLOSED);
-    // First closed MR found is returned
     assert.strictEqual(status.url, closedMrUrl1);
+  });
+});
+
+describe("GitLabProvider.getPrStatusByUrl", () => {
+  it("preserves comment-driven feedback semantics for canonical MR routing", async () => {
+    const provider = new GitLabProvider({ repoPath: "/fake", runCommand: mockRunCommand });
+
+    (provider as any).getPrByUrl = async () => ({
+      number: 24,
+      url: "https://gitlab.com/owner/repo/-/merge_requests/24",
+      title: "feat: canonical mr",
+      sourceBranch: "issue/244-canonical-pr-ledger",
+    });
+    (provider as any).glab = async () => JSON.stringify({
+      state: "opened",
+      title: "feat: canonical mr",
+      source_branch: "issue/244-canonical-pr-ledger",
+      web_url: "https://gitlab.com/owner/repo/-/merge_requests/24",
+    });
+    (provider as any).isMrApproved = async () => false;
+    (provider as any).hasUnresolvedDiscussions = async () => false;
+    (provider as any).hasConversationComments = async () => true;
+    (provider as any).isMrMergeable = async () => true;
+
+    const status = await provider.getPrStatusByUrl("https://gitlab.com/owner/repo/-/merge_requests/24");
+
+    assert.ok(status);
+    assert.strictEqual(status.state, PrState.HAS_COMMENTS);
+    assert.strictEqual(status.mergeable, true);
+  });
+
+  it("preserves unresolved-discussion changes-requested semantics", async () => {
+    const provider = new GitLabProvider({ repoPath: "/fake", runCommand: mockRunCommand });
+
+    (provider as any).getPrByUrl = async () => ({
+      number: 25,
+      url: "https://gitlab.com/owner/repo/-/merge_requests/25",
+      title: "feat: canonical mr",
+      sourceBranch: "issue/244-canonical-pr-ledger",
+    });
+    (provider as any).glab = async () => JSON.stringify({
+      state: "opened",
+      title: "feat: canonical mr",
+      source_branch: "issue/244-canonical-pr-ledger",
+      web_url: "https://gitlab.com/owner/repo/-/merge_requests/25",
+    });
+    (provider as any).isMrApproved = async () => false;
+    (provider as any).hasUnresolvedDiscussions = async () => true;
+    (provider as any).hasConversationComments = async () => false;
+    (provider as any).isMrMergeable = async () => undefined;
+
+    const status = await provider.getPrStatusByUrl("https://gitlab.com/owner/repo/-/merge_requests/25");
+
+    assert.ok(status);
+    assert.strictEqual(status.state, PrState.CHANGES_REQUESTED);
+    assert.strictEqual(status.mergeable, undefined);
+  });
+});
+
+describe("GitLabProvider.getPrReviewCommentsByUrl", () => {
+  it("reuses canonical MR comment retrieval semantics", async () => {
+    const provider = new GitLabProvider({ repoPath: "/fake", runCommand: mockRunCommand });
+
+    (provider as any).getPrByUrl = async () => ({
+      number: 26,
+      url: "https://gitlab.com/owner/repo/-/merge_requests/26",
+      title: "feat: canonical mr",
+      sourceBranch: "issue/244-canonical-pr-ledger",
+    });
+    (provider as any).glab = async ([, path]: string[]) => {
+      if (path === "projects/:id/merge_requests/26/discussions") {
+        return JSON.stringify([
+          {
+            notes: [
+              {
+                id: 101,
+                author: { username: "reviewer" },
+                body: "Please tighten this up",
+                resolvable: true,
+                resolved: false,
+                system: false,
+                created_at: "2026-05-31T00:00:00Z",
+                position: { new_path: "lib/providers/gitlab.ts", new_line: 451 },
+              },
+            ],
+          },
+        ]);
+      }
+      if (path === "projects/:id/merge_requests/26/notes") {
+        return JSON.stringify([
+          {
+            id: 102,
+            author: { username: "reviewer" },
+            system: false,
+            body: "Top-level follow-up",
+            created_at: "2026-05-31T00:01:00Z",
+          },
+        ]);
+      }
+      throw new Error(`unexpected glab path: ${path}`);
+    };
+
+    const comments = await provider.getPrReviewCommentsByUrl("https://gitlab.com/owner/repo/-/merge_requests/26");
+
+    assert.deepStrictEqual(comments, [
+      {
+        id: 101,
+        author: "reviewer",
+        body: "Please tighten this up",
+        state: "UNRESOLVED",
+        created_at: "2026-05-31T00:00:00Z",
+        path: "lib/providers/gitlab.ts",
+        line: 451,
+      },
+      {
+        id: 102,
+        author: "reviewer",
+        body: "Top-level follow-up",
+        state: "COMMENTED",
+        created_at: "2026-05-31T00:01:00Z",
+      },
+    ]);
+  });
+
+  it("throws when canonical MR comment retrieval fails after identity resolution", async () => {
+    const provider = new GitLabProvider({ repoPath: "/fake", runCommand: mockRunCommand });
+
+    (provider as any).getPrByUrl = async () => ({
+      number: 27,
+      url: "https://gitlab.com/owner/repo/-/merge_requests/27",
+      title: "feat: canonical mr",
+      sourceBranch: "issue/244-canonical-pr-ledger",
+    });
+    (provider as any).glab = async () => {
+      throw new Error("glab discussions failed");
+    };
+
+    await assert.rejects(
+      provider.getPrReviewCommentsByUrl("https://gitlab.com/owner/repo/-/merge_requests/27"),
+      /glab discussions failed/,
+    );
+  });
+});
+
+describe("GitLabProvider canonical URL helpers", () => {
+  it("throws when diff lookup fails after MR identity resolves", async () => {
+    const provider = new GitLabProvider({ repoPath: "/fake", runCommand: mockRunCommand });
+
+    (provider as any).getPrByUrl = async () => ({
+      number: 28,
+      url: "https://gitlab.com/owner/repo/-/merge_requests/28",
+      title: "feat: canonical mr",
+      sourceBranch: "issue/244-canonical-pr-ledger",
+    });
+    (provider as any).glab = async () => {
+      throw new Error("glab diff failed");
+    };
+
+    await assert.rejects(
+      provider.getPrDiffByUrl("https://gitlab.com/owner/repo/-/merge_requests/28"),
+      /glab diff failed/,
+    );
   });
 });

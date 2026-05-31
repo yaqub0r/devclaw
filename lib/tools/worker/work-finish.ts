@@ -14,6 +14,7 @@ import type { ToolContext } from "../../types.js";
 import type { PluginContext, RunCommand } from "../../context.js";
 import { getRoleWorker, resolveRepoPath, findSlotByIssue } from "../../projects/index.js";
 import { executeCompletion, getRule } from "../../services/pipeline.js";
+import { resolveDeveloperCanonicalPr } from "../../services/canonical-pr.js";
 import { log as auditLog } from "../../audit.js";
 import { DATA_DIR } from "../../setup/migrate-layout.js";
 import { requireWorkspaceDir, resolveChannelId, resolveProject, resolveProvider } from "../helpers.js";
@@ -79,27 +80,47 @@ async function isConflictResolutionCycle(
  *   - We check `url === null` rather than the state field to be explicit:
  *     a null URL unambiguously means "nothing found", regardless of state label.
  */
-async function validatePrExistsForDeveloper(
+export async function validatePrExistsForDeveloper(
   issueId: number,
   repoPath: string,
   provider: Awaited<ReturnType<typeof resolveProvider>>["provider"],
   runCommand: RunCommand,
   workspaceDir: string,
   projectSlug: string,
+  prUrl?: string,
 ): Promise<void> {
   try {
-    const prStatus = await provider.getPrStatus(issueId);
+    let currentBranch = "";
+    try {
+      currentBranch = await getCurrentBranch(repoPath, runCommand);
+    } catch {
+      // Best-effort only. Detached HEAD or provider-only environments can leave this blank.
+    }
+
+    const canonicalPr = await resolveDeveloperCanonicalPr({
+      workspaceDir,
+      projectSlug,
+      issueId,
+      provider,
+      explicitPrUrl: prUrl,
+    });
+    const prStatus = await provider.getPrStatusByUrl(canonicalPr.url);
+
+    if (!prStatus) {
+      throw new Error(`Canonical PR routing integrity failure for issue #${issueId}: ${canonicalPr.url} could not be resolved.`);
+    }
+
+    const canonicalBranch = prStatus.sourceBranch ?? canonicalPr.sourceBranch;
+    if (currentBranch && canonicalBranch && currentBranch !== canonicalBranch) {
+      throw new Error(
+        `Canonical PR routing integrity failure for issue #${issueId}: current branch ${currentBranch} does not match canonical PR branch ${canonicalBranch} (${canonicalPr.url}).`,
+      );
+    }
 
     // url is null when getPrStatus found no open or merged PR for this issue.
     // This covers both "no PR ever created" and "PR was closed without merging".
     if (!prStatus.url) {
-      // Get current branch for a helpful gh pr create example
-      let branchName = "current-branch";
-      try {
-        branchName = await getCurrentBranch(repoPath, runCommand);
-      } catch {
-        // Fall back to generic placeholder
-      }
+      const branchName = currentBranch || "current-branch";
 
       throw new Error(
         `Cannot mark work_finish(done) without an open PR.\n\n` +
@@ -168,9 +189,13 @@ async function validatePrExistsForDeveloper(
       });
     }
   } catch (err) {
-    // Re-throw our own validation errors; swallow provider/network errors.
-    // Swallowing keeps work_finish unblocked when the API is unreachable.
-    if (err instanceof Error && (err.message.startsWith("Cannot mark work_finish(done)") || err.message.startsWith("Cannot complete work_finish(done)"))) {
+    // Re-throw explicit validation and routing-integrity failures.
+    // Swallow only transient provider/network errors so unrelated outages do not block completion.
+    if (err instanceof Error && (
+      err.message.startsWith("Cannot mark work_finish(done)") ||
+      err.message.startsWith("Cannot complete work_finish(done)") ||
+      err.message.startsWith("Canonical PR routing")
+    )) {
       throw err;
     }
     console.warn(`PR validation warning for issue #${issueId}:`, err);
@@ -294,7 +319,7 @@ export function createWorkFinishTool(ctx: PluginContext) {
 
       // For developers marking work as done, validate that a PR exists
       if (role === "developer" && result === "done") {
-        await validatePrExistsForDeveloper(issueId, repoPath, provider, ctx.runCommand, workspaceDir, project.slug);
+        await validatePrExistsForDeveloper(issueId, repoPath, provider, ctx.runCommand, workspaceDir, project.slug, prUrl);
       }
 
       const completion = await executeCompletion({

@@ -14,6 +14,9 @@ import assert from "node:assert";
 import { mkdtemp, writeFile, readFile, rm, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { TestProvider } from "../../testing/test-provider.js";
+import { PrState } from "../../providers/provider.js";
+import { validatePrExistsForDeveloper } from "./work-finish.js";
 
 // Helper to create a mock audit log with a merge_conflict transition
 async function createMockAuditLog(workspaceDir: string, issueId: number, hasMergeConflict: boolean): Promise<void> {
@@ -163,6 +166,34 @@ describe("work_finish: PR validation and conflict resolution", () => {
   });
 
   describe("validatePrExistsForDeveloper: conflict detection", () => {
+    it("rejects completion when current branch does not match canonical PR branch", async () => {
+      const provider = new TestProvider();
+      provider.setLinkedPrs(244, [{
+        number: 245,
+        url: "https://github.com/test/repo/pull/245",
+        sourceBranch: "issue/244-canonical-pr-ledger",
+        repo: "test/repo",
+      }]);
+      provider.prStatuses.set(244, {
+        state: PrState.OPEN,
+        url: "https://github.com/test/repo/pull/245",
+        number: 245,
+        sourceBranch: "issue/244-canonical-pr-ledger",
+      });
+
+      await assert.rejects(
+        validatePrExistsForDeveloper(
+          244,
+          "/tmp/repo",
+          provider,
+          async () => ({ stdout: "wrong-branch\n", stderr: "", exitCode: 0, code: 0, signal: null, killed: false, termination: "exit" } as any),
+          tempDir,
+          "devclaw",
+        ),
+        /current branch wrong-branch does not match canonical PR branch issue\/244-canonical-pr-ledger/,
+      );
+    });
+
     it("should validate error message format when PR still conflicting", async () => {
       // Test that our error message matches the expected pattern
       const errorMessage = 

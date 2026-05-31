@@ -6,6 +6,7 @@ import {
   type Issue,
   type StateLabel,
   type IssueComment,
+  type PrIdentity,
   type PrStatus,
   type PrReviewComment,
   PrState,
@@ -41,6 +42,14 @@ export class GitHubProvider implements IssueProvider {
   private workflow: WorkflowConfig;
   private runCommand: RunCommand;
   private targetRepo?: string;
+
+  private isGhNotFoundError(error: unknown): boolean {
+    const message = error instanceof Error ? error.message : String(error);
+    return message.includes("Could not resolve to a PullRequest") ||
+      message.includes("no pull requests found") ||
+      message.includes("HTTP 404") ||
+      message.includes("Not Found");
+  }
 
   constructor(opts: { repoPath: string; runCommand: RunCommand; workflow?: WorkflowConfig; target?: ProviderTarget }) {
     this.repoPath = opts.repoPath;
@@ -341,41 +350,57 @@ export class GitHubProvider implements IssueProvider {
     return prs[0].url;
   }
 
+  async getLinkedPrs(issueId: number): Promise<PrIdentity[]> {
+    const prs = await this.findPrsForIssue<{ number: number; title: string; body: string; headRefName: string; url: string }>(
+      issueId,
+      "all",
+      "number,title,body,headRefName,url",
+    );
+    return prs.map((pr) => ({
+      number: pr.number,
+      url: pr.url,
+      title: pr.title,
+      sourceBranch: pr.headRefName,
+      repo: this.targetRepo,
+    }));
+  }
+
+  async getPrByUrl(prUrl: string): Promise<PrIdentity | null> {
+    try {
+      const raw = await this.gh(["pr", "view", prUrl, "--json", "number,title,headRefName,url"]);
+      const pr = JSON.parse(raw) as { number: number; title: string; headRefName: string; url: string };
+      return { number: pr.number, url: pr.url, title: pr.title, sourceBranch: pr.headRefName, repo: this.targetRepo };
+    } catch (err) {
+      if (this.isGhNotFoundError(err)) return null;
+      throw err;
+    }
+  }
+
+  async getPrByNumber(prNumber: number): Promise<PrIdentity | null> {
+    try {
+      const raw = await this.gh(["pr", "view", String(prNumber), "--json", "number,title,headRefName,url"]);
+      const pr = JSON.parse(raw) as { number: number; title: string; headRefName: string; url: string };
+      return { number: pr.number, url: pr.url, title: pr.title, sourceBranch: pr.headRefName, repo: this.targetRepo };
+    } catch (err) {
+      if (this.isGhNotFoundError(err)) return null;
+      throw err;
+    }
+  }
+
   async getPrStatus(issueId: number): Promise<PrStatus> {
     // Check open PRs first — include mergeable for conflict detection
     type OpenPr = { title: string; body: string; headRefName: string; url: string; number: number; reviewDecision: string; mergeable: string };
     const open = await this.findPrsForIssue<OpenPr>(issueId, "open", "title,body,headRefName,url,number,reviewDecision,mergeable");
     if (open.length > 0) {
       const pr = open[0];
-      let state: PrState;
-      if (pr.reviewDecision === "APPROVED") {
-        state = PrState.APPROVED;
-      } else if (pr.reviewDecision === "CHANGES_REQUESTED") {
-        state = PrState.CHANGES_REQUESTED;
-      } else {
-        // No branch protection → reviewDecision may be empty. Check individual reviews.
-        const hasChangesRequested = await this.hasChangesRequestedReview(pr.number);
-        if (hasChangesRequested) {
-          state = PrState.CHANGES_REQUESTED;
-        } else {
-          // Check for unacknowledged COMMENTED reviews (feedback without formal "Request changes")
-          const hasReviewFeedback = await this.hasUnacknowledgedReviews(pr.number);
-          if (hasReviewFeedback) {
-            state = PrState.HAS_COMMENTS;
-          } else {
-            // Fall through to conversation comment detection
-            const hasComments = await this.hasConversationComments(pr.number);
-            state = hasComments ? PrState.HAS_COMMENTS : PrState.OPEN;
-          }
-        }
-      }
-
-      // Conflict detection: "CONFLICTING" means merge conflicts, "UNKNOWN" means still computing
-      const mergeable = pr.mergeable === "CONFLICTING" ? false
-        : pr.mergeable === "MERGEABLE" ? true
-        : undefined; // UNKNOWN or missing — don't assume
-
-      return { state, url: pr.url, title: pr.title, sourceBranch: pr.headRefName, mergeable };
+      return this.buildOpenPrStatus({
+        number: pr.number,
+        title: pr.title,
+        sourceBranch: pr.headRefName,
+        url: pr.url,
+        reviewDecision: pr.reviewDecision,
+        mergeable: pr.mergeable,
+      });
     }
     // Check merged PRs — also fetch reviewDecision to detect approved-then-merged vs self-merged.
     type MergedPr = { title: string; body: string; headRefName: string; url: string; reviewDecision: string | null };
@@ -390,9 +415,61 @@ export class GitHubProvider implements IssueProvider {
     const allPrs = await this.findPrsViaTimeline(issueId, "all");
     const closedPr = allPrs?.find((pr) => pr.state === "CLOSED");
     if (closedPr) {
-      return { state: PrState.CLOSED, url: closedPr.url, title: closedPr.title, sourceBranch: closedPr.headRefName };
+      return { state: PrState.CLOSED, url: closedPr.url, number: closedPr.number, title: closedPr.title, sourceBranch: closedPr.headRefName };
     }
     return { state: PrState.CLOSED, url: null };
+  }
+
+  async getPrStatusByUrl(prUrl: string): Promise<PrStatus | null> {
+    try {
+      const raw = await this.gh(["pr", "view", prUrl, "--json", "number,title,headRefName,url,state,reviewDecision,mergeable"]);
+      const pr = JSON.parse(raw) as { number: number; title: string; headRefName: string; url: string; state: string; reviewDecision: string | null; mergeable: string | null };
+      if (pr.state === "MERGED") {
+        return { state: PrState.MERGED, url: pr.url, number: pr.number, title: pr.title, sourceBranch: pr.headRefName };
+      }
+      if (pr.state === "CLOSED") {
+        return { state: PrState.CLOSED, url: pr.url, number: pr.number, title: pr.title, sourceBranch: pr.headRefName };
+      }
+      return this.buildOpenPrStatus({
+        number: pr.number,
+        title: pr.title,
+        sourceBranch: pr.headRefName,
+        url: pr.url,
+        reviewDecision: pr.reviewDecision,
+        mergeable: pr.mergeable,
+      });
+    } catch (err) {
+      if (this.isGhNotFoundError(err)) return null;
+      throw err;
+    }
+  }
+
+  private async buildOpenPrStatus(pr: { number: number; title: string; sourceBranch?: string; url: string; reviewDecision?: string | null; mergeable?: string | null }): Promise<PrStatus> {
+    let state: PrState;
+    if (pr.reviewDecision === "APPROVED") {
+      state = PrState.APPROVED;
+    } else if (pr.reviewDecision === "CHANGES_REQUESTED") {
+      state = PrState.CHANGES_REQUESTED;
+    } else {
+      const hasChangesRequested = await this.hasChangesRequestedReview(pr.number);
+      if (hasChangesRequested) {
+        state = PrState.CHANGES_REQUESTED;
+      } else {
+        const hasReviewFeedback = await this.hasUnacknowledgedReviews(pr.number);
+        if (hasReviewFeedback) {
+          state = PrState.HAS_COMMENTS;
+        } else {
+          const hasComments = await this.hasConversationComments(pr.number);
+          state = hasComments ? PrState.HAS_COMMENTS : PrState.OPEN;
+        }
+      }
+    }
+
+    const mergeable = pr.mergeable === "CONFLICTING" ? false
+      : pr.mergeable === "MERGEABLE" ? true
+      : undefined;
+
+    return { state, url: pr.url, number: pr.number, title: pr.title, sourceBranch: pr.sourceBranch, mergeable };
   }
 
   /**
@@ -482,11 +559,12 @@ export class GitHubProvider implements IssueProvider {
     } catch { return []; }
   }
 
-  async mergePr(issueId: number): Promise<void> {
-    type OpenPr = { title: string; body: string; headRefName: string; url: string };
-    const prs = await this.findPrsForIssue<OpenPr>(issueId, "open", "title,body,headRefName,url");
-    if (prs.length === 0) throw new Error(`No open PR found for issue #${issueId}`);
-    await this.gh(["pr", "merge", prs[0].url, "--merge"]);
+  async mergePr(issueId: number, opts?: { prUrl?: string; prNumber?: number }): Promise<void> {
+    const prUrl = opts?.prUrl ?? (opts?.prNumber ? (await this.getPrByNumber(opts.prNumber))?.url : null);
+    if (!prUrl) {
+      throw new Error(`Canonical PR identity is required to merge issue #${issueId}.`);
+    }
+    await this.gh(["pr", "merge", prUrl, "--merge"]);
   }
 
   async getPrDiff(issueId: number): Promise<string | null> {
@@ -498,66 +576,67 @@ export class GitHubProvider implements IssueProvider {
     } catch { return null; }
   }
 
-  async getPrReviewComments(issueId: number): Promise<PrReviewComment[]> {
-    type OpenPr = { title: string; body: string; headRefName: string; number: number };
-    const prs = await this.findPrsForIssue<OpenPr>(issueId, "open", "title,body,headRefName,number");
-    if (prs.length === 0) return [];
-    const prNumber = prs[0].number;
+  async getPrDiffByUrl(prUrl: string): Promise<string | null> {
+    const pr = await this.getPrByUrl(prUrl);
+    if (!pr) return null;
+    return await this.gh(["pr", "diff", String(pr.number)]);
+  }
+
+  private async getReviewCommentsForPrNumber(prNumber: number, opts?: { strict?: boolean }): Promise<PrReviewComment[]> {
+    const strict = opts?.strict ?? false;
     const comments: PrReviewComment[] = [];
 
     try {
-      // Review-level comments (top-level reviews: APPROVED, CHANGES_REQUESTED, COMMENTED)
       const reviewsRaw = await this.gh(["api", `repos/:owner/:repo/pulls/${prNumber}/reviews`]);
       const reviews = JSON.parse(reviewsRaw) as Array<{
         id: number; user: { login: string }; body: string; state: string; submitted_at: string;
       }>;
       for (const r of reviews) {
-        if (r.state === "DISMISSED") continue; // Skip dismissed
-        if (!r.body && r.state === "COMMENTED") continue; // Skip empty COMMENTED reviews
-        comments.push({
-          id: r.id,
-          author: r.user.login,
-          body: r.body ?? "",
-          state: r.state,
-          created_at: r.submitted_at,
-        });
+        if (r.state === "DISMISSED") continue;
+        if (!r.body && r.state === "COMMENTED") continue;
+        comments.push({ id: r.id, author: r.user.login, body: r.body ?? "", state: r.state, created_at: r.submitted_at });
       }
-    } catch { /* best-effort */ }
+    } catch (err) {
+      if (strict) throw err;
+    }
 
     try {
-      // Inline (file-level) review comments
       const inlineRaw = await this.gh(["api", `repos/:owner/:repo/pulls/${prNumber}/comments`]);
       const inlines = JSON.parse(inlineRaw) as Array<{
         id: number; user: { login: string }; body: string; path: string; line: number | null; created_at: string;
       }>;
       for (const c of inlines) {
-        comments.push({
-          id: c.id,
-          author: c.user.login,
-          body: c.body,
-          state: "INLINE",
-          created_at: c.created_at,
-          path: c.path,
-          line: c.line ?? undefined,
-        });
+        comments.push({ id: c.id, author: c.user.login, body: c.body, state: "INLINE", created_at: c.created_at, path: c.path, line: c.line ?? undefined });
       }
-    } catch { /* best-effort */ }
-
-    // Top-level conversation comments (regular PR comments via Issues API)
-    const conversationComments = await this.fetchConversationComments(prNumber);
-    for (const c of conversationComments) {
-      comments.push({
-        id: c.id,
-        author: c.user.login,
-        body: c.body,
-        state: "COMMENTED",
-        created_at: c.created_at,
-      });
+    } catch (err) {
+      if (strict) throw err;
     }
 
-    // Sort by date
+    let conversationComments: Array<{ id: number; user: { login: string }; body: string; created_at: string }> = [];
+    try {
+      conversationComments = await this.fetchConversationComments(prNumber);
+    } catch (err) {
+      if (strict) throw err;
+    }
+    for (const c of conversationComments) {
+      comments.push({ id: c.id, author: c.user.login, body: c.body, state: "COMMENTED", created_at: c.created_at });
+    }
+
     comments.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
     return comments;
+  }
+
+  async getPrReviewComments(issueId: number): Promise<PrReviewComment[]> {
+    type OpenPr = { title: string; body: string; headRefName: string; number: number };
+    const prs = await this.findPrsForIssue<OpenPr>(issueId, "open", "title,body,headRefName,number");
+    if (prs.length === 0) return [];
+    return this.getReviewCommentsForPrNumber(prs[0].number);
+  }
+
+  async getPrReviewCommentsByUrl(prUrl: string): Promise<PrReviewComment[]> {
+    const pr = await this.getPrByUrl(prUrl);
+    if (!pr) return [];
+    return this.getReviewCommentsForPrNumber(pr.number, { strict: true });
   }
 
   async addComment(issueId: number, body: string): Promise<number> {

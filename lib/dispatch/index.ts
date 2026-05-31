@@ -150,7 +150,6 @@ export async function dispatchTask(
     ).catch(() => {});
     existingSessionKey = null;
   }
-
   const sessionAction = existingSessionKey ? "send" : "spawn";
 
   // Fetch comments to include in task context
@@ -158,9 +157,9 @@ export async function dispatchTask(
 
   // Fetch PR context based on workflow role semantics (no hardcoded role/label checks)
   const prFeedback = isFeedbackState(workflow, fromLabel)
-    ? await fetchPrFeedback(provider, issueId) : undefined;
+    ? await fetchPrFeedback(provider, issueId, { workspaceDir, projectSlug: project.slug }) : undefined;
   const prContext = hasReviewCheck(workflow, role)
-    ? await fetchPrContext(provider, issueId) : undefined;
+    ? await fetchPrContext(provider, issueId, { workspaceDir, projectSlug: project.slug }) : undefined;
 
   // Fetch attachment context (best-effort — never blocks dispatch)
   let attachmentContext: string | undefined;

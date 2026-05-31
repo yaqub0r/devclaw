@@ -8,6 +8,7 @@
  */
 import type { IssueProvider } from "../providers/provider.js";
 import { PrState } from "../providers/provider.js";
+import { resolveCanonicalPrForIssue } from "../services/canonical-pr.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -32,8 +33,9 @@ export type PrContext = {
 
 /**
  * Fetch PR review feedback for an issue returning from review.
- * Returns undefined if no PR or no review comments found.
- * Best-effort: swallows errors (caller can still work from issue context).
+ * Returns undefined if no PR found, or if the PR is not currently in a
+ * feedback-worthy state.
+ * Canonical routing errors are allowed to bubble so dispatch fails closed.
  *
  * Includes explicit branch name in feedback to prevent developers from working
  * on the wrong PR when multiple PRs exist for the same issue (#482).
@@ -41,50 +43,70 @@ export type PrContext = {
 export async function fetchPrFeedback(
   provider: IssueProvider,
   issueId: number,
+  opts?: { workspaceDir?: string; projectSlug?: string },
 ): Promise<PrFeedback | undefined> {
-  try {
-    const prStatus = await provider.getPrStatus(issueId);
-    if (!prStatus.url || prStatus.state === PrState.MERGED || prStatus.state === PrState.CLOSED) {
-      return undefined;
-    }
-    const reviewComments = await provider.getPrReviewComments(issueId);
-    if (reviewComments.length === 0) return undefined;
+  let canonicalUrl: string | undefined;
+  if (opts?.workspaceDir && opts?.projectSlug) {
+    canonicalUrl = (await resolveCanonicalPrForIssue({ workspaceDir: opts.workspaceDir, projectSlug: opts.projectSlug, issueId, provider, allowBackfill: false })).url;
+  }
 
-    const reason = prStatus.mergeable === false ? "merge_conflict" as const
-      : (prStatus.state === PrState.CHANGES_REQUESTED || prStatus.state === PrState.HAS_COMMENTS) ? "changes_requested" as const
-      : "rejected" as const;
-
-    return {
-      url: prStatus.url,
-      branchName: prStatus.sourceBranch,
-      reason,
-      comments: reviewComments.map((c) => ({
-        id: c.id, author: c.author, body: c.body, state: c.state,
-        path: c.path, line: c.line,
-      })),
-    };
-  } catch {
+  const prStatus = canonicalUrl
+    ? await provider.getPrStatusByUrl(canonicalUrl)
+    : await provider.getPrStatus(issueId);
+  if (canonicalUrl && !prStatus) {
+    throw new Error(`Canonical PR routing integrity failure for issue #${issueId}: stored PR ${canonicalUrl} no longer resolves.`);
+  }
+  if (!prStatus?.url || prStatus.state === PrState.MERGED || prStatus.state === PrState.CLOSED) {
     return undefined;
   }
+
+  const reason = prStatus.mergeable === false ? "merge_conflict" as const
+    : (prStatus.state === PrState.CHANGES_REQUESTED || prStatus.state === PrState.HAS_COMMENTS) ? "changes_requested" as const
+    : undefined;
+  if (!reason) return undefined;
+
+  const reviewComments = opts?.workspaceDir && opts?.projectSlug
+    ? await provider.getPrReviewCommentsByUrl(prStatus.url)
+    : await provider.getPrReviewComments(issueId);
+
+  return {
+    url: prStatus.url,
+    branchName: prStatus.sourceBranch,
+    reason,
+    comments: reviewComments.map((c) => ({
+      id: c.id, author: c.author, body: c.body, state: c.state,
+      path: c.path, line: c.line,
+    })),
+  };
 }
 
 /**
  * Fetch PR context (URL + diff) for code review.
  * Returns undefined if no PR found.
- * Best-effort: swallows errors (caller can still work from issue context).
+ * Canonical routing errors are allowed to bubble so dispatch fails closed.
  */
 export async function fetchPrContext(
   provider: IssueProvider,
   issueId: number,
+  opts?: { workspaceDir?: string; projectSlug?: string },
 ): Promise<PrContext | undefined> {
-  try {
-    const prStatus = await provider.getPrStatus(issueId);
-    if (!prStatus.url) return undefined;
-    const diff = await provider.getPrDiff(issueId) ?? undefined;
-    return { url: prStatus.url, diff };
-  } catch {
-    return undefined;
+  const canonicalRouting = !!(opts?.workspaceDir && opts?.projectSlug);
+  const canonicalUrl = canonicalRouting
+    ? (await resolveCanonicalPrForIssue({ workspaceDir: opts.workspaceDir!, projectSlug: opts.projectSlug!, issueId, provider, allowBackfill: false })).url
+    : undefined;
+  const prStatus = canonicalUrl
+    ? await provider.getPrStatusByUrl(canonicalUrl)
+    : await provider.getPrStatus(issueId);
+  if (canonicalUrl && !prStatus) {
+    throw new Error(`Canonical PR routing integrity failure for issue #${issueId}: stored PR ${canonicalUrl} no longer resolves.`);
   }
+  if (!prStatus?.url) return undefined;
+
+  const diff = canonicalRouting
+    ? await provider.getPrDiffByUrl(prStatus.url) ?? undefined
+    : await provider.getPrDiff(issueId) ?? undefined;
+
+  return { url: prStatus.url, diff };
 }
 
 // ---------------------------------------------------------------------------
@@ -110,8 +132,6 @@ export function formatPrContext(prContext: PrContext): string[] {
  * Format PR review feedback section for task message.
  */
 export function formatPrFeedback(prFeedback: PrFeedback, baseBranch: string): string[] {
-  if (prFeedback.comments.length === 0) return [];
-
   const reasonLabel = prFeedback.reason === "merge_conflict"
     ? "⚠️ Merge conflicts detected"
     : prFeedback.reason === "changes_requested"
@@ -124,9 +144,13 @@ export function formatPrFeedback(prFeedback: PrFeedback, baseBranch: string): st
     `🔗 ${prFeedback.url}`,
   ];
 
-  for (const c of prFeedback.comments) {
-    const location = c.path ? ` (${c.path}${c.line ? `:${c.line}` : ""})` : "";
-    parts.push(``, `**${c.author}** [${c.state}]${location}:`, c.body);
+  if (prFeedback.comments.length > 0) {
+    for (const c of prFeedback.comments) {
+      const location = c.path ? ` (${c.path}${c.line ? `:${c.line}` : ""})` : "";
+      parts.push(``, `**${c.author}** [${c.state}]${location}:`, c.body);
+    }
+  } else {
+    parts.push(``, `_No review comment bodies were retrieved, but this canonical PR still needs attention._`);
   }
 
   if (prFeedback.reason === "merge_conflict") {
@@ -135,7 +159,7 @@ export function formatPrFeedback(prFeedback: PrFeedback, baseBranch: string): st
     parts.push(
       ``, `### Conflict Resolution Instructions`,
       ``,
-      `**Important:** You must update the EXISTING PR branch, not create a new one.`,
+      `**Important:** You must update the EXISTING canonical PR branch, not create a new one.`,
       ``,
       `🔹 PR: ${prFeedback.url}`,
       `🔹 Branch: \`${branchName}\``,
@@ -174,7 +198,7 @@ export function formatPrFeedback(prFeedback: PrFeedback, baseBranch: string): st
       `   # Status should be "Mergeable" or "Open"`,
       `   \`\`\``,
       ``,
-      `⚠️ Do NOT create a new PR. Do NOT switch branches. Update THIS PR only.`,
+      `⚠️ Do NOT create a new PR unless the task explicitly calls for replacement. Do NOT switch branches. Update THIS canonical PR only.`,
     );
   }
 

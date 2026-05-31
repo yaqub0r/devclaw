@@ -29,6 +29,7 @@ import {
   type WorkflowConfig,
 } from "../workflow/index.js";
 import type { Channel } from "../projects/index.js";
+import { resolveCanonicalPrForIssue } from "./canonical-pr.js";
 
 export type { CompletionRule };
 
@@ -176,11 +177,11 @@ export async function executeCompletion(opts: {
         break;
       case Action.DETECT_PR:
         if (!prUrl) { try {
-          // Try open PR first (developer just finished — MR is still open), fall back to merged
-          const prStatus = await provider.getPrStatus(issueId);
-          prUrl = prStatus.url ?? await provider.getMergedMRUrl(issueId) ?? undefined;
-          prTitle = prStatus.title;
-          sourceBranch = prStatus.sourceBranch;
+          const canonical = await resolveCanonicalPrForIssue({ workspaceDir, projectSlug, issueId, provider });
+          const prStatus = await provider.getPrStatusByUrl(canonical.url);
+          prUrl = canonical.url;
+          prTitle = prStatus?.title ?? canonical.url;
+          sourceBranch = prStatus?.sourceBranch ?? canonical.sourceBranch;
         } catch (err) {
           auditLog(workspaceDir, "pipeline_warning", { step: "detectPr", issue: issueId, role, error: (err as Error).message ?? String(err) }).catch(() => {});
         } }
@@ -188,18 +189,18 @@ export async function executeCompletion(opts: {
       case Action.MERGE_PR:
         try {
           // Grab PR metadata before merging (the MR is still open at this point)
+          const canonical = await resolveCanonicalPrForIssue({ workspaceDir, projectSlug, issueId, provider });
+          const prStatus = await provider.getPrStatusByUrl(canonical.url);
+          prUrl = canonical.url;
           if (!prTitle) {
-            try {
-              const prStatus = await provider.getPrStatus(issueId);
-              prUrl = prUrl ?? prStatus.url ?? undefined;
-              prTitle = prStatus.title;
-              sourceBranch = prStatus.sourceBranch;
-            } catch { /* best-effort */ }
+            prTitle = prStatus?.title;
+            sourceBranch = prStatus?.sourceBranch ?? canonical.sourceBranch;
           }
-          await provider.mergePr(issueId);
+          await provider.mergePr(issueId, { prUrl: canonical.url, prNumber: canonical.number });
           mergedPr = true;
         } catch (err) {
           auditLog(workspaceDir, "pipeline_warning", { step: "mergePr", issue: issueId, role, error: (err as Error).message ?? String(err) }).catch(() => {});
+          throw err;
         }
         break;
     }
