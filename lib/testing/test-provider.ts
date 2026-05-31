@@ -9,6 +9,7 @@ import type {
   Issue,
   StateLabel,
   IssueComment,
+  PrIdentity,
   PrStatus,
 } from "../providers/provider.js";
 import { getStateLabels } from "../workflow/index.js";
@@ -66,6 +67,8 @@ export class TestProvider implements IssueProvider {
   prStatuses = new Map<number, PrStatus>();
   /** Merged MR URLs per issue. */
   mergedMrUrls = new Map<number, string>();
+  /** Linked PRs per issue. */
+  linkedPrs = new Map<number, PrIdentity[]>();
   /** Issue IDs where mergePr should fail (simulates merge conflicts). */
   mergePrFailures = new Set<number>();
   /** PR diffs per issue (for reviewer tests). */
@@ -103,6 +106,13 @@ export class TestProvider implements IssueProvider {
   /** Set PR status for an issue (used by review pass tests). */
   setPrStatus(issueId: number, status: PrStatus): void {
     this.prStatuses.set(issueId, status);
+    if (status.url) {
+      this.linkedPrs.set(issueId, [{ number: status.number ?? issueId, url: status.url, title: status.title, sourceBranch: status.sourceBranch }]);
+    }
+  }
+
+  setLinkedPrs(issueId: number, prs: PrIdentity[]): void {
+    this.linkedPrs.set(issueId, prs);
   }
 
   /** Get calls filtered by method name. */
@@ -124,6 +134,7 @@ export class TestProvider implements IssueProvider {
     this.labels.clear();
     this.prStatuses.clear();
     this.mergedMrUrls.clear();
+    this.linkedPrs.clear();
     this.mergePrFailures.clear();
     this.prDiffs.clear();
     this.calls = [];
@@ -248,7 +259,36 @@ export class TestProvider implements IssueProvider {
     return this.prStatuses.get(issueId) ?? { state: "closed", url: null };
   }
 
-  async mergePr(issueId: number): Promise<void> {
+  async getLinkedPrs(issueId: number): Promise<PrIdentity[]> {
+    return this.linkedPrs.get(issueId) ?? [];
+  }
+
+  async getPrByUrl(prUrl: string): Promise<PrIdentity | null> {
+    for (const prs of this.linkedPrs.values()) {
+      const match = prs.find((pr) => pr.url === prUrl);
+      if (match) return match;
+    }
+    return null;
+  }
+
+  async getPrByNumber(prNumber: number): Promise<PrIdentity | null> {
+    for (const prs of this.linkedPrs.values()) {
+      const match = prs.find((pr) => pr.number === prNumber);
+      if (match) return match;
+    }
+    return null;
+  }
+
+  async getPrStatusByUrl(prUrl: string): Promise<PrStatus | null> {
+    for (const [issueId, status] of this.prStatuses.entries()) {
+      if (status.url === prUrl) return { ...status, number: status.number ?? (await this.getPrByUrl(prUrl))?.number };
+      const linked = this.linkedPrs.get(issueId) ?? [];
+      if (linked.some((pr) => pr.url === prUrl)) return { ...status, number: status.number ?? linked.find((pr) => pr.url === prUrl)?.number };
+    }
+    return null;
+  }
+
+  async mergePr(issueId: number, _opts?: { prUrl?: string; prNumber?: number }): Promise<void> {
     this.calls.push({ method: "mergePr", args: { issueId } });
     if (this.mergePrFailures.has(issueId)) {
       throw new Error(`Merge conflict: cannot merge PR for issue #${issueId}`);
@@ -265,7 +305,18 @@ export class TestProvider implements IssueProvider {
     return this.prDiffs.get(issueId) ?? null;
   }
 
+  async getPrDiffByUrl(prUrl: string): Promise<string | null> {
+    for (const [issueId, prs] of this.linkedPrs.entries()) {
+      if (prs.some((pr) => pr.url === prUrl)) return this.prDiffs.get(issueId) ?? null;
+    }
+    return null;
+  }
+
   async getPrReviewComments(_issueId: number): Promise<import("../providers/provider.js").PrReviewComment[]> {
+    return [];
+  }
+
+  async getPrReviewCommentsByUrl(_prUrl: string): Promise<import("../providers/provider.js").PrReviewComment[]> {
     return [];
   }
 
