@@ -109,8 +109,32 @@ export async function reviewPass(opts: {
         });
         continue;
       }
-      const status = await provider.getPrStatusByUrl(canonical.url);
-      if (!status) continue;
+      let status = await provider.getPrStatusByUrl(canonical.url);
+      if (!status) {
+        const message = `Canonical PR routing integrity failure for issue #${issue.iid}: stored PR ${canonical.url} no longer resolves during review heartbeat.`;
+        const refiningLabel = findRefiningLabel(workflow);
+        if (refiningLabel && refiningLabel !== state.label) {
+          await provider.addComment(issue.iid, buildRefiningHoldComment({
+            role: "reviewer",
+            result: "blocked",
+            from: state.label,
+            to: refiningLabel,
+            summary: message,
+            source: "system",
+          }));
+          await provider.transitionLabel(issue.iid, state.label, refiningLabel);
+          transitions++;
+        }
+        await auditLog(workspaceDir, "review_transition", {
+          project: projectName,
+          issueId: issue.iid,
+          from: state.label,
+          to: refiningLabel ?? state.label,
+          reason: "canonical_pr_status_missing",
+          error: message,
+        });
+        continue;
+      }
       await refreshCanonicalPrStatus(workspaceDir, projectSlug, issue.iid, status).catch(() => {});
 
       // Fallback: no PR found, but work may have been committed directly to base branch.
