@@ -185,6 +185,42 @@ describe("canonical PR dispatch routing", () => {
     }
   });
 
+  it("returns an explicitly canonical PR context when authoritative diff loads", async () => {
+    const workspaceDir = await mkdtemp(path.join(os.tmpdir(), "devclaw-pr-context-canonical-"));
+    try {
+      const provider = new TestProvider();
+      provider.seedIssue({ iid: 76, title: "Canonical diff", labels: ["To Review"] });
+      provider.setPrStatus(76, {
+        state: PrState.OPEN,
+        url: "https://example.com/pr/76",
+        number: 76,
+        sourceBranch: "issue/76-canonical-diff",
+      });
+      provider.setLinkedPrs(76, [{
+        number: 76,
+        url: "https://example.com/pr/76",
+        title: "Canonical diff",
+        sourceBranch: "issue/76-canonical-diff",
+      }]);
+      provider.prDiffs.set(76, "diff --git a/file.ts b/file.ts");
+      await recordCanonicalPr(workspaceDir, "test-project", 76, {
+        number: 76,
+        url: "https://example.com/pr/76",
+        title: "Canonical diff",
+        sourceBranch: "issue/76-canonical-diff",
+      }, PrState.OPEN);
+
+      const context = await fetchPrContext(provider, 76, { workspaceDir, projectSlug: "test-project" });
+      assert.deepStrictEqual(context, {
+        url: "https://example.com/pr/76",
+        diff: "diff --git a/file.ts b/file.ts",
+        canonical: true,
+      });
+    } finally {
+      await rm(workspaceDir, { recursive: true, force: true });
+    }
+  });
+
   it("fails closed when canonical diff lookup cannot load URL-scoped context", async () => {
     const workspaceDir = await mkdtemp(path.join(os.tmpdir(), "devclaw-pr-context-diff-"));
     try {

@@ -113,11 +113,10 @@ export async function fetchPrContext(
     ? await provider.getPrDiffByUrl(prStatus.url)
     : await provider.getPrDiff(issueId);
 
-  if (canonicalUrl && diff == null) {
-    throw new Error(`Canonical PR routing integrity failure for issue #${issueId}: stored PR ${canonicalUrl} has no URL-scoped diff context.`);
-  }
-
-  if (canonicalUrl) {
+  if (canonicalRouting) {
+    if (diff == null) {
+      throw new Error(`Canonical PR routing integrity failure for issue #${issueId}: stored PR ${canonicalUrl} has no URL-scoped diff context.`);
+    }
     return { url: prStatus.url, diff, canonical: true };
   }
 
