@@ -822,6 +822,43 @@ describe("E2E pipeline", () => {
       const issue = await h.provider.getIssue(82);
       assert.ok(issue.labels.includes("To Review"), "Should remain in To Review");
     });
+
+    it("should move review issues to Refining when canonical PR re-resolution fails", async () => {
+      h.provider.seedIssue({ iid: 83, title: "Broken canonical PR", labels: ["To Review", "review:human"] });
+      h.provider.setLinkedPrs(83, [{
+        number: 83,
+        url: "https://example.com/pr/83",
+        title: "Broken canonical PR",
+        sourceBranch: "issue/83-broken-canonical-pr",
+      }]);
+      await recordCanonicalPr(h.workspaceDir, h.project.slug, 83, {
+        number: 83,
+        url: "https://example.com/pr/83",
+        title: "Broken canonical PR",
+        sourceBranch: "issue/83-broken-canonical-pr",
+      }, PrState.OPEN);
+
+      const transitions = await reviewPass({
+        workspaceDir: h.workspaceDir,
+        projectName: h.project.name,
+        project: h.project,
+        workflow: DEFAULT_WORKFLOW,
+        provider: h.provider,
+        repoPath: "/tmp/test-repo",
+        runCommand: h.runCommand,
+      });
+
+      assert.strictEqual(transitions, 1, "Should surface a visible integrity hold");
+
+      const issue = await h.provider.getIssue(83);
+      assert.ok(issue.labels.includes("Refining"), `Labels: ${issue.labels}`);
+      assert.ok(!issue.labels.includes("To Review"), "Should leave To Review after integrity failure");
+
+      const comments = h.provider.comments.get(83) ?? [];
+      assert.strictEqual(comments.length, 1, "Should leave a hold comment for the operator");
+      assert.match(comments[0]!.body, /Canonical PR routing integrity failed during review heartbeat/);
+      assert.match(comments[0]!.body, /stored PR https:\/\/example\.com\/pr\/83 no longer resolves/);
+    });
   });
 
   // =========================================================================

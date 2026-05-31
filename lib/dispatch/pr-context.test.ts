@@ -185,6 +185,33 @@ describe("canonical PR dispatch routing", () => {
     }
   });
 
+  it("fails closed when canonical diff lookup cannot load URL-scoped context", async () => {
+    const workspaceDir = await mkdtemp(path.join(os.tmpdir(), "devclaw-pr-context-diff-"));
+    try {
+      const provider = new TestProvider();
+      provider.seedIssue({ iid: 79, title: "Needs diff", labels: ["To Review"] });
+      provider.setPrStatus(79, {
+        state: PrState.OPEN,
+        url: "https://example.com/pr/79",
+        number: 79,
+        sourceBranch: "issue/79-needs-diff",
+      });
+      await recordCanonicalPr(workspaceDir, "test-project", 79, {
+        number: 79,
+        url: "https://example.com/pr/79",
+        title: "Needs diff",
+        sourceBranch: "issue/79-needs-diff",
+      }, PrState.OPEN);
+
+      await assert.rejects(
+        () => fetchPrContext(provider, 79, { workspaceDir, projectSlug: "test-project" }),
+        /has no URL-scoped diff context/,
+      );
+    } finally {
+      await rm(workspaceDir, { recursive: true, force: true });
+    }
+  });
+
   it("preserves canonical feedback routing even when comments are empty", async () => {
     const workspaceDir = await mkdtemp(path.join(os.tmpdir(), "devclaw-pr-feedback-"));
     try {
