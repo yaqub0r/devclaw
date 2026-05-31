@@ -22,10 +22,17 @@ export type PrFeedback = {
   comments: Array<{ id: number; author: string; body: string; state: string; path?: string; line?: number }>;
 };
 
-export type PrContext = {
-  url: string;
-  diff?: string;
-};
+export type PrContext =
+  | {
+    url: string;
+    diff: string;
+    canonical: true;
+  }
+  | {
+    url: string;
+    diff?: string;
+    canonical: false;
+  };
 
 // ---------------------------------------------------------------------------
 // Fetching
@@ -106,11 +113,14 @@ export async function fetchPrContext(
     ? await provider.getPrDiffByUrl(prStatus.url)
     : await provider.getPrDiff(issueId);
 
-  if (canonicalUrl && diff == null) {
-    throw new Error(`Canonical PR routing integrity failure for issue #${issueId}: stored PR ${canonicalUrl} has no URL-scoped diff context.`);
+  if (canonicalRouting) {
+    if (diff == null) {
+      throw new Error(`Canonical PR routing integrity failure for issue #${issueId}: stored PR ${canonicalUrl} has no URL-scoped diff context.`);
+    }
+    return { url: prStatus.url, diff, canonical: true };
   }
 
-  return { url: prStatus.url, diff: diff ?? undefined };
+  return { url: prStatus.url, diff: diff ?? undefined, canonical: false };
 }
 
 // ---------------------------------------------------------------------------

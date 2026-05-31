@@ -728,7 +728,7 @@ describe("E2E pipeline", () => {
       assert.ok(issue.labels.includes("To Test"), `Labels: ${issue.labels}`);
     });
 
-    it("should transition To Review → To Improve when PR is closed without merging (url non-null)", async () => {
+    it("should transition To Review → the configured PR_CLOSED target when PR is closed without merging (url non-null)", async () => {
       // After #315: PrState.CLOSED + url non-null = PR was explicitly closed without merging
       h.provider.seedIssue({ iid: 80, title: "Closed PR feature", labels: ["To Review", "review:human"] });
       h.provider.setPrStatus(80, { state: "closed", url: "https://example.com/pr/80" });
@@ -752,7 +752,12 @@ describe("E2E pipeline", () => {
       assert.strictEqual(transitions, 1, "Should have made 1 transition");
 
       const issue = await h.provider.getIssue(80);
-      assert.ok(issue.labels.includes("To Improve"), `Labels: ${issue.labels}`);
+      const closedTargetKey = typeof DEFAULT_WORKFLOW.states.toReview.on.PR_CLOSED === "string"
+        ? DEFAULT_WORKFLOW.states.toReview.on.PR_CLOSED
+        : DEFAULT_WORKFLOW.states.toReview.on.PR_CLOSED?.target;
+      const closedTargetLabel = closedTargetKey ? DEFAULT_WORKFLOW.states[closedTargetKey].label : undefined;
+      assert.ok(closedTargetLabel, "Expected workflow to define a PR_CLOSED target");
+      assert.ok(issue.labels.includes(closedTargetLabel), `Labels: ${issue.labels}`);
       assert.ok(!issue.labels.includes("To Review"), "Should not have To Review");
       assert.ok(!issue.labels.includes("To Test"), "Should NOT have To Test");
 
