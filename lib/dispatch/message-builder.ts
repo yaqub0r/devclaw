@@ -53,6 +53,7 @@ export function buildTaskMessage(opts: {
       `> **⚠️ FEEDBACK CYCLE — This issue is returning from review.**`,
       `> The original description above is for context only.`,
       `> Your job is to address the PR Review Feedback and Comments below.`,
+      `> Reuse the existing canonical PR and branch unless the task explicitly says to replace them.`,
       `> When feedback conflicts with the original description, follow the feedback.`,
     );
   }

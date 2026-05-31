@@ -6,6 +6,7 @@ import {
   type Issue,
   type StateLabel,
   type IssueComment,
+  type PrIdentity,
   type PrStatus,
   type PrReviewComment,
   PrState,
@@ -37,6 +38,11 @@ export class GitLabProvider implements IssueProvider {
   private workflow: WorkflowConfig;
   private runCommand: RunCommand;
   private targetRepo?: string;
+
+  private isGlabNotFoundError(error: unknown): boolean {
+    const message = error instanceof Error ? error.message : String(error);
+    return message.includes("404") || message.includes("Not Found") || message.includes("Merge request not found");
+  }
 
   constructor(opts: { repoPath: string; runCommand: RunCommand; workflow?: WorkflowConfig; target?: ProviderTarget }) {
     this.repoPath = opts.repoPath;
@@ -195,41 +201,95 @@ export class GitLabProvider implements IssueProvider {
     return merged[0]?.web_url ?? null;
   }
 
+  async getLinkedPrs(issueId: number): Promise<PrIdentity[]> {
+    const mrs = await this.getRelatedMRs(issueId);
+    return mrs.map((mr) => ({ number: mr.iid, url: mr.web_url, title: mr.title, sourceBranch: mr.source_branch, repo: this.targetRepo }));
+  }
+
+  async getPrByUrl(prUrl: string): Promise<PrIdentity | null> {
+    try {
+      const raw = await this.glab(["mr", "view", prUrl, "--output", "json"]);
+      const mr = JSON.parse(raw) as { iid: number; web_url: string; title: string; source_branch?: string };
+      return { number: mr.iid, url: mr.web_url, title: mr.title, sourceBranch: mr.source_branch, repo: this.targetRepo };
+    } catch (err) {
+      if (this.isGlabNotFoundError(err)) return null;
+      throw err;
+    }
+  }
+
+  async getPrByNumber(prNumber: number): Promise<PrIdentity | null> {
+    try {
+      const raw = await this.glab(["mr", "view", String(prNumber), "--output", "json"]);
+      const mr = JSON.parse(raw) as { iid: number; web_url: string; title: string; source_branch?: string };
+      return { number: mr.iid, url: mr.web_url, title: mr.title, sourceBranch: mr.source_branch, repo: this.targetRepo };
+    } catch (err) {
+      if (this.isGlabNotFoundError(err)) return null;
+      throw err;
+    }
+  }
+
   async getPrStatus(issueId: number): Promise<PrStatus> {
     const mrs = await this.getRelatedMRs(issueId);
     // Check open MRs first
     const open = mrs.find((mr) => mr.state === "opened");
     if (open) {
-      const approved = await this.isMrApproved(open.iid);
-
-      // Detect changes requested via unresolved discussion threads
-      let state: PrState;
-      if (approved) {
-        state = PrState.APPROVED;
-      } else {
-        const hasUnresolved = await this.hasUnresolvedDiscussions(open.iid);
-        if (hasUnresolved) {
-          state = PrState.CHANGES_REQUESTED;
-        } else {
-          // Check for top-level conversation comments from non-author users
-          const hasComments = await this.hasConversationComments(open.iid);
-          state = hasComments ? PrState.HAS_COMMENTS : PrState.OPEN;
-        }
-      }
-
-      // Detect merge conflicts
-      const mergeable = await this.isMrMergeable(open.iid);
-
-      return { state, url: open.web_url, title: open.title, sourceBranch: open.source_branch, mergeable };
+      return this.buildOpenMrStatus({
+        iid: open.iid,
+        title: open.title,
+        sourceBranch: open.source_branch,
+        url: open.web_url,
+      });
     }
     // Check merged MRs
     const merged = mrs.find((mr) => mr.state === "merged");
-    if (merged) return { state: PrState.MERGED, url: merged.web_url, title: merged.title, sourceBranch: merged.source_branch };
+    if (merged) return { state: PrState.MERGED, url: merged.web_url, number: merged.iid, title: merged.title, sourceBranch: merged.source_branch };
     // Check for closed-without-merge MRs. url: non-null = MR was explicitly closed;
     // url: null = no MR has ever been created for this issue.
     const closed = mrs.find((mr) => mr.state === "closed");
-    if (closed) return { state: PrState.CLOSED, url: closed.web_url, title: closed.title, sourceBranch: closed.source_branch };
+    if (closed) return { state: PrState.CLOSED, url: closed.web_url, number: closed.iid, title: closed.title, sourceBranch: closed.source_branch };
     return { state: PrState.CLOSED, url: null };
+  }
+
+  async getPrStatusByUrl(prUrl: string): Promise<PrStatus | null> {
+    const pr = await this.getPrByUrl(prUrl);
+    if (!pr) return null;
+    try {
+      const raw = await this.glab(["api", `projects/:id/merge_requests/${pr.number}?include_rebase_in_progress=true`]);
+      const mr = JSON.parse(raw) as { state: string; title?: string; source_branch?: string; web_url?: string };
+      const url = mr.web_url ?? pr.url;
+      const title = mr.title ?? pr.title ?? pr.url;
+      const sourceBranch = mr.source_branch ?? pr.sourceBranch;
+      if (mr.state === "merged") {
+        return { state: PrState.MERGED, url, number: pr.number, title, sourceBranch };
+      }
+      if (mr.state === "closed") {
+        return { state: PrState.CLOSED, url, number: pr.number, title, sourceBranch };
+      }
+      return this.buildOpenMrStatus({ iid: pr.number, title, sourceBranch, url });
+    } catch (err) {
+      if (this.isGlabNotFoundError(err)) return null;
+      throw err;
+    }
+  }
+
+  private async buildOpenMrStatus(pr: { iid: number; title: string; sourceBranch?: string; url: string }): Promise<PrStatus> {
+    const approved = await this.isMrApproved(pr.iid);
+
+    let state: PrState;
+    if (approved) {
+      state = PrState.APPROVED;
+    } else {
+      const hasUnresolved = await this.hasUnresolvedDiscussions(pr.iid);
+      if (hasUnresolved) {
+        state = PrState.CHANGES_REQUESTED;
+      } else {
+        const hasComments = await this.hasConversationComments(pr.iid);
+        state = hasComments ? PrState.HAS_COMMENTS : PrState.OPEN;
+      }
+    }
+
+    const mergeable = await this.isMrMergeable(pr.iid);
+    return { state, url: pr.url, number: pr.iid, title: pr.title, sourceBranch: pr.sourceBranch, mergeable };
   }
 
   /** Check if an MR has unresolved discussion threads (proxy for changes requested). */
@@ -316,11 +376,12 @@ export class GitLabProvider implements IssueProvider {
     } catch { return false; }
   }
 
-  async mergePr(issueId: number): Promise<void> {
-    const mrs = await this.getRelatedMRs(issueId);
-    const open = mrs.find((mr) => mr.state === "opened");
-    if (!open) throw new Error(`No open MR found for issue #${issueId}`);
-    await this.glab(["mr", "merge", String(open.iid)]);
+  async mergePr(issueId: number, opts?: { prUrl?: string; prNumber?: number }): Promise<void> {
+    const explicit = opts?.prNumber ?? (opts?.prUrl ? (await this.getPrByUrl(opts.prUrl))?.number : undefined);
+    if (!explicit) {
+      throw new Error(`Canonical PR identity is required to merge issue #${issueId}.`);
+    }
+    await this.glab(["mr", "merge", String(explicit)]);
   }
 
   async getPrDiff(issueId: number): Promise<string | null> {
@@ -332,14 +393,31 @@ export class GitLabProvider implements IssueProvider {
     } catch { return null; }
   }
 
+  async getPrDiffByUrl(prUrl: string): Promise<string | null> {
+    const pr = await this.getPrByUrl(prUrl);
+    if (!pr) return null;
+    return await this.glab(["mr", "diff", String(pr.number)]);
+  }
+
   async getPrReviewComments(issueId: number): Promise<PrReviewComment[]> {
     const mrs = await this.getRelatedMRs(issueId);
     const open = mrs.find((mr) => mr.state === "opened");
     if (!open) return [];
+    return this.getReviewCommentsForMrIid(open.iid);
+  }
+
+  async getPrReviewCommentsByUrl(prUrl: string): Promise<PrReviewComment[]> {
+    const pr = await this.getPrByUrl(prUrl);
+    if (!pr) return [];
+    return this.getReviewCommentsForMrIid(pr.number, { strict: true });
+  }
+
+  private async getReviewCommentsForMrIid(mrIid: number, opts?: { strict?: boolean }): Promise<PrReviewComment[]> {
+    const strict = opts?.strict ?? false;
     const comments: PrReviewComment[] = [];
 
     try {
-      const raw = await this.glab(["api", `projects/:id/merge_requests/${open.iid}/discussions`]);
+      const raw = await this.glab(["api", `projects/:id/merge_requests/${mrIid}/discussions`]);
       const discussions = JSON.parse(raw) as Array<{
         notes: Array<{
           id: number; author: { username: string }; body: string;
@@ -362,12 +440,17 @@ export class GitLabProvider implements IssueProvider {
           });
         }
       }
-    } catch { /* best-effort */ }
+    } catch (err) {
+      if (strict) throw err;
+    }
 
-    // Also include top-level conversation notes (regular MR comments, not threaded)
-    const conversationNotes = await this.fetchConversationComments(open.iid);
+    let conversationNotes: Array<{ id: number; author: { username: string }; body: string; created_at: string }> = [];
+    try {
+      conversationNotes = await this.fetchConversationComments(mrIid);
+    } catch (err) {
+      if (strict) throw err;
+    }
     for (const n of conversationNotes) {
-      // Avoid duplicates: discussions endpoint may already include these
       if (!comments.some((c) => c.id === n.id)) {
         comments.push({
           id: n.id,

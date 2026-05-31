@@ -20,6 +20,15 @@ import type { RunCommand } from "../../context.js";
 import { log as auditLog } from "../../audit.js";
 import { recordLoopDiagnostic } from "../loop-diagnostics.js";
 import { recordAndApplyInterventionEvent } from "../../orchestrator-intervention/engine.js";
+import { loadCanonicalPrRecord, resolveCanonicalPrForIssue, refreshCanonicalPrStatus } from "../canonical-pr.js";
+import { buildRefiningHoldComment } from "../pipeline.js";
+
+function findRefiningLabel(workflow: WorkflowConfig): string | null {
+  for (const state of Object.values(workflow.states)) {
+    if (state.label === "Refining") return state.label;
+  }
+  return null;
+}
 
 /**
  * Scan review-type states and transition issues whose PR check condition is met.
@@ -71,7 +80,62 @@ export async function reviewPass(opts: {
       const isManaged = await provider.issueHasReaction(issue.iid, "eyes");
       if (!isManaged) continue;
 
-      const status = await provider.getPrStatus(issue.iid);
+      let canonical;
+      const projectSlug = project?.slug ?? projectName;
+      const existingCanonical = await loadCanonicalPrRecord(workspaceDir, projectSlug, issue.iid);
+      const linkedPrs = await provider.getLinkedPrs(issue.iid);
+      if (!existingCanonical && linkedPrs.length === 0) {
+        continue;
+      }
+      try {
+        canonical = await resolveCanonicalPrForIssue({ workspaceDir, projectSlug, issueId: issue.iid, provider });
+      } catch (err) {
+        const refiningLabel = findRefiningLabel(workflow);
+        if (refiningLabel && refiningLabel !== state.label) {
+          await provider.addComment(issue.iid, buildRefiningHoldComment({
+            role: "reviewer",
+            result: "blocked",
+            from: state.label,
+            to: refiningLabel,
+            summary: `Canonical PR routing integrity failed during review heartbeat: ${(err as Error).message ?? String(err)}`,
+            source: "system",
+          }));
+          await provider.transitionLabel(issue.iid, state.label, refiningLabel);
+          transitions++;
+        }
+        await auditLog(workspaceDir, "review_transition", {
+          project: projectName, issueId: issue.iid, from: state.label, to: refiningLabel ?? state.label,
+          reason: "canonical_pr_missing_or_ambiguous", error: (err as Error).message ?? String(err),
+        });
+        continue;
+      }
+      let status = await provider.getPrStatusByUrl(canonical.url);
+      if (!status) {
+        const message = `Canonical PR routing integrity failure for issue #${issue.iid}: stored PR ${canonical.url} no longer resolves during review heartbeat.`;
+        const refiningLabel = findRefiningLabel(workflow);
+        if (refiningLabel && refiningLabel !== state.label) {
+          await provider.addComment(issue.iid, buildRefiningHoldComment({
+            role: "reviewer",
+            result: "blocked",
+            from: state.label,
+            to: refiningLabel,
+            summary: message,
+            source: "system",
+          }));
+          await provider.transitionLabel(issue.iid, state.label, refiningLabel);
+          transitions++;
+        }
+        await auditLog(workspaceDir, "review_transition", {
+          project: projectName,
+          issueId: issue.iid,
+          from: state.label,
+          to: refiningLabel ?? state.label,
+          reason: "canonical_pr_status_missing",
+          error: message,
+        });
+        continue;
+      }
+      await refreshCanonicalPrStatus(workspaceDir, projectSlug, issue.iid, status).catch(() => {});
 
       // Fallback: no PR found, but work may have been committed directly to base branch.
       // Check git history for commits mentioning this issue number.
@@ -274,7 +338,11 @@ export async function reviewPass(opts: {
                 break;
               }
               try {
-                await provider.mergePr(issue.iid);
+                const latestCanonical = await resolveCanonicalPrForIssue({ workspaceDir, projectSlug, issueId: issue.iid, provider });
+                if (latestCanonical.url !== canonical.url) {
+                  throw new Error(`Canonical PR changed after approval for issue #${issue.iid}: approved ${canonical.url}, current ${latestCanonical.url}`);
+                }
+                await provider.mergePr(issue.iid, { prUrl: canonical.url, prNumber: canonical.number });
                 onMerge?.(issue.iid, status.url, status.title, status.sourceBranch);
               } catch (err) {
                 // Merge failed → fire MERGE_FAILED transition (developer fixes conflicts)

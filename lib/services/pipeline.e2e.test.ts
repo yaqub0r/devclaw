@@ -17,6 +17,8 @@ import { projectTick } from "./tick.js";
 import { reviewPass } from "./heartbeat/review.js";
 import { DEFAULT_WORKFLOW, ReviewPolicy, type WorkflowConfig } from "../workflow/index.js";
 import { readProjects, getRoleWorker, getProject, countActiveSlots } from "../projects/index.js";
+import { PrState } from "../providers/provider.js";
+import { recordCanonicalPr } from "./canonical-pr.js";
 
 // ---------------------------------------------------------------------------
 // Test suite
@@ -820,6 +822,43 @@ describe("E2E pipeline", () => {
       const issue = await h.provider.getIssue(82);
       assert.ok(issue.labels.includes("To Review"), "Should remain in To Review");
     });
+
+    it("should move review issues to Refining when canonical PR re-resolution fails", async () => {
+      h.provider.seedIssue({ iid: 83, title: "Broken canonical PR", labels: ["To Review", "review:human"] });
+      h.provider.setLinkedPrs(83, [{
+        number: 83,
+        url: "https://example.com/pr/83",
+        title: "Broken canonical PR",
+        sourceBranch: "issue/83-broken-canonical-pr",
+      }]);
+      await recordCanonicalPr(h.workspaceDir, h.project.slug, 83, {
+        number: 83,
+        url: "https://example.com/pr/83",
+        title: "Broken canonical PR",
+        sourceBranch: "issue/83-broken-canonical-pr",
+      }, PrState.OPEN);
+
+      const transitions = await reviewPass({
+        workspaceDir: h.workspaceDir,
+        projectName: h.project.name,
+        project: h.project,
+        workflow: DEFAULT_WORKFLOW,
+        provider: h.provider,
+        repoPath: "/tmp/test-repo",
+        runCommand: h.runCommand,
+      });
+
+      assert.strictEqual(transitions, 1, "Should surface a visible integrity hold");
+
+      const issue = await h.provider.getIssue(83);
+      assert.ok(issue.labels.includes("Refining"), `Labels: ${issue.labels}`);
+      assert.ok(!issue.labels.includes("To Review"), "Should leave To Review after integrity failure");
+
+      const comments = h.provider.comments.get(83) ?? [];
+      assert.strictEqual(comments.length, 1, "Should leave a hold comment for the operator");
+      assert.match(comments[0]!.body, /Canonical PR routing integrity failed during review heartbeat/);
+      assert.match(comments[0]!.body, /stored PR https:\/\/example\.com\/pr\/83 no longer resolves/);
+    });
   });
 
   // =========================================================================
@@ -848,6 +887,13 @@ describe("E2E pipeline", () => {
         toLabel: "Doing",
         provider: h.provider,
         runCommand: h.runCommand,
+      });
+
+      h.provider.setPrStatus(100, {
+        state: "open",
+        url: "https://example.com/pr/100",
+        number: 100,
+        sourceBranch: "feature/100-dashboard",
       });
 
       // 3. Developer done → To Review
@@ -1022,6 +1068,13 @@ describe("E2E pipeline", () => {
         runCommand: h.runCommand,
       });
 
+      h.provider.setPrStatus(300, {
+        state: "open",
+        url: "https://example.com/pr/300",
+        number: 300,
+        sourceBranch: "feature/300-payment-flow",
+      });
+
       // 2. Developer done → To Review
       await executeCompletion({
         workspaceDir: h.workspaceDir,
@@ -1177,6 +1230,19 @@ describe("E2E pipeline", () => {
     it("reviewPolicy: agent should dispatch reviewer", async () => {
       h = await createTestHarness();
       h.provider.seedIssue({ iid: 81, title: "Needs review", labels: ["To Review"] });
+      h.provider.setPrStatus(81, {
+        state: PrState.OPEN,
+        url: "https://example.com/pr/81",
+        number: 81,
+        sourceBranch: "issue/81-needs-review",
+      });
+      h.provider.prDiffs.set(81, "diff --git a/file.ts b/file.ts");
+      await recordCanonicalPr(h.workspaceDir, h.project.slug, 81, {
+        number: 81,
+        url: "https://example.com/pr/81",
+        title: "Needs review",
+        sourceBranch: "issue/81-needs-review",
+      }, PrState.OPEN);
 
       const result = await projectTick({
         workspaceDir: h.workspaceDir,
@@ -1294,6 +1360,18 @@ describe("E2E pipeline", () => {
       h = await createTestHarness();
       // Issue already has a developer:junior label from a previous dispatch
       h.provider.seedIssue({ iid: 401, title: "Re-dispatch", labels: ["To Improve", "developer:junior"] });
+      h.provider.setPrStatus(401, {
+        state: PrState.CHANGES_REQUESTED,
+        url: "https://example.com/pr/401",
+        number: 401,
+        sourceBranch: "issue/401-redispatch",
+      });
+      await recordCanonicalPr(h.workspaceDir, h.project.slug, 401, {
+        number: 401,
+        url: "https://example.com/pr/401",
+        title: "Re-dispatch",
+        sourceBranch: "issue/401-redispatch",
+      }, PrState.CHANGES_REQUESTED);
 
       await dispatchTask({
         workspaceDir: h.workspaceDir,
@@ -1339,6 +1417,19 @@ describe("E2E pipeline", () => {
     it("projectTick should dispatch reviewer when review:agent label present", async () => {
       h = await createTestHarness();
       h.provider.seedIssue({ iid: 403, title: "Junior fix", labels: ["To Review", "developer:junior", "review:agent"] });
+      h.provider.setPrStatus(403, {
+        state: PrState.OPEN,
+        url: "https://example.com/pr/403",
+        number: 403,
+        sourceBranch: "issue/403-junior-fix",
+      });
+      h.provider.prDiffs.set(403, "diff --git a/file.ts b/file.ts");
+      await recordCanonicalPr(h.workspaceDir, h.project.slug, 403, {
+        number: 403,
+        url: "https://example.com/pr/403",
+        title: "Junior fix",
+        sourceBranch: "issue/403-junior-fix",
+      }, PrState.OPEN);
 
       const result = await projectTick({
         workspaceDir: h.workspaceDir,
