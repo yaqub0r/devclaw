@@ -27,6 +27,20 @@ Upstream `main` is a reference point and export target. It is not the normal day
 7. Preserve the `/dev/` documentation changes on `devclaw-local-current` even when the upstream export omits local-only material.
 8. Push runbook and workflow changes to the Git remote that tracks `devclaw-local-current` so the policy is not left only in a local checkout or an unknown branch.
 
+## Conflict-resolution rule
+
+When branch-role guidance disagrees across prompts, old notes, examples, or branch names, resolve it this way:
+
+1. the live project config decides the ordinary implementation base branch
+2. this runbook explains the intended local DevClaw lane model
+3. older prompt text or generic `main` examples do not override either of the above
+
+For the local `devclaw` project, that means:
+
+- ordinary issue implementation branches start from `devclaw-local-dev`
+- `devclaw-local-current` is for local truth, runbooks, promotion, and accepted-lane validation
+- `main` is an upstream reference and export target, not the normal local implementation base branch
+
 ## Mandatory compliance rule
 
 This runbook is required operating procedure, not optional guidance.
