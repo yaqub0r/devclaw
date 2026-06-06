@@ -63,6 +63,9 @@ export async function fetchPrFeedback(
   if (canonicalUrl && !prStatus) {
     throw new Error(`Canonical PR routing integrity failure for issue #${issueId}: stored PR ${canonicalUrl} no longer resolves.`);
   }
+  if (canonicalUrl && !prStatus?.url) {
+    throw new Error(`Canonical PR routing integrity failure for issue #${issueId}: stored PR ${canonicalUrl} resolved without a canonical URL.`);
+  }
   if (!prStatus?.url || prStatus.state === PrState.MERGED || prStatus.state === PrState.CLOSED) {
     return undefined;
   }
@@ -106,6 +109,9 @@ export async function fetchPrContext(
     : await provider.getPrStatus(issueId);
   if (canonicalUrl && !prStatus) {
     throw new Error(`Canonical PR routing integrity failure for issue #${issueId}: stored PR ${canonicalUrl} no longer resolves.`);
+  }
+  if (canonicalUrl && !prStatus?.url) {
+    throw new Error(`Canonical PR routing integrity failure for issue #${issueId}: stored PR ${canonicalUrl} resolved without a canonical URL.`);
   }
   if (!prStatus?.url) return undefined;
 
