@@ -91,15 +91,16 @@ export async function reviewPass(opts: {
         canonical = await resolveCanonicalPrForIssue({ workspaceDir, projectSlug, issueId: issue.iid, provider });
       } catch (err) {
         const refiningLabel = findRefiningLabel(workflow);
+        const summary = `Canonical PR routing integrity failed during review heartbeat: ${(err as Error).message ?? String(err)}`;
+        await provider.addComment(issue.iid, buildRefiningHoldComment({
+          role: "reviewer",
+          result: "blocked",
+          from: state.label,
+          to: refiningLabel ?? state.label,
+          summary,
+          source: "system",
+        }));
         if (refiningLabel && refiningLabel !== state.label) {
-          await provider.addComment(issue.iid, buildRefiningHoldComment({
-            role: "reviewer",
-            result: "blocked",
-            from: state.label,
-            to: refiningLabel,
-            summary: `Canonical PR routing integrity failed during review heartbeat: ${(err as Error).message ?? String(err)}`,
-            source: "system",
-          }));
           await provider.transitionLabel(issue.iid, state.label, refiningLabel);
           transitions++;
         }
@@ -113,15 +114,15 @@ export async function reviewPass(opts: {
       if (!status) {
         const message = `Canonical PR routing integrity failure for issue #${issue.iid}: stored PR ${canonical.url} no longer resolves during review heartbeat.`;
         const refiningLabel = findRefiningLabel(workflow);
+        await provider.addComment(issue.iid, buildRefiningHoldComment({
+          role: "reviewer",
+          result: "blocked",
+          from: state.label,
+          to: refiningLabel ?? state.label,
+          summary: message,
+          source: "system",
+        }));
         if (refiningLabel && refiningLabel !== state.label) {
-          await provider.addComment(issue.iid, buildRefiningHoldComment({
-            role: "reviewer",
-            result: "blocked",
-            from: state.label,
-            to: refiningLabel,
-            summary: message,
-            source: "system",
-          }));
           await provider.transitionLabel(issue.iid, state.label, refiningLabel);
           transitions++;
         }
