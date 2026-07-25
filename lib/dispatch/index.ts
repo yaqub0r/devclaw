@@ -25,7 +25,12 @@ import { loadRoleInstructions } from "./bootstrap-hook.js";
 import { slotName } from "../names.js";
 
 import { buildTaskMessage, buildConflictFixMessage, buildAnnouncement, formatSessionLabel } from "./message-builder.js";
-import { sendToAgent, shouldClearSession } from "./session.js";
+import {
+  buildMainOrchestratorSessionKey,
+  sendToAgent,
+  shouldClearSession,
+} from "./session.js";
+import { assertConfiguredModelAvailable } from "./model-availability.js";
 import { acknowledgeComments, EYES_EMOJI } from "./acknowledge.js";
 import { recordAndApplyInterventionEvent } from "../orchestrator-intervention/engine.js";
 
@@ -50,6 +55,8 @@ export type DispatchOpts = {
   pluginConfig?: Record<string, unknown>;
   /** Plugin runtime for direct API access (avoids CLI subprocess timeouts) */
   runtime?: PluginRuntime;
+  /** Calling orchestrator session. Persisted as child lineage on OpenClaw 2026.7+. */
+  parentSessionKey?: string;
   /** Slot index within the role's worker slots (defaults to 0 for single-worker compat) */
   slotIndex?: number;
   /** Instance name for ownership labels (auto-claimed on dispatch if not already owned) */
@@ -99,6 +106,13 @@ export async function dispatchTask(
   const resolvedRole = resolvedConfig.roles[role];
   const { timeouts, workflow } = resolvedConfig;
   const model = resolveModel(role, level, resolvedRole);
+  await assertConfiguredModelAvailable(model, {
+    runtime,
+    timeoutMs: timeouts.sessionPatchMs,
+    projectName: project.name,
+    role,
+    level,
+  });
   const roleWorker = getRoleWorker(project, role);
   const slot = roleWorker.levels[level]?.[slotIndex] ?? emptySlot();
   let existingSessionKey = slot.sessionKey;
@@ -153,6 +167,22 @@ export async function dispatchTask(
 
   const sessionAction = existingSessionKey ? "send" : "spawn";
 
+  // Resolve the issue-specific endpoint before constructing the task. The
+  // native subagent runtime does not accept channel/topic delivery fields, so
+  // this routing contract must travel in the worker message itself.
+  let issue: { labels: string[] } | undefined;
+  try {
+    issue = await provider.getIssue(issueId);
+  } catch {
+    // Fall back to the project's primary endpoint.
+  }
+  const notifyTarget = resolveNotifyChannel(issue?.labels ?? [], project.channels) ?? {
+    channelId: project.slug,
+    channel: "telegram",
+  };
+  const parentSessionKey = opts.parentSessionKey?.trim() ||
+    buildMainOrchestratorSessionKey(agentId ?? "main", notifyTarget);
+
   // Fetch comments to include in task context
   const comments = await provider.listComments(issueId);
 
@@ -168,17 +198,17 @@ export async function dispatchTask(
     attachmentContext = await formatAttachmentsForTask(workspaceDir, project.slug, issueId) || undefined;
   } catch { /* best-effort */ }
 
-  const primaryChannelId = project.channels[0]?.channelId ?? project.slug;
+  const primaryChannelId = notifyTarget.channelId;
   const isConflictFix = prFeedback?.reason === "merge_conflict";
   const taskMessage = isConflictFix && prFeedback
     ? buildConflictFixMessage({
-        projectName: project.name, channelId: primaryChannelId, role, issueId,
+        projectName: project.name, routing: notifyTarget, role, issueId,
         issueTitle, issueUrl,
         repo: project.repo, baseBranch: project.baseBranch,
         resolvedRole, prFeedback,
       })
     : buildTaskMessage({
-        projectName: project.name, channelId: primaryChannelId, role, issueId,
+        projectName: project.name, routing: notifyTarget, role, issueId,
         issueTitle, issueDescription, issueUrl,
         repo: project.repo, baseBranch: project.baseBranch,
         comments, resolvedRole, prContext, prFeedback, attachmentContext,
@@ -200,15 +230,6 @@ export async function dispatchTask(
     sessionKey,
   }).catch(() => {});
 
-  // Resolve issue routing before launch. Failure is best-effort: the task still
-  // contains explicit project and work_finish routing instructions.
-  let issue: { labels: string[] } | undefined;
-  try {
-    issue = await provider.getIssue(issueId);
-  } catch {
-    // Launch can proceed without channel-specific routing.
-  }
-  const notifyTarget = resolveNotifyChannel(issue?.labels ?? [], project.channels);
   const sessionLabel = formatSessionLabel(project.name, role, level, botName);
 
   // OpenClaw 2026.7+ resolves this promise after accepting the plugin-owned
@@ -226,6 +247,7 @@ export async function dispatchTask(
       extraSystemPrompt: roleInstructions.trim() || undefined,
       runCommand: rc,
       runtime,
+      parentSessionKey,
       notifyTarget,
     });
     runId = acceptance.runId;

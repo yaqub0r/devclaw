@@ -68,22 +68,26 @@ describe("dispatch launch acceptance", () => {
   });
 
   it("reuses the deterministic plugin-owned session for a returning issue", async () => {
-    harness = await createTestHarness();
+    harness = await createTestHarness({ messageThreadId: 176 });
     harness.provider.seedIssue({
       iid: 903,
       title: "Reusable worker session",
       labels: ["To Do"],
     });
     const runSessionKeys: string[] = [];
+    const runMessages: string[] = [];
+    const gatewayCalls: Array<{ method: string; params?: Record<string, unknown> }> = [];
     const runtime = {
       gateway: {
-        async request() {
+        async request(method: string, params?: Record<string, unknown>) {
+          gatewayCalls.push({ method, params });
           return {};
         },
       },
       subagent: {
-        async run(params: { sessionKey: string }) {
+        async run(params: { sessionKey: string; message: string }) {
           runSessionKeys.push(params.sessionKey);
+          runMessages.push(params.message);
           return { runId: `run-${runSessionKeys.length}` };
         },
       },
@@ -141,5 +145,67 @@ describe("dispatch launch acceptance", () => {
     assert.equal(second.sessionKey, first.sessionKey);
     assert.equal(second.runId, "run-2");
     assert.deepEqual(runSessionKeys, [first.sessionKey, first.sessionKey]);
+    assert.equal(runMessages.every((message) =>
+      message.includes(`"messageThreadId": 176`)), true);
+
+    const sessionPatches = gatewayCalls.filter((call) => call.method === "sessions.patch");
+    assert.equal(sessionPatches.length, 2);
+    assert.equal(
+      sessionPatches.every((call) =>
+        call.params?.spawnedBy ===
+        `agent:devclaw:telegram:group:${harness!.channelId}:topic:176`),
+      true,
+    );
+  });
+
+  it("leaves the issue untouched when the configured catalog excludes its model", async () => {
+    harness = await createTestHarness();
+    harness.provider.seedIssue({
+      iid: 904,
+      title: "Unavailable worker model",
+      labels: ["To Do"],
+    });
+    let runCalled = false;
+    const runtime = {
+      gateway: {
+        async request(method: string) {
+          assert.equal(method, "models.list");
+          return {
+            models: [{ provider: "google", id: "gemini-3-pro" }],
+          };
+        },
+      },
+      subagent: {
+        async run() {
+          runCalled = true;
+          return { runId: "unexpected" };
+        },
+      },
+    } as unknown as PluginRuntime;
+
+    await assert.rejects(
+      dispatchTask({
+        workspaceDir: harness.workspaceDir,
+        agentId: "devclaw",
+        project: harness.project,
+        issueId: 904,
+        issueTitle: "Unavailable worker model",
+        issueDescription: "Do not remove this issue from its queue.",
+        issueUrl: "https://example.com/issues/904",
+        role: "developer",
+        level: "medior",
+        fromLabel: "To Do",
+        toLabel: "Doing",
+        provider: harness.provider,
+        runCommand: harness.runCommand,
+        runtime,
+      }),
+      /Configured model unavailable/,
+    );
+
+    const issue = await harness.provider.getIssue(904);
+    assert.equal(issue.labels.includes("To Do"), true);
+    assert.equal(issue.labels.includes("Doing"), false);
+    assert.equal(runCalled, false);
   });
 });

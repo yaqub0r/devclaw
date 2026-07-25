@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { PluginRuntime } from "openclaw/plugin-sdk";
 import type { RunCommand } from "../context.js";
-import { sendToAgent } from "./session.js";
+import { assertConfiguredModelAvailable } from "./model-availability.js";
+import { buildMainOrchestratorSessionKey, sendToAgent } from "./session.js";
 
 describe("gateway agent dispatch compatibility", () => {
   it("omits unsupported spawnedBy from the legacy gateway payload", async () => {
@@ -122,6 +123,7 @@ describe("gateway agent dispatch compatibility", () => {
       extraSystemPrompt: "Architect instructions",
       runCommand,
       runtime,
+      parentSessionKey: "agent:devclaw:telegram:group:-100123:topic:42",
     });
 
     assert.deepEqual(acceptance, {
@@ -134,6 +136,7 @@ describe("gateway agent dispatch compatibility", () => {
         key: sessionKey,
         model: "openai/gpt-5.5",
         label: "Firstlight architect junior Judi",
+        spawnedBy: "agent:devclaw:telegram:group:-100123:topic:42",
       },
       options: { timeoutMs: 30_000 },
     }]);
@@ -147,6 +150,105 @@ describe("gateway agent dispatch compatibility", () => {
         `devclaw-Firstlight-902-architect-junior-0-To Research-${sessionKey}`,
     }]);
     assert.equal("spawnedBy" in subagentCalls[0]!, false);
+  });
+
+  it("derives stable main orchestrator keys for chat and topic lineage", () => {
+    assert.equal(
+      buildMainOrchestratorSessionKey("devclaw", {
+        channel: "telegram",
+        channelId: "-100123",
+      }),
+      "agent:devclaw:telegram:group:-100123",
+    );
+    assert.equal(
+      buildMainOrchestratorSessionKey("devclaw", {
+        channel: "telegram",
+        channelId: "-100123",
+        messageThreadId: 42,
+      }),
+      "agent:devclaw:telegram:group:-100123:topic:42",
+    );
+  });
+
+  it("accepts a model present in the configured gateway catalog", async () => {
+    const calls: string[] = [];
+    const runtime = {
+      gateway: {
+        async request(method: string) {
+          calls.push(method);
+          return {
+            models: [
+              { provider: "openai", id: "gpt-5.5" },
+              { provider: "google", id: "gemini-3-pro" },
+            ],
+          };
+        },
+      },
+      subagent: {
+        async run() {
+          return { runId: "unused" };
+        },
+      },
+    } as unknown as PluginRuntime;
+
+    await assertConfiguredModelAvailable("openai/gpt-5.5", {
+      runtime,
+      projectName: "Firstlight",
+      role: "architect",
+      level: "junior",
+    });
+    assert.deepEqual(calls, ["models.list"]);
+  });
+
+  it("rejects a definitively unavailable model with project context", async () => {
+    const runtime = {
+      gateway: {
+        async request() {
+          return {
+            models: [{ provider: "google", id: "gemini-3-pro" }],
+          };
+        },
+      },
+      subagent: {
+        async run() {
+          return { runId: "unused" };
+        },
+      },
+    } as unknown as PluginRuntime;
+
+    await assert.rejects(
+      assertConfiguredModelAvailable("anthropic/claude-sonnet-4-5", {
+        runtime,
+        projectName: "Firstlight",
+        role: "architect",
+        level: "junior",
+      }),
+      /Configured model unavailable for Firstlight architect\/junior: anthropic\/claude-sonnet-4-5/,
+    );
+  });
+
+  it("fails open when an older gateway does not expose a readable catalog", async () => {
+    const runtime = {
+      gateway: {
+        async request() {
+          throw new Error("unknown method: models.list");
+        },
+      },
+      subagent: {
+        async run() {
+          return { runId: "unused" };
+        },
+      },
+    } as unknown as PluginRuntime;
+
+    await assert.doesNotReject(
+      assertConfiguredModelAvailable("custom/private-model", {
+        runtime,
+        projectName: "Legacy",
+        role: "developer",
+        level: "medior",
+      }),
+    );
   });
 
   it("does not launch a worker when session provisioning is rejected", async () => {

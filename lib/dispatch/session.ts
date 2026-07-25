@@ -91,6 +91,16 @@ export type NotifyRoutingTarget = {
   messageThreadId?: number;
 };
 
+export function buildMainOrchestratorSessionKey(
+  agentId: string,
+  target: NotifyRoutingTarget,
+): string {
+  const base = `agent:${agentId}:${target.channel}:group:${target.channelId}`;
+  return target.messageThreadId != null
+    ? `${base}:topic:${target.messageThreadId}`
+    : base;
+}
+
 type NativeSubagentRunParams = {
   sessionKey: string;
   message: string;
@@ -192,9 +202,12 @@ export async function sendToAgent(
     extraSystemPrompt?: string;
     runCommand: RunCommand;
     runtime?: PluginRuntime;
+    /** Main/orchestrator session recorded through sessions.patch lineage. */
+    parentSessionKey?: string;
     /**
      * Legacy Gateway CLI only: forwarded as `to`, `channel`, `accountId`, and
-     * `threadId`. The 2026.7 plugin-native subagent runtime owns child routing.
+     * `threadId`. Native workers receive the same target in their task message
+     * because runtime.subagent.run has no channel/topic routing parameters.
      */
     notifyTarget?: NotifyRoutingTarget;
   },
@@ -208,7 +221,10 @@ export async function sendToAgent(
     // Keep model selection as persistent session state, matching DevClaw's
     // reusable-worker behavior. Awaiting this request turns a rejected model
     // or session patch into a launch failure that dispatchTask can roll back.
-    if (opts.model) {
+    const canRecordLineage =
+      /^agent:[^:]+:subagent:.+$/i.test(sessionKey) &&
+      !!opts.parentSessionKey?.trim();
+    if (opts.model || opts.sessionLabel || canRecordLineage) {
       if (!nativeRuntime?.gateway?.request) {
         throw new Error("OpenClaw plugin runtime is missing gateway.request for session provisioning");
       }
@@ -216,8 +232,9 @@ export async function sendToAgent(
         "sessions.patch",
         {
           key: sessionKey,
-          model: opts.model,
+          ...(opts.model ? { model: opts.model } : {}),
           ...(opts.sessionLabel ? { label: opts.sessionLabel } : {}),
+          ...(canRecordLineage ? { spawnedBy: opts.parentSessionKey!.trim() } : {}),
         },
         { timeoutMs: opts.sessionPatchTimeoutMs },
       );

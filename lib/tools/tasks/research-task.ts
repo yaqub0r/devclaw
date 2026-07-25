@@ -193,6 +193,7 @@ Example:
         provider,
         pluginConfig,
         runtime: ctx.runtime,
+        parentSessionKey: toolCtx.sessionKey,
         runCommand: ctx.runCommand,
       });
 

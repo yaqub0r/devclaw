@@ -1,6 +1,10 @@
 import { log as auditLog } from "../audit.js";
 import { loadConfig } from "../config/index.js";
-import { sendToSessionFireAndForget, type NotifyRoutingTarget } from "../dispatch/session.js";
+import {
+  buildMainOrchestratorSessionKey,
+  sendToSessionFireAndForget,
+  type NotifyRoutingTarget,
+} from "../dispatch/session.js";
 import { getRoleLabelColor, StateType, getCurrentStateLabel, findStateByLabel, getInitialStateLabel } from "../workflow/index.js";
 import type {
   InterventionRuntimeContext,
@@ -294,11 +298,6 @@ function resolveWakeTarget(ctx: InterventionRuntimeContext): NotifyRoutingTarget
     accountId: channel.accountId,
     messageThreadId: channel.messageThreadId,
   };
-}
-
-function buildMainOrchestratorSessionKey(agentId: string, target: NotifyRoutingTarget): string {
-  const base = `agent:${agentId}:${target.channel}:group:${target.channelId}`;
-  return target.messageThreadId != null ? `${base}:topic:${target.messageThreadId}` : base;
 }
 
 function buildWakeMessage(
