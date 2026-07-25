@@ -74,7 +74,7 @@ Each project is fully isolated — own queue, workers, sessions, and state. Work
 
 - **[Scheduling engine](#automatic-scheduling)** — `work_heartbeat` continuously scans queues, dispatches workers, and drives DEV → review → DEV [feedback loops](#how-tasks-flow-between-roles)
 - **[Project isolation](#execution-modes)** — parallel workers per project, parallel projects across the system
-- **[Role instructions](#custom-instructions-per-project)** — per-project, per-role prompts injected at dispatch time
+- **[Role instructions](#custom-instructions-per-project)** — per-project, per-role prompts injected via the bootstrap hook
 
 ### Process enforcement
 
@@ -364,28 +364,40 @@ Workers can also comment during work — QA leaves review feedback, DEV posts im
 
 ### Custom instructions per project
 
-Each project gets instruction files that workers receive with every task they pick up:
+Each project gets instruction files that worker sessions load via the `agent:bootstrap` hook:
 
 ```
 devclaw/
 ├── workflow.yaml                     (workspace-level workflow overrides)
 ├── prompts/                          (workspace defaults — fallback)
 │   ├── developer.md
+│   ├── reviewer.md
 │   ├── tester.md
+│   ├── deployer.md
 │   └── architect.md
 └── projects/
     ├── my-webapp/
     │   ├── workflow.yaml             (project-specific workflow overrides)
     │   └── prompts/
     │       ├── developer.md   "Run npm test before committing. Deploy URL: staging.example.com"
-    │       └── tester.md      "Check OAuth flow. Verify mobile responsiveness."
+    │       ├── reviewer.md    "Code review rules and PR acceptance policy."
+    │       ├── tester.md      "Check OAuth flow. Verify mobile responsiveness."
+    │       ├── deployer.md    "Promotion steps, lane checks, proof-of-release requirements."
+    │       └── architect.md   "Research alternatives and create implementation-ready tasks."
     └── my-api/
         └── prompts/
             ├── developer.md   "Run cargo test. Follow REST conventions in CONTRIBUTING.md"
-            └── tester.md      "Verify all endpoints return correct status codes."
+            ├── reviewer.md    "Review API changes and PR quality."
+            ├── tester.md      "Verify all endpoints return correct status codes."
+            ├── deployer.md    "Promote approved builds between lanes and record evidence."
+            └── architect.md   "Research architecture tradeoffs before implementation."
 ```
 
-Deployment steps, test commands, coding standards, acceptance criteria — all injected at dispatch time, per project, per role.
+Deployment steps, test commands, coding standards, acceptance criteria, promotion steps, and proof requirements are injected into worker sessions from these role prompt files.
+
+The Deployer uses `deployer.md` as its dedicated prompt surface.
+
+Release policy, lane semantics, and proof requirements still belong in workflow/config and runbooks, not only in prompts.
 
 ---
 

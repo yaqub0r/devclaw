@@ -9,3 +9,4 @@ export * from "./defaults.js";
 export * from "./queries.js";
 export * from "./labels.js";
 export * from "./completion.js";
+export * from "./candidate-provenance.js";

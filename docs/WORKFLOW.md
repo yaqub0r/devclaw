@@ -1,6 +1,6 @@
 # DevClaw — Workflow Reference
 
-The issue lifecycle in DevClaw is a configurable state machine defined in `workflow.yaml`. This document covers the default pipeline, all state types, review policies, and the optional test phase.
+The issue lifecycle in DevClaw is a configurable state machine defined in `workflow.yaml`. This document covers the default pipeline, all state types, review policies, the optional test phase, and the optional delivery phases for candidate promotion and acceptance.
 
 For config file format and location, see [Configuration](CONFIGURATION.md).
 
@@ -12,7 +12,7 @@ For config file format and location, see [Configuration](CONFIGURATION.md).
 Planning → To Do → Doing → To Review → PR approved → Done (auto-merge + close)
 ```
 
-Human review, no test phase. Approved PRs are auto-merged and the issue is closed.
+Human review, no test phase, and delivery phases skipped by default. Approved PRs are auto-merged, test is auto-skipped, promotion is auto-skipped, acceptance is auto-skipped, and the issue is closed.
 
 ```mermaid
 stateDiagram-v2
@@ -196,6 +196,12 @@ Override the project-level policy for a single issue using labels:
 
 **Source:** [`lib/workflow/queries.ts`](../lib/workflow/queries.ts) — `resolveReviewRouting()`
 
+### Reviewer Prompt Configuration
+
+Agent review uses the reviewer role prompt files:
+- Default: `devclaw/prompts/reviewer.md`
+- Per-project: `devclaw/projects/<project>/prompts/reviewer.md`
+
 ---
 
 ## Test Phase (optional)
@@ -363,6 +369,62 @@ Tester workers receive instructions via role prompt files:
 - `devclaw/prompts/tester.md` — default fallback
 
 These prompts should instruct the tester to always call `task_comment` before `work_finish`, include specific details about what was tested, and document results and environment.
+
+---
+
+## Delivery Phases (optional)
+
+Delivery extends the workflow after technical review and optional testing.
+
+The current built-in phases are:
+- **To Promote / Promoting**
+- **To Accept / Accepting**
+
+These phases are intentionally about **candidate promotion** and **candidate acceptance**, not generic extra testing.
+
+### Important current rule
+
+Release initiation should be **policy-controlled**. Like PR handling, a project may choose human or agent initiation, but promotion should not be treated as automatic forward motion just because implementation, review, or testing completed.
+
+### Delivery flow shape
+
+```mermaid
+flowchart TD
+  A[Candidate ready in source lane] --> B{Promotion initiated by policy?}
+  B -- no --> A
+  B -- human --> C[Promote candidate from source lane to target lane]
+  B -- agent --> C
+  C --> D[Record candidate identity and promotion receipt]
+  D --> E[Run lane-specific verification]
+  E --> F{Acceptance decision}
+  F -- accept --> G[Record acceptance receipt]
+  G --> H[Candidate accepted in target lane]
+  F -- reject --> I[Invalidate candidate]
+  I --> J[Demotion or rollback path]
+  F -- refine --> K[Return to refinement or improvement]
+  F -- blocked --> L[Pause for human decision]
+```
+
+### Release-agent contract
+
+Delivery phases work together with the Deployer contract.
+
+Projects define:
+- lanes or environments
+- allowed source → target promotion paths
+- proof-of-release receipts
+- acceptance criteria and authority
+- retry, repeat, and override behavior
+
+For the operator-facing contract, see [`dev/design/deployer-contract.md`](../dev/design/deployer-contract.md).
+
+### Prompt files for delivery phases
+
+The Deployer uses a dedicated `deployer.md` prompt surface:
+- Default: `devclaw/prompts/deployer.md`
+- Per-project: `devclaw/projects/<project>/prompts/deployer.md`
+
+Put release-execution instructions in that prompt surface. Put lane definitions, routing policy, and release proof requirements in workflow/config and project runbooks.
 
 ---
 

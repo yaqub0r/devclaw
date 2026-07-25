@@ -135,7 +135,7 @@ If the test phase is enabled in workflow.yaml:
 
 ### Prompt Instructions
 
-Workers receive role-specific instructions appended to their task message. These are loaded from `devclaw/projects/<project-name>/prompts/<role>.md` in the workspace, falling back to `devclaw/prompts/<role>.md` if no project-specific file exists. `project_register` scaffolds these files automatically — edit them to customize worker behavior per project.
+Workers receive role-specific instructions via the bootstrap hook, not by appending them to the task message. These are loaded from `devclaw/projects/<project-name>/prompts/<role>.md` in the workspace, falling back to `devclaw/prompts/<role>.md` if no project-specific file exists. `project_register` scaffolds these files automatically — edit them to customize worker behavior per project.
 
 ### Heartbeats
 

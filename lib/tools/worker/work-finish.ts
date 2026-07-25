@@ -18,7 +18,7 @@ import { log as auditLog } from "../../audit.js";
 import { DATA_DIR } from "../../setup/migrate-layout.js";
 import { requireWorkspaceDir, resolveChannelId, resolveProject, resolveProvider } from "../helpers.js";
 import { getAllRoleIds, isValidResult, getCompletionResults } from "../../roles/index.js";
-import { loadWorkflow } from "../../workflow/index.js";
+import { getCurrentStateLabel, loadWorkflow } from "../../workflow/index.js";
 
 /**
  * Get the current git branch name.
@@ -179,7 +179,7 @@ export function createWorkFinishTool(ctx: PluginContext) {
   return (toolCtx: ToolContext) => ({
     name: "work_finish",
     label: "Work Finish",
-    description: `Complete a task: Developer done (PR created, goes to review) or blocked. Tester pass/fail/refine/blocked. Reviewer approve/reject/blocked. Architect done/blocked. Handles label transition, state update, issue close/reopen, notifications, and audit logging.`,
+    description: `Complete a task: Developer done/blocked, Tester pass/fail/refine/blocked, Reviewer approve/reject/blocked, Architect done/blocked, or Deployer done/blocked. Handles label transition, state update, issue close/reopen, notifications, and audit logging.`,
     parameters: {
       type: "object",
       required: ["channelId", "role", "result"],
@@ -261,8 +261,10 @@ export function createWorkFinishTool(ctx: PluginContext) {
 
       const { provider } = await resolveProvider(project, ctx.runCommand);
       const workflow = await loadWorkflow(workspaceDir, project.name);
+      const issue = await provider.getIssue(issueId);
+      const currentLabel = getCurrentStateLabel(issue.labels, workflow);
 
-      if (!getRule(role, result, workflow))
+      if (!getRule(role, result, workflow, currentLabel))
         throw new Error(`Invalid completion: ${role}:${result}`);
 
       const repoPath = resolveRepoPath(project.repo);

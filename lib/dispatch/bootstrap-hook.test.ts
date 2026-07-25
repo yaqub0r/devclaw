@@ -27,6 +27,11 @@ describe("parseDevClawSessionKey", () => {
     assert.deepStrictEqual(result, { projectName: "webapp", role: "tester" });
   });
 
+  it("should parse a deployer session key", () => {
+    const result = parseDevClawSessionKey("agent:devclaw:subagent:webapp-deployer-junior");
+    assert.deepStrictEqual(result, { projectName: "webapp", role: "deployer" });
+  });
+
   it("should handle project names with hyphens", () => {
     const result = parseDevClawSessionKey("agent:devclaw:subagent:my-cool-project-developer-junior");
     assert.deepStrictEqual(result, { projectName: "my-cool-project", role: "developer" });
@@ -145,6 +150,21 @@ describe("loadRoleInstructions", () => {
     assert.strictEqual(result, DEFAULT_ROLE_INSTRUCTIONS.developer);
 
     await fs.rm(tmpDir, { recursive: true });
+  });
+
+  it("should load deployer instructions from both workspace and package defaults", async () => {
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "devclaw-test-"));
+    const promptsDir = path.join(tmpDir, "devclaw", "prompts");
+    await fs.mkdir(promptsDir, { recursive: true });
+    await fs.writeFile(path.join(promptsDir, "deployer.md"), "# Deployer Default\nPromote carefully.");
+
+    const workspaceResult = await loadRoleInstructions(tmpDir, "missing", "deployer");
+    assert.strictEqual(workspaceResult, "# Deployer Default\nPromote carefully.");
+
+    await fs.rm(tmpDir, { recursive: true });
+
+    const packageResult = await loadRoleInstructions(process.cwd(), "missing", "deployer");
+    assert.strictEqual(packageResult, DEFAULT_ROLE_INSTRUCTIONS.deployer);
   });
 
   it("should return empty string for unknown roles with no defaults", async () => {
