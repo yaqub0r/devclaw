@@ -48,8 +48,6 @@ export type DispatchOpts = {
   provider: import("../providers/provider.js").IssueProvider;
   /** Plugin config for model resolution and notification config */
   pluginConfig?: Record<string, unknown>;
-  /** Orchestrator's session key (used as spawnedBy for subagent tracking) */
-  sessionKey?: string;
   /** Plugin runtime for direct API access (avoids CLI subprocess timeouts) */
   runtime?: PluginRuntime;
   /** Slot index within the role's worker slots (defaults to 0 for single-worker compat) */
@@ -306,7 +304,7 @@ export async function dispatchTask(
   // the gateway's agent endpoint rejects unknown properties like 'model'.
   sendToAgent(sessionKey, taskMessage, {
     agentId, projectName: project.name, issueId, role, level, slotIndex, fromLabel,
-    orchestratorSessionKey: opts.sessionKey, workspaceDir,
+    workspaceDir,
     dispatchTimeoutMs: timeouts.dispatchMs,
     extraSystemPrompt: roleInstructions.trim() || undefined,
     runCommand: rc,

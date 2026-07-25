@@ -102,7 +102,6 @@ export function sendToSessionFireAndForget(
     notifyTarget?: NotifyRoutingTarget;
     idempotencyKey?: string;
     extraSystemPrompt?: string;
-    spawnedBy?: string;
   },
 ): void {
   const rc = opts.runCommand;
@@ -113,7 +112,6 @@ export function sendToSessionFireAndForget(
     message,
     deliver: false,
     ...(opts.lane ? { lane: opts.lane } : {}),
-    ...(opts.spawnedBy ? { spawnedBy: opts.spawnedBy } : {}),
     ...(opts.extraSystemPrompt ? { extraSystemPrompt: opts.extraSystemPrompt } : {}),
   };
   applyNotifyRoutingToGatewayParams(gatewayParamsRecord, opts.notifyTarget);
@@ -156,7 +154,6 @@ export function sendToAgent(
     level?: string;
     slotIndex?: number;
     fromLabel?: string;
-    orchestratorSessionKey?: string;
     workspaceDir: string;
     dispatchTimeoutMs?: number;
     extraSystemPrompt?: string;
@@ -178,6 +175,5 @@ export function sendToAgent(
     notifyTarget: opts.notifyTarget,
     idempotencyKey: `devclaw-${opts.projectName}-${opts.issueId}-${opts.role}-${opts.level ?? "unknown"}-${opts.slotIndex ?? 0}-${opts.fromLabel ?? "unknown"}-${sessionKey}`,
     extraSystemPrompt: opts.extraSystemPrompt,
-    spawnedBy: opts.orchestratorSessionKey,
   });
 }

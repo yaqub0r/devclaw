@@ -192,7 +192,6 @@ Example:
         toLabel,
         provider,
         pluginConfig,
-        sessionKey: toolCtx.sessionKey,
         runtime: ctx.runtime,
         runCommand: ctx.runCommand,
       });
