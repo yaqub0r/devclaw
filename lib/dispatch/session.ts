@@ -1,6 +1,7 @@
 /**
  * session.ts — Session management helpers for dispatch.
  */
+import type { PluginRuntime } from "openclaw/plugin-sdk";
 import type { RunCommand } from "../context.js";
 import { log as auditLog } from "../audit.js";
 import { fetchGatewaySessions } from "../services/gateway-sessions.js";
@@ -90,6 +91,35 @@ export type NotifyRoutingTarget = {
   messageThreadId?: number;
 };
 
+type NativeSubagentRunParams = {
+  sessionKey: string;
+  message: string;
+  provider?: string;
+  model?: string;
+  extraSystemPrompt?: string;
+  lane?: string;
+  deliver?: boolean;
+  idempotencyKey?: string;
+};
+
+type NativeSubagentRuntime = {
+  gateway?: {
+    request<T = unknown>(
+      method: string,
+      params?: Record<string, unknown>,
+      options?: { timeoutMs?: number },
+    ): Promise<T>;
+  };
+  subagent?: {
+    run(params: NativeSubagentRunParams): Promise<{ runId: string }>;
+  };
+};
+
+export type AgentDispatchAcceptance = {
+  transport: "plugin-runtime" | "gateway-cli";
+  runId?: string;
+};
+
 export function sendToSessionFireAndForget(
   sessionKey: string,
   message: string,
@@ -144,7 +174,7 @@ function applyNotifyRoutingToGatewayParams(
   }
 }
 
-export function sendToAgent(
+export async function sendToAgent(
   sessionKey: string, taskMessage: string,
   opts: {
     agentId?: string;
@@ -155,17 +185,71 @@ export function sendToAgent(
     slotIndex?: number;
     fromLabel?: string;
     workspaceDir: string;
+    model?: string;
+    sessionLabel?: string;
+    sessionPatchTimeoutMs?: number;
     dispatchTimeoutMs?: number;
     extraSystemPrompt?: string;
     runCommand: RunCommand;
+    runtime?: PluginRuntime;
     /**
-     * When set (e.g. from `resolveNotifyChannel`), forwarded to the gateway `agent` call as
-     * `to`, `channel`, `accountId`, and `threadId` so plugin tools get `messageThreadId` injection
-     * (Telegram forum topics) on the worker run.
+     * Legacy Gateway CLI only: forwarded as `to`, `channel`, `accountId`, and
+     * `threadId`. The 2026.7 plugin-native subagent runtime owns child routing.
      */
     notifyTarget?: NotifyRoutingTarget;
   },
-): void {
+): Promise<AgentDispatchAcceptance> {
+  const idempotencyKey =
+    `devclaw-${opts.projectName}-${opts.issueId}-${opts.role}-${opts.level ?? "unknown"}-${opts.slotIndex ?? 0}-${opts.fromLabel ?? "unknown"}-${sessionKey}`;
+  const nativeRuntime = opts.runtime as unknown as NativeSubagentRuntime | undefined;
+  const nativeSubagent = nativeRuntime?.subagent;
+
+  if (nativeSubagent?.run) {
+    // Keep model selection as persistent session state, matching DevClaw's
+    // reusable-worker behavior. Awaiting this request turns a rejected model
+    // or session patch into a launch failure that dispatchTask can roll back.
+    if (opts.model) {
+      if (!nativeRuntime?.gateway?.request) {
+        throw new Error("OpenClaw plugin runtime is missing gateway.request for session provisioning");
+      }
+      await nativeRuntime.gateway.request(
+        "sessions.patch",
+        {
+          key: sessionKey,
+          model: opts.model,
+          ...(opts.sessionLabel ? { label: opts.sessionLabel } : {}),
+        },
+        { timeoutMs: opts.sessionPatchTimeoutMs },
+      );
+    }
+    const result = await nativeSubagent.run({
+      sessionKey,
+      message: taskMessage,
+      extraSystemPrompt: opts.extraSystemPrompt,
+      lane: "subagent",
+      deliver: false,
+      idempotencyKey,
+    });
+    if (!result?.runId) {
+      throw new Error("OpenClaw accepted the subagent request without returning a runId");
+    }
+    return { transport: "plugin-runtime", runId: result.runId };
+  }
+
+  // OpenClaw before the plugin-native subagent runtime: retain the established
+  // CLI path so older installations keep working. This path cannot provide an
+  // immediate launch acknowledgment, so only the 2026.7+ runtime receives the
+  // accepted-launch/rollback guarantee.
+  if (opts.model) {
+    ensureSessionFireAndForget(
+      sessionKey,
+      opts.model,
+      opts.workspaceDir,
+      opts.runCommand,
+      opts.sessionPatchTimeoutMs,
+      opts.sessionLabel,
+    );
+  }
   sendToSessionFireAndForget(sessionKey, taskMessage, {
     agentId: opts.agentId,
     workspaceDir: opts.workspaceDir,
@@ -173,7 +257,8 @@ export function sendToAgent(
     dispatchTimeoutMs: opts.dispatchTimeoutMs,
     lane: "subagent",
     notifyTarget: opts.notifyTarget,
-    idempotencyKey: `devclaw-${opts.projectName}-${opts.issueId}-${opts.role}-${opts.level ?? "unknown"}-${opts.slotIndex ?? 0}-${opts.fromLabel ?? "unknown"}-${sessionKey}`,
+    idempotencyKey,
     extraSystemPrompt: opts.extraSystemPrompt,
   });
+  return { transport: "gateway-cli" };
 }

@@ -52,6 +52,7 @@ import {
 import { isSessionAlive, type SessionLookup } from "../gateway-sessions.js";
 import { sendToAgent } from "../../dispatch/session.js";
 import type { RunCommand } from "../../context.js";
+import type { PluginRuntime } from "openclaw/plugin-sdk";
 import { recordLoopDiagnostic } from "../loop-diagnostics.js";
 
 // Re-export for consumers that import from health.ts
@@ -186,6 +187,8 @@ export async function checkWorkerHealth(opts: {
   runCommand: RunCommand;
   /** Agent ID for sendToAgent calls */
   agentId?: string;
+  /** Plugin runtime for accepted native subagent nudge runs */
+  runtime?: PluginRuntime;
 }): Promise<HealthFix[]> {
   const {
     workspaceDir, projectSlug, project, role, autoFix, provider, sessions,
@@ -471,7 +474,7 @@ export async function checkWorkerHealth(opts: {
               const notifyTarget = issue
                 ? resolveNotifyChannel(issue.labels, project.channels)
                 : undefined;
-              sendToAgent(sessionKey, NUDGE_MESSAGE, {
+              await sendToAgent(sessionKey, NUDGE_MESSAGE, {
                 agentId: opts.agentId,
                 projectName: project.name,
                 issueId: issueIdNum!,
@@ -480,6 +483,7 @@ export async function checkWorkerHealth(opts: {
                 slotIndex,
                 workspaceDir,
                 runCommand: opts.runCommand,
+                runtime: opts.runtime,
                 notifyTarget,
               });
               fix.nudgeSent = true;

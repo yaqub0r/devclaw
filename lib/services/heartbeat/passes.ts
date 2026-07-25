@@ -35,6 +35,7 @@ export async function performHealthPass(
   runCommand?: RunCommand,
   stallTimeoutMinutes?: number,
   agentId?: string,
+  runtime?: PluginRuntime,
 ): Promise<number> {
   let fixedCount = 0;
 
@@ -52,6 +53,7 @@ export async function performHealthPass(
       stallTimeoutMinutes,
       runCommand: runCommand!,
       agentId,
+      runtime,
     });
     fixedCount += healthFixes.filter((f) => f.fixed).length;
 
