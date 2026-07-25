@@ -93,4 +93,23 @@ export const ROLE_REGISTRY: Record<string, RoleConfig> = {
     sessionKeyPattern: "reviewer",
     notifications: { onStart: true, onComplete: true },
   },
+
+  deployer: {
+    id: "deployer",
+    displayName: "DEPLOYER",
+    levels: ["junior", "senior"],
+    defaultLevel: "junior",
+    models: {
+      junior: "anthropic/claude-haiku-4-5",
+      senior: "anthropic/claude-sonnet-4-5",
+    },
+    emoji: {
+      junior: "🚚",
+      senior: "🚀",
+    },
+    fallbackEmoji: "🚚",
+    completionResults: ["done", "blocked"],
+    sessionKeyPattern: "deployer",
+    notifications: { onStart: true, onComplete: true },
+  },
 };

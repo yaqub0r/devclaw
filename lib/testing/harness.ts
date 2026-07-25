@@ -158,6 +158,7 @@ export async function createTestHarness(opts?: HarnessOptions): Promise<TestHarn
     tester: emptyRW(),
     architect: emptyRW(),
     reviewer: emptyRW(),
+    deployer: emptyRW(),
   };
 
   if (workerOverrides) {

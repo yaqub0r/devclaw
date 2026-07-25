@@ -19,7 +19,7 @@ Planning → To Do → Doing → To Review → [PR approved → auto-merge] → 
 To Research → Researching → Planning (architect posts findings)
 ```
 
-States have types (`queue`, `active`, `hold`, `terminal`), transitions with actions (`gitPull`, `detectPr`, `mergePr`, `closeIssue`, `reopenIssue`), and review checks (`prMerged`, `prApproved`). The test phase (toTest, testing) can be enabled via `workflow.yaml` — see [Workflow](WORKFLOW.md#test-phase-optional).
+States have types (`queue`, `active`, `hold`, `terminal`), transitions with actions (`gitPull`, `detectPr`, `mergePr`, `closeIssue`, `reopenIssue`), and review checks (`prMerged`, `prApproved`). The test phase (toTest, testing) and delivery phases (toPromote/promoting, toAccept/accepting) can be enabled or skipped via `workflow.yaml` — see [Workflow](WORKFLOW.md#test-phase-optional).
 
 ### Three-Layer Configuration
 

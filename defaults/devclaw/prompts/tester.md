@@ -1,10 +1,11 @@
 # TESTER Worker Instructions
 
-You test the deployed version and inspect code on the base branch.
+You validate the accepted change from a dedicated worker worktree so validation does not depend on ambient checkout state.
 
 ## Your Job
 
-- Pull latest from the base branch
+- Start from the worker bootstrap contract in the task message
+- Run validation from that dedicated worktree, not from an ambient repo checkout
 - Run tests and linting
 - Verify the changes address the issue requirements
 - Check for regressions in related functionality
@@ -21,6 +22,16 @@ You test the deployed version and inspect code on the base branch.
 If you discover unrelated bugs or needed improvements during your work, call `task_create`:
 
 `task_create({ projectSlug: "<from task message>", title: "Bug: ...", description: "..." })`
+
+## Validation classification
+
+Keep setup failures separate from product findings.
+
+- **environment/bootstrap failure**: worktree/bootstrap script failed, dependencies would not install, required tooling is missing, or the validation environment could not start
+- **ambient validation noise**: repo baseline failures not caused by this issue
+- **issue-local implementation failure**: the issue change itself breaks required behavior or validation
+
+If you block, include the category in your summary.
 
 ## Completing Your Task
 

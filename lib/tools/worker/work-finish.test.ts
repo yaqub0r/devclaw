@@ -11,23 +11,18 @@
  */
 import { describe, it, before, after } from "node:test";
 import assert from "node:assert";
-import { mkdtemp, writeFile, readFile } from "node:fs/promises";
+import { mkdtemp, writeFile, readFile, rm, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { rmdir } from "node:fs/promises";
+import { TestProvider } from "../../testing/test-provider.js";
+import { PrState } from "../../providers/provider.js";
+import { validatePrExistsForDeveloper } from "./work-finish.js";
 
 // Helper to create a mock audit log with a merge_conflict transition
 async function createMockAuditLog(workspaceDir: string, issueId: number, hasMergeConflict: boolean): Promise<void> {
   const logDir = join(workspaceDir, "devclaw", "log");
-  
-  // Ensure directory exists
-  try {
-    await writeFile(join(workspaceDir, "devclaw", "placeholder"), "");
-  } catch {
-    // ignore
-  }
-  
-  const auditPath = join(workspaceDir, "devclaw", "log", "audit.log");
+  await mkdir(logDir, { recursive: true });
+  const auditPath = join(logDir, "audit.log");
   const entries = [];
   
   // Add some dummy entries
@@ -74,7 +69,7 @@ describe("work_finish: PR validation and conflict resolution", () => {
   after(async () => {
     // Clean up
     try {
-      await rmdir(tempDir, { recursive: true });
+      await rm(tempDir, { recursive: true, force: true });
     } catch {
       // ignore
     }
@@ -142,7 +137,9 @@ describe("work_finish: PR validation and conflict resolution", () => {
     });
 
     it("should skip malformed JSON lines in audit log", async () => {
-      const auditPath = join(tempDir, "devclaw", "log", "audit.log");
+      const logDir = join(tempDir, "devclaw", "log");
+      await mkdir(logDir, { recursive: true });
+      const auditPath = join(logDir, "audit.log");
       const entries = [
         JSON.stringify({ event: "valid", issueId: 999 }),
         "{ invalid json",
@@ -169,6 +166,34 @@ describe("work_finish: PR validation and conflict resolution", () => {
   });
 
   describe("validatePrExistsForDeveloper: conflict detection", () => {
+    it("rejects completion when current branch does not match canonical PR branch", async () => {
+      const provider = new TestProvider();
+      provider.setLinkedPrs(244, [{
+        number: 245,
+        url: "https://github.com/test/repo/pull/245",
+        sourceBranch: "issue/244-canonical-pr-ledger",
+        repo: "test/repo",
+      }]);
+      provider.prStatuses.set(244, {
+        state: PrState.OPEN,
+        url: "https://github.com/test/repo/pull/245",
+        number: 245,
+        sourceBranch: "issue/244-canonical-pr-ledger",
+      });
+
+      await assert.rejects(
+        validatePrExistsForDeveloper(
+          244,
+          "/tmp/repo",
+          provider,
+          async () => ({ stdout: "wrong-branch\n", stderr: "", exitCode: 0, code: 0, signal: null, killed: false, termination: "exit" } as any),
+          tempDir,
+          "devclaw",
+        ),
+        /current branch wrong-branch does not match canonical PR branch issue\/244-canonical-pr-ledger/,
+      );
+    });
+
     it("should validate error message format when PR still conflicting", async () => {
       // Test that our error message matches the expected pattern
       const errorMessage = 
@@ -243,12 +268,12 @@ describe("work_finish: PR validation and conflict resolution", () => {
 
     it("should handle non-Error exceptions gracefully", () => {
       // Test that non-Error objects don't cause issues
-      const notAnError = "some string";
+      const notAnError: unknown = "some string";
       
       const shouldRethrow = 
         notAnError instanceof Error && 
-        ((notAnError as any).message?.startsWith("Cannot mark work_finish(done)") || 
-         (notAnError as any).message?.startsWith("Cannot complete work_finish(done)"));
+        (notAnError.message.startsWith("Cannot mark work_finish(done)") || 
+         notAnError.message.startsWith("Cannot complete work_finish(done)"));
       
       assert.ok(!shouldRethrow, "Should not re-throw non-Error objects");
     });

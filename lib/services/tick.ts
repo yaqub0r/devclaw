@@ -19,6 +19,8 @@ import {
   ReviewPolicy,
   TestPolicy,
   getActiveLabel,
+  getActiveLabelForQueueLabel,
+  getDeliveryQueueLabel,
   type WorkflowConfig,
   type Role,
 } from "../workflow/index.js";
@@ -120,46 +122,61 @@ export async function projectTick(opts: {
       continue;
     }
 
-    // Review policy gate: fallback for issues dispatched before step routing labels existed
-    if (role === "reviewer") {
-      const policy = workflow.reviewPolicy ?? ReviewPolicy.HUMAN;
-      if (policy === ReviewPolicy.HUMAN) {
-        skipped.push({ role, reason: "Review policy: human (heartbeat handles via PR polling)" });
-        continue;
-      }
-      if (policy === ReviewPolicy.SKIP) {
-        skipped.push({ role, reason: "Review policy: skip (heartbeat handles via review-skip pass)" });
-        continue;
-      }
-    }
-
-    // Test policy gate: fallback for issues dispatched before test routing labels existed
-    if (role === "tester") {
-      const policy = workflow.testPolicy ?? TestPolicy.SKIP;
-      if (policy === TestPolicy.SKIP) {
-        skipped.push({ role, reason: "Test policy: skip (heartbeat handles via test-skip pass)" });
-        continue;
-      }
-    }
-
     const next = await findNextIssueForRole(provider, role, workflow, instanceName);
     if (!next) continue;
 
     const { issue, label: currentLabel } = next;
-    const targetLabel = getActiveLabel(workflow, role);
+    const targetLabel = getActiveLabelForQueueLabel(workflow, role, currentLabel);
 
-    // Step routing: check for review:human / review:skip / test:skip labels
-    if (role === "reviewer") {
-      const routing = detectStepRouting(issue.labels, "review");
-      if (routing === "human" || routing === "skip") {
-        skipped.push({ role, reason: `review:${routing} label` });
+    const promotionQueueLabel = getDeliveryQueueLabel(workflow, "promotion");
+    const acceptanceQueueLabel = getDeliveryQueueLabel(workflow, "acceptance");
+    const isPromotionQueue = currentLabel === promotionQueueLabel;
+    const isAcceptanceQueue = currentLabel === acceptanceQueueLabel;
+
+    // Fallback policy gates for legacy issues that predate routing labels.
+    if (role === "reviewer" && !isPromotionQueue) {
+      const reviewRouting = detectStepRouting(issue.labels, "review");
+      const policy = workflow.reviewPolicy ?? ReviewPolicy.HUMAN;
+      if (!reviewRouting && (policy === ReviewPolicy.HUMAN || policy === ReviewPolicy.SKIP)) {
+        skipped.push({ role, reason: `Review policy: ${policy}` });
         continue;
       }
     }
-    if (role === "tester") {
-      const routing = detectStepRouting(issue.labels, "test");
-      if (routing === "skip") {
-        skipped.push({ role, reason: "test:skip label" });
+
+    if (role === "tester" && !isAcceptanceQueue) {
+      const testRouting = detectStepRouting(issue.labels, "test");
+      const policy = workflow.testPolicy ?? TestPolicy.SKIP;
+      if (!testRouting && policy === TestPolicy.SKIP) {
+        skipped.push({ role, reason: "Test policy: skip" });
+        continue;
+      }
+    }
+
+    // Step routing: check for human/skip routing labels on queue phases.
+    if (isPromotionQueue) {
+      const promotionRouting = detectStepRouting(issue.labels, "promotion");
+      if (promotionRouting === "human" || promotionRouting === "skip") {
+        skipped.push({ role, reason: `promotion:${promotionRouting} label` });
+        continue;
+      }
+    } else if (role === "reviewer") {
+      const reviewRouting = detectStepRouting(issue.labels, "review");
+      if (reviewRouting === "human" || reviewRouting === "skip") {
+        skipped.push({ role, reason: `review:${reviewRouting} label` });
+        continue;
+      }
+    }
+
+    if (isAcceptanceQueue) {
+      const acceptanceRouting = detectStepRouting(issue.labels, "acceptance");
+      if (acceptanceRouting === "human" || acceptanceRouting === "skip") {
+        skipped.push({ role, reason: `acceptance:${acceptanceRouting} label` });
+        continue;
+      }
+    } else if (role === "tester") {
+      const testRouting = detectStepRouting(issue.labels, "test");
+      if (testRouting === "human" || testRouting === "skip") {
+        skipped.push({ role, reason: `test:${testRouting} label` });
         continue;
       }
     }

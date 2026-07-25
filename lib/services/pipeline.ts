@@ -19,11 +19,17 @@ import {
   getCompletionRule,
   getNextStateDescription,
   getCompletionEmoji,
+  getCurrentStateLabel,
   resolveNotifyChannel,
+  findStateKeyByLabel,
+  getDeliveryPhaseForLabel,
+  recordPromotedCandidate,
+  markCandidateStatus,
   type CompletionRule,
   type WorkflowConfig,
 } from "../workflow/index.js";
 import type { Channel } from "../projects/index.js";
+import { resolveCanonicalPrForIssue } from "./canonical-pr.js";
 
 export type { CompletionRule };
 
@@ -47,6 +53,8 @@ function getRefiningCommentPrefix(role: string): string {
       return "👁️ **REVIEWER**";
     case "architect":
       return "🏗️ **ARCHITECT**";
+    case "deployer":
+      return "🚚 **DEPLOYER**";
     default:
       return "🎛️ **ORCHESTRATOR**";
   }
@@ -104,8 +112,9 @@ export function getRule(
   role: string,
   result: string,
   workflow: WorkflowConfig = DEFAULT_WORKFLOW,
+  currentLabel?: string | null,
 ): CompletionRule | undefined {
-  return getCompletionRule(workflow, role, result) ?? undefined;
+  return getCompletionRule(workflow, role, result, currentLabel) ?? undefined;
 }
 
 /**
@@ -147,7 +156,9 @@ export async function executeCompletion(opts: {
   } = opts;
 
   const key = `${role}:${result}`;
-  const rule = getCompletionRule(workflow, role, result);
+  const issue = await provider.getIssue(issueId);
+  const currentLabel = getCurrentStateLabel(issue.labels, workflow);
+  const rule = getCompletionRule(workflow, role, result, currentLabel);
   if (!rule) throw new Error(`No completion rule for ${key}`);
 
   const { timeouts } = await loadConfig(workspaceDir, projectName);
@@ -166,11 +177,11 @@ export async function executeCompletion(opts: {
         break;
       case Action.DETECT_PR:
         if (!prUrl) { try {
-          // Try open PR first (developer just finished — MR is still open), fall back to merged
-          const prStatus = await provider.getPrStatus(issueId);
-          prUrl = prStatus.url ?? await provider.getMergedMRUrl(issueId) ?? undefined;
-          prTitle = prStatus.title;
-          sourceBranch = prStatus.sourceBranch;
+          const canonical = await resolveCanonicalPrForIssue({ workspaceDir, projectSlug, issueId, provider });
+          const prStatus = await provider.getPrStatusByUrl(canonical.url);
+          prUrl = canonical.url;
+          prTitle = prStatus?.title ?? canonical.url;
+          sourceBranch = prStatus?.sourceBranch ?? canonical.sourceBranch;
         } catch (err) {
           auditLog(workspaceDir, "pipeline_warning", { step: "detectPr", issue: issueId, role, error: (err as Error).message ?? String(err) }).catch(() => {});
         } }
@@ -178,29 +189,27 @@ export async function executeCompletion(opts: {
       case Action.MERGE_PR:
         try {
           // Grab PR metadata before merging (the MR is still open at this point)
+          const canonical = await resolveCanonicalPrForIssue({ workspaceDir, projectSlug, issueId, provider });
+          const prStatus = await provider.getPrStatusByUrl(canonical.url);
+          prUrl = canonical.url;
           if (!prTitle) {
-            try {
-              const prStatus = await provider.getPrStatus(issueId);
-              prUrl = prUrl ?? prStatus.url ?? undefined;
-              prTitle = prStatus.title;
-              sourceBranch = prStatus.sourceBranch;
-            } catch { /* best-effort */ }
+            prTitle = prStatus?.title;
+            sourceBranch = prStatus?.sourceBranch ?? canonical.sourceBranch;
           }
-          await provider.mergePr(issueId);
+          await provider.mergePr(issueId, { prUrl: canonical.url, prNumber: canonical.number });
           mergedPr = true;
         } catch (err) {
           auditLog(workspaceDir, "pipeline_warning", { step: "mergePr", issue: issueId, role, error: (err as Error).message ?? String(err) }).catch(() => {});
+          throw err;
         }
         break;
     }
   }
 
-  // Get issue early (for URL in notification + channel routing)
-  const issue = await provider.getIssue(issueId);
   const notifyTarget = resolveNotifyChannel(issue.labels, channels);
 
   // Get next state description from workflow
-  const nextState = getNextStateDescription(workflow, role, result);
+  const nextState = getNextStateDescription(workflow, role, result, currentLabel);
 
   // Retrieve worker name from project state (best-effort)
   let workerName: string | undefined;
@@ -274,6 +283,9 @@ export async function executeCompletion(opts: {
   // Then execute post-transition actions (close/reopen)
   // Finally deactivate worker (last — ensures label is set even if deactivation fails)
   const transitionedTo = rule.to as StateLabel;
+  const toStateKey = findStateKeyByLabel(workflow, transitionedTo);
+  const toPhase = getDeliveryPhaseForLabel(workflow, transitionedTo);
+  const fromPhase = getDeliveryPhaseForLabel(workflow, rule.from);
   if (transitionedTo === "Refining") {
     await provider.addComment(issueId, buildRefiningHoldComment({
       role,
@@ -285,6 +297,25 @@ export async function executeCompletion(opts: {
     }));
   }
   await provider.transitionLabel(issueId, rule.from as StateLabel, transitionedTo);
+
+  if (fromPhase === "promotion" && toPhase === "acceptance") {
+    await recordPromotedCandidate({
+      provider,
+      issueId,
+      repoPath,
+      runCommand: rc,
+      prUrl,
+      targetHint: transitionedTo,
+    }).catch(() => {});
+  }
+
+  if (toStateKey === "done" && fromPhase === "acceptance") {
+    await markCandidateStatus({ provider, issueId, status: "accepted", reason: summary }).catch(() => {});
+  }
+
+  if ((toStateKey === "toImprove" || toStateKey === "refining") && (fromPhase === "promotion" || fromPhase === "acceptance")) {
+    await markCandidateStatus({ provider, issueId, status: "invalidated", reason: summary }).catch(() => {});
+  }
 
   await recordLoopDiagnostic(workspaceDir, "work_finish_transition", {
     project: projectName,
