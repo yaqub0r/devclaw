@@ -2,6 +2,34 @@
   "id": "devclaw",
   "name": "DevClaw",
   "description": "Multi-project dev/qa pipeline orchestration for OpenClaw. Developer tiers, atomic task management, session health, and audit logging.",
+  "contracts": {
+    "tools": [
+      "task_start",
+      "work_finish",
+      "task_create",
+      "task_edit_body",
+      "task_comment",
+      "task_attach",
+      "task_set_level",
+      "task_owner",
+      "research_task",
+      "orchestrator_intervention",
+      "task_list",
+      "tasks_status",
+      "project_status",
+      "project_register",
+      "health",
+      "sync_labels",
+      "channel_link",
+      "channel_unlink",
+      "channel_list",
+      "setup",
+      "onboard",
+      "autoconfigure_models",
+      "workflow_guide",
+      "config"
+    ]
+  },
   "configSchema": {
     "type": "object",
     "properties": {
