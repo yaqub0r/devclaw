@@ -15,7 +15,8 @@ import { dispatchTask } from "../dispatch/index.js";
 import { executeCompletion } from "./pipeline.js";
 import { projectTick } from "./tick.js";
 import { reviewPass } from "./heartbeat/review.js";
-import { DEFAULT_WORKFLOW, ReviewPolicy, type WorkflowConfig } from "../workflow/index.js";
+import { deliveryPass } from "./heartbeat/delivery.js";
+import { DEFAULT_WORKFLOW, ReviewPolicy, TestPolicy, type WorkflowConfig } from "../workflow/index.js";
 import { readProjects, getRoleWorker, getProject, countActiveSlots } from "../projects/index.js";
 
 // ---------------------------------------------------------------------------
@@ -152,7 +153,9 @@ describe("E2E pipeline", () => {
         workers: {
           developer: {
             level: "medior",
-            sessionKey: "agent:test-agent:subagent:test-project-developer-medior-0",
+            active: false,
+            issueId: "42",
+            sessionKey: "agent:test-agent:subagent:test-project-developer-medior-fionna",
           },
         },
       });
@@ -325,7 +328,7 @@ describe("E2E pipeline", () => {
       h.provider.seedIssue({ iid: 30, title: "Verify login", labels: ["Testing"] });
     });
 
-    it("should transition Testing → Done, close issue", async () => {
+    it("should transition Testing → To Promote without closing the issue yet", async () => {
       const output = await executeCompletion({
         workspaceDir: h.workspaceDir,
         projectSlug: h.project.slug,
@@ -340,17 +343,15 @@ describe("E2E pipeline", () => {
         runCommand: h.runCommand,
       });
 
-      assert.strictEqual(output.labelTransition, "Testing → Done");
-      assert.strictEqual(output.issueClosed, true);
+      assert.strictEqual(output.labelTransition, "Testing → To Promote");
+      assert.strictEqual(output.issueClosed, false);
 
       const issue = await h.provider.getIssue(30);
-      assert.ok(issue.labels.includes("Done"));
-      assert.strictEqual(issue.state, "closed");
+      assert.ok(issue.labels.includes("To Promote"));
+      assert.strictEqual(issue.state, "opened");
 
-      // Verify closeIssue was called
       const closeCalls = h.provider.callsTo("closeIssue");
-      assert.strictEqual(closeCalls.length, 1);
-      assert.strictEqual(closeCalls[0].args.issueId, 30);
+      assert.strictEqual(closeCalls.length, 0);
     });
 
     it("should use CLI fallback for completion notifications and preserve Telegram topic routing", async () => {
@@ -373,7 +374,7 @@ describe("E2E pipeline", () => {
       const notifyCalls = h.commands.commands.filter(
         (c) => c.argv[0] === "openclaw" && c.argv[1] === "message" && c.argv[2] === "send",
       );
-      assert.ok(notifyCalls.length >= 2, "Expected workerComplete and issueComplete CLI fallback notifications");
+      assert.ok(notifyCalls.length >= 1, "Expected at least the workerComplete CLI fallback notification");
       assert.ok(notifyCalls.every((c) => c.argv.includes("--thread-id") && c.argv.includes("176")));
     });
 
@@ -402,7 +403,7 @@ describe("E2E pipeline", () => {
       });
       const elapsedMs = Date.now() - startedAt;
 
-      assert.ok(elapsedMs >= 50, `Expected executeCompletion to await both fallback sends, got ${elapsedMs}ms`);
+      assert.ok(elapsedMs >= 25, `Expected executeCompletion to await the fallback send, got ${elapsedMs}ms`);
     });
   });
 
@@ -726,7 +727,7 @@ describe("E2E pipeline", () => {
       assert.ok(issue.labels.includes("To Test"), `Labels: ${issue.labels}`);
     });
 
-    it("should transition To Review → To Improve when PR is closed without merging (url non-null)", async () => {
+    it("should transition To Review → Rejected when PR is closed without merging (url non-null)", async () => {
       // After #315: PrState.CLOSED + url non-null = PR was explicitly closed without merging
       h.provider.seedIssue({ iid: 80, title: "Closed PR feature", labels: ["To Review", "review:human"] });
       h.provider.setPrStatus(80, { state: "closed", url: "https://example.com/pr/80" });
@@ -750,7 +751,7 @@ describe("E2E pipeline", () => {
       assert.strictEqual(transitions, 1, "Should have made 1 transition");
 
       const issue = await h.provider.getIssue(80);
-      assert.ok(issue.labels.includes("To Improve"), `Labels: ${issue.labels}`);
+      assert.ok(issue.labels.includes("Rejected"), `Labels: ${issue.labels}`);
       assert.ok(!issue.labels.includes("To Review"), "Should not have To Review");
       assert.ok(!issue.labels.includes("To Test"), "Should NOT have To Test");
 
@@ -912,6 +913,23 @@ describe("E2E pipeline", () => {
         runCommand: h.runCommand,
       });
 
+      await deliveryPass({
+        workspaceDir: h.workspaceDir,
+        projectName: h.project.name,
+        workflow: DEFAULT_WORKFLOW,
+        provider: h.provider,
+        repoPath: "/tmp/test-repo",
+        runCommand: h.runCommand,
+      });
+      await deliveryPass({
+        workspaceDir: h.workspaceDir,
+        projectName: h.project.name,
+        workflow: DEFAULT_WORKFLOW,
+        provider: h.provider,
+        repoPath: "/tmp/test-repo",
+        runCommand: h.runCommand,
+      });
+
       issue = await h.provider.getIssue(100);
       assert.ok(issue.labels.includes("Done"), `Final state: ${issue.labels}`);
       assert.strictEqual(issue.state, "closed");
@@ -992,6 +1010,23 @@ describe("E2E pipeline", () => {
         provider: h.provider,
         repoPath: "/tmp/test-repo",
         projectName: "test-project",
+        runCommand: h.runCommand,
+      });
+
+      await deliveryPass({
+        workspaceDir: h.workspaceDir,
+        projectName: h.project.name,
+        workflow: DEFAULT_WORKFLOW,
+        provider: h.provider,
+        repoPath: "/tmp/test-repo",
+        runCommand: h.runCommand,
+      });
+      await deliveryPass({
+        workspaceDir: h.workspaceDir,
+        projectName: h.project.name,
+        workflow: DEFAULT_WORKFLOW,
+        provider: h.provider,
+        repoPath: "/tmp/test-repo",
         runCommand: h.runCommand,
       });
 
@@ -1140,6 +1175,23 @@ describe("E2E pipeline", () => {
         runCommand: h.runCommand,
       });
 
+      await deliveryPass({
+        workspaceDir: h.workspaceDir,
+        projectName: h.project.name,
+        workflow: DEFAULT_WORKFLOW,
+        provider: h.provider,
+        repoPath: "/tmp/test-repo",
+        runCommand: h.runCommand,
+      });
+      await deliveryPass({
+        workspaceDir: h.workspaceDir,
+        projectName: h.project.name,
+        workflow: DEFAULT_WORKFLOW,
+        provider: h.provider,
+        repoPath: "/tmp/test-repo",
+        runCommand: h.runCommand,
+      });
+
       issue = await h.provider.getIssue(300);
       assert.ok(issue.labels.includes("Done"), `Final state: ${issue.labels}`);
       assert.strictEqual(issue.state, "closed");
@@ -1163,7 +1215,7 @@ describe("E2E pipeline", () => {
         workspaceDir: h.workspaceDir,
         projectSlug: h.project.slug,
         targetRole: "reviewer",
-        workflow: workflowWithPolicy(ReviewPolicy.HUMAN),
+        workflow: { ...workflowWithPolicy(ReviewPolicy.HUMAN), testPolicy: TestPolicy.AGENT },
         provider: h.provider,
         runCommand: h.runCommand,
       });
@@ -1221,7 +1273,7 @@ describe("E2E pipeline", () => {
         workspaceDir: h.workspaceDir,
         projectSlug: h.project.slug,
         agentId: "test-agent",
-        workflow: workflowWithPolicy(ReviewPolicy.HUMAN),
+        workflow: { ...workflowWithPolicy(ReviewPolicy.HUMAN), testPolicy: TestPolicy.AGENT },
         provider: h.provider,
         runCommand: h.runCommand,
       });
@@ -1265,7 +1317,7 @@ describe("E2E pipeline", () => {
       assert.ok(issue.labels.includes("review:human"), `Should have review:human for senior, got: ${issue.labels}`);
     });
 
-    it("dispatch should apply review:agent label for non-senior developer", async () => {
+    it("dispatch should apply review:human label for non-senior developer under the default review policy", async () => {
       h = await createTestHarness();
       h.provider.seedIssue({ iid: 404, title: "Junior task", labels: ["To Do"] });
 
@@ -1287,7 +1339,7 @@ describe("E2E pipeline", () => {
 
       const issue = await h.provider.getIssue(404);
       assert.ok(issue.labels.some(l => l.startsWith("developer:junior")), `Should have developer:junior[:name], got: ${issue.labels}`);
-      assert.ok(issue.labels.includes("review:agent"), `Should have review:agent for junior, got: ${issue.labels}`);
+      assert.ok(issue.labels.includes("review:human"), `Should have review:human for junior, got: ${issue.labels}`);
     });
 
     it("dispatch should replace old role:level label", async () => {
@@ -1382,16 +1434,14 @@ describe("E2E pipeline", () => {
         runCommand: h.runCommand,
       });
 
-      // Should have: getIssue (for URL), transitionLabel, closeIssue
       assert.ok(h.provider.callsTo("getIssue").length >= 1, "Should call getIssue");
       assert.strictEqual(h.provider.callsTo("transitionLabel").length, 1);
-      assert.strictEqual(h.provider.callsTo("closeIssue").length, 1);
+      assert.strictEqual(h.provider.callsTo("closeIssue").length, 0);
 
-      // Verify transition args
       const transition = h.provider.callsTo("transitionLabel")[0];
       assert.strictEqual(transition.args.issueId, 90);
       assert.strictEqual(transition.args.from, "Testing");
-      assert.strictEqual(transition.args.to, "Done");
+      assert.strictEqual(transition.args.to, "To Promote");
     });
   });
 });

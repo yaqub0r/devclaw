@@ -22,7 +22,7 @@ export function createWorkflowGuideTool(_ctx: PluginContext) {
       `Reference guide for editing workflow.yaml. ` +
       `Call this BEFORE making any workflow configuration changes. ` +
       `Returns the full config structure, all valid values (enums, free-form fields), ` +
-      `the three-layer override system, and common recipes like enabling the test phase ` +
+      `the three-layer override system, and common recipes like enabling the test or delivery phases ` +
       `or changing the review policy.`,
     parameters: {
       type: "object",
@@ -31,9 +31,9 @@ export function createWorkflowGuideTool(_ctx: PluginContext) {
           type: "string",
           description:
             "Optional: narrow to a specific topic. " +
-            'Options: "overview", "states", "roles", "review", "testing", "timeouts", "overrides". ' +
+            'Options: "overview", "states", "roles", "review", "testing", "delivery", "timeouts", "overrides". ' +
             "Omit for the full guide.",
-          enum: ["overview", "states", "roles", "review", "testing", "timeouts", "overrides"],
+          enum: ["overview", "states", "roles", "review", "testing", "delivery", "timeouts", "overrides"],
         },
       },
     },
@@ -49,6 +49,7 @@ export function createWorkflowGuideTool(_ctx: PluginContext) {
         roles: buildRolesSection(),
         review: buildReviewSection(),
         testing: buildTestingSection(),
+        delivery: buildDeliverySection(),
         timeouts: buildTimeoutsSection(),
         overrides: buildOverridesSection(dataDir),
       };
@@ -105,6 +106,44 @@ workflow:
   reviewPolicy: agent
 \`\`\`
 This changes only the senior developer model and review policy; everything else inherits.`;
+}
+
+function buildDeliverySection(): string {
+  return `# Delivery Phases
+
+Delivery is modeled as two optional workflow phases after testing:
+- **promotion**: candidate promotion into a release lane
+- **acceptance**: acceptance of the promoted candidate
+
+## Delivery config shape
+
+\`\`\`yaml
+workflow:
+  delivery:
+    promotion:
+      policy: skip   # skip | agent | human
+      queueState: toPromote
+      activeState: promoting
+    acceptance:
+      policy: skip   # skip | agent | human
+      queueState: toAccept
+      activeState: accepting
+\`\`\`
+
+## Rules
+- If a delivery phase is omitted or set to \`skip\`, existing projects keep working unchanged.
+- \`queueState\` must point to a queue state for the correct role.
+- \`activeState\` must point to an active state for the correct role.
+- Promotion should represent candidate promotion, not generic testing.
+- Acceptance should represent acceptance of the promoted candidate.
+- Environment-specific deploy mechanics stay in project runbooks, not core workflow semantics.
+
+## Routing labels
+- Promotion uses \`promotion:human\`, \`promotion:agent\`, \`promotion:skip\`
+- Acceptance uses \`acceptance:human\`, \`acceptance:agent\`, \`acceptance:skip\`
+
+## Default behavior
+The built-in workflow defines delivery states, but both phases default to \`skip\`. That means older projects remain backward compatible until they opt in.`;
 }
 
 function buildStatesSection(): string {
