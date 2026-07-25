@@ -5,6 +5,7 @@
  * state update (activateWorker), and audit logging.
  */
 import type { PluginRuntime } from "openclaw/plugin-sdk";
+import path from "node:path";
 import type { RunCommand } from "../context.js";
 import { log as auditLog } from "../audit.js";
 import { recordLoopDiagnostic } from "../services/loop-diagnostics.js";
@@ -67,6 +68,75 @@ export type DispatchResult = {
   model: string;
   announcement: string;
 };
+
+async function resolveCheckoutContract(
+  repoPath: string,
+  baseBranch: string,
+  role: string,
+  issueId: number,
+  issueTitle: string,
+  prFeedback: PrFeedback | undefined,
+  prContext: PrContext | undefined,
+  provider: import("../providers/provider.js").IssueProvider,
+  rc: RunCommand,
+): Promise<{ targetRef?: string; targetSha?: string; targetBranch?: string; expectedWorktreePath?: string; requiredCleanTree: true; requireIsolatedWorktree: true; decisiveVerdictRequiresMatch: true } | undefined> {
+  if (!["developer", "tester", "reviewer"].includes(role)) return undefined;
+
+  const slug = issueTitle
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 48) || `issue-${issueId}`;
+  const fallbackBranch = `issue/${issueId}-${slug}`;
+
+  let targetRef: string | undefined;
+  let targetBranch: string | undefined;
+  if (role === "reviewer" && prContext?.url) {
+    const prStatus = await provider.getPrStatus(issueId).catch(() => undefined);
+    if (prStatus?.sourceBranch) {
+      targetBranch = prStatus.sourceBranch;
+      targetRef = `origin/${prStatus.sourceBranch}`;
+    }
+  } else if (prFeedback?.branchName) {
+    targetBranch = prFeedback.branchName;
+    targetRef = `origin/${prFeedback.branchName}`;
+  } else {
+    targetBranch = role === "developer" ? fallbackBranch : baseBranch;
+    targetRef = `origin/${baseBranch}`;
+  }
+
+  const expectedWorktreePath = targetBranch
+    ? path.join(`${repoPath}.worktrees`, targetBranch)
+    : undefined;
+
+  let targetSha: string | undefined;
+  if (targetRef) {
+    try {
+      const result = await rc(["git", "ls-remote", "--exit-code", "origin", targetRef.replace(/^origin\//, "")], {
+        cwd: repoPath,
+        timeoutMs: 10_000,
+      });
+      targetSha = result.stdout.trim().split(/\s+/)[0] || undefined;
+    } catch {
+      try {
+        const result = await rc(["git", "rev-parse", targetRef], { cwd: repoPath, timeoutMs: 5_000 });
+        targetSha = result.stdout.trim() || undefined;
+      } catch {
+        // best-effort only
+      }
+    }
+  }
+
+  return {
+    targetRef,
+    targetSha,
+    targetBranch,
+    expectedWorktreePath,
+    requiredCleanTree: true,
+    requireIsolatedWorktree: true,
+    decisiveVerdictRequiresMatch: true,
+  };
+}
 
 /**
  * Dispatch a task to a worker session.
@@ -169,6 +239,17 @@ export async function dispatchTask(
   } catch { /* best-effort */ }
 
   const primaryChannelId = project.channels[0]?.channelId ?? project.slug;
+  const checkoutContract = await resolveCheckoutContract(
+    project.repo,
+    project.baseBranch,
+    role,
+    issueId,
+    issueTitle,
+    prFeedback,
+    prContext,
+    provider,
+    rc,
+  );
   const isConflictFix = prFeedback?.reason === "merge_conflict";
   const taskMessage = isConflictFix && prFeedback
     ? buildConflictFixMessage({
@@ -181,7 +262,7 @@ export async function dispatchTask(
         projectName: project.name, channelId: primaryChannelId, role, issueId,
         issueTitle, issueDescription, issueUrl,
         repo: project.repo, baseBranch: project.baseBranch,
-        comments, resolvedRole, prContext, prFeedback, attachmentContext,
+        comments, resolvedRole, prContext, prFeedback, checkoutContract, attachmentContext,
       });
 
   // Load role-specific instructions to inject into the worker's system prompt

@@ -7,14 +7,17 @@ When you start work, you're given:
 - **Issue:** number, title, body, URL, labels, state
 - **Comments:** full discussion thread on the issue
 - **Project:** repo path, base branch, project name, projectSlug
+- **Checkout contract:** canonical issue branch / ref / commit / expected worktree path when DevClaw can determine them
 
 Read the comments carefully — they often contain clarifications, decisions, or scope changes that aren't in the original issue body.
+
+Before you edit code, verify the assigned checkout contract. If the task names an expected branch, ref, commit, or worktree path and you cannot match it in a clean isolated checkout, stop and report `work_finish({ role: "developer", result: "blocked", ... })` instead of continuing in a shared ambient checkout.
 
 ## Workflow
 
 ### 1. Create a worktree
 
-**NEVER work in the main checkout.** Create a dedicated git worktree as a sibling to the repo:
+**NEVER work in the main checkout.** Create or reuse the dedicated canonical issue worktree named in the task message. If no explicit worktree is given, create one as a sibling to the repo:
 
 ```bash
 # Example: repo is at ~/git/myproject
