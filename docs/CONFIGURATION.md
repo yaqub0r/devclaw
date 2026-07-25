@@ -82,7 +82,7 @@ roles:
 
 ### Workflow States
 
-The workflow section defines the state machine for issue lifecycle — states, transitions, review policy, and the optional test phase.
+The workflow section defines the state machine for issue lifecycle — states, transitions, review policy, the optional test phase, and optional delivery policies for promotion and acceptance.
 
 See **[Workflow Reference](WORKFLOW.md)** for the full state machine documentation, including state types, built-in actions, review policy options, and how to enable the test phase.
 

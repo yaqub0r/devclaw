@@ -131,6 +131,13 @@ Supported action types: ${ORCHESTRATOR_INTERVENTION_ACTION_TYPES.join(", ")}`,
         action: payload.action as OrchestratorInterventionPolicy["action"],
         updatedBy: toolCtx.sessionKey ?? toolCtx.agentId,
       };
+      if (policy.mode === "auto"
+        && policy.event.type === "workflow.hold"
+        && (policy.action.type === "requeue" || policy.action.type === "queue_issue")) {
+        throw new Error(
+          `auto ${policy.action.type} is not allowed for workflow.hold policies. Hold states like Refining require explicit human restart.`,
+        );
+      }
       const saved = await upsertInterventionPolicy(workspaceDir, project.slug, policy);
       await auditLog(workspaceDir, "orchestrator_intervention_policy_set", {
         project: project.name,

@@ -21,7 +21,6 @@ import {
 import {
   getCurrentStateLabel,
   findStateByLabel,
-  findStateKeyByLabel,
   getRoleLabelColor,
 } from "../../workflow/index.js";
 import { getLevelsForRole } from "../../roles/index.js";
@@ -39,7 +38,8 @@ Optionally set a level hint (e.g. "junior", "senior") so the heartbeat dispatche
 
 Examples:
 - Start work: { channelId: "-1003844794417", issueId: 42 } → advances to next queue
-- With level: { channelId: "-1003844794417", issueId: 42, level: "junior" } → advances + hints junior`,
+- With level: { channelId: "-1003844794417", issueId: 42, level: "junior" } → advances + hints junior
+- Restart from Refining: { channelId: "-1003844794417", issueId: 42, confirmHoldRestart: true } → explicitly leaves blocked/rework hold`,
     parameters: {
       type: "object",
       required: ["channelId", "issueId"],
@@ -60,6 +60,10 @@ Examples:
           type: "string",
           description: "Optional level hint for dispatch (e.g. 'junior', 'senior'). Applied as a label so the heartbeat respects it.",
         },
+        confirmHoldRestart: {
+          type: "boolean",
+          description: "Required when restarting an issue from blocked/rework hold states like Refining. Normal Planning starts do not need it.",
+        },
       },
     },
 
@@ -67,6 +71,7 @@ Examples:
       const channelId = resolveChannelId(toolCtx, params.channelId as string | undefined);
       const issueId = params.issueId as number;
       const levelHint = params.level as string | undefined;
+      const confirmHoldRestart = params.confirmHoldRestart === true;
       const workspaceDir = requireWorkspaceDir(toolCtx);
 
       const messageThreadId = params.messageThreadId as number | undefined;
@@ -91,6 +96,7 @@ Examples:
       if (!currentState) {
         throw new Error(`No state config for label "${currentLabel}".`);
       }
+      assertExplicitHoldRestart(issueId, workflow, currentLabel, currentState, confirmHoldRestart);
 
       // Determine target based on current state type
       const { targetLabel, targetState, transitioned } = resolveTarget(
@@ -172,6 +178,23 @@ Examples:
  * - ACTIVE: error (already being worked on)
  * - TERMINAL: error (issue is closed)
  */
+export function assertExplicitHoldRestart(
+  issueId: number,
+  workflow: WorkflowConfig,
+  currentLabel: string,
+  currentState: StateConfig,
+  confirmHoldRestart: boolean,
+): void {
+  if (currentState.type !== StateType.HOLD) return;
+
+  const initialState = workflow.states[workflow.initial];
+  const initialHoldLabel = initialState?.label;
+  if (currentLabel === initialHoldLabel) return;
+  if (confirmHoldRestart) return;
+
+  throw new Error(`Issue #${issueId} is in hold state "${currentLabel}". Restart requires explicit confirmHoldRestart: true.`);
+}
+
 export function resolveTarget(
   workflow: WorkflowConfig,
   currentLabel: string,

@@ -10,13 +10,74 @@
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert";
 import { createTestHarness, type TestHarness } from "../../testing/index.js";
-import { scanOrphanedLabels } from "./health.js";
+import { checkWorkerHealth, scanOrphanedLabels } from "./health.js";
 import { PrState } from "../../providers/provider.js";
 import { writeProjects, type ProjectsData } from "../../projects/index.js";
 
 // ---------------------------------------------------------------------------
 // Test suite
 // ---------------------------------------------------------------------------
+
+describe("checkWorkerHealth", () => {
+  let h: TestHarness;
+
+  afterEach(async () => {
+    if (h) await h.cleanup();
+  });
+
+  it("should not revert a blocked hold back to queue from a stale active snapshot", async () => {
+    h = await createTestHarness({
+      workers: {
+        developer: { active: true, issueId: "42", sessionKey: null, previousLabel: "To Do" },
+      },
+    });
+
+    h.provider.seedIssue({ iid: 42, title: "Blocked issue", labels: ["Doing"] });
+
+    const originalGetIssue = h.provider.getIssue.bind(h.provider);
+    let firstRead = true;
+    h.provider.getIssue = async (issueId: number) => {
+      const issue = await originalGetIssue(issueId);
+      if (!firstRead) return issue;
+      firstRead = false;
+
+      const snapshot = { ...issue, labels: [...issue.labels] };
+      issue.labels = issue.labels.filter((label) => label !== "Doing");
+      issue.labels.push("Refining");
+      return snapshot;
+    };
+
+    const fixes = await checkWorkerHealth({
+      workspaceDir: h.workspaceDir,
+      projectSlug: h.project.slug,
+      project: h.project,
+      role: "developer",
+      autoFix: true,
+      provider: h.provider,
+      sessions: null,
+      workflow: h.workflow,
+      runCommand: async () => ({
+        stdout: "",
+        stderr: "",
+        code: 0,
+        signal: null,
+        killed: false,
+        termination: "exit",
+      }),
+    });
+
+    assert.strictEqual(fixes.length, 1);
+    assert.strictEqual(fixes[0]!.fixed, true);
+    assert.strictEqual(fixes[0]!.labelReverted, undefined, "stale repair should skip queue revert");
+
+    const issue = await originalGetIssue(42);
+    assert.ok(issue.labels.includes("Refining"), `Expected Refining to survive, got: ${issue.labels}`);
+    assert.ok(!issue.labels.includes("To Do"), `Expected no To Do requeue, got: ${issue.labels}`);
+
+    const transitions = h.provider.callsTo("transitionLabel");
+    assert.strictEqual(transitions.length, 0, "should not transition back to queue from stale state");
+  });
+});
 
 describe("scanOrphanedLabels", () => {
   let h: TestHarness;
