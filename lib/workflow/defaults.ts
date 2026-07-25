@@ -16,6 +16,10 @@ export const DEFAULT_WORKFLOW: WorkflowConfig = {
   initial: "planning",
   reviewPolicy: ReviewPolicy.HUMAN,
   testPolicy: TestPolicy.SKIP,
+  delivery: {
+    promotion: { policy: "skip", queueState: "toPromote", activeState: "promoting" },
+    acceptance: { policy: "skip", queueState: "toAccept", activeState: "accepting" },
+  },
   roleExecution: ExecutionMode.PARALLEL,
   states: {
     // ── Main pipeline (happy path) ──────────────────────────────
@@ -88,6 +92,60 @@ export const DEFAULT_WORKFLOW: WorkflowConfig = {
       role: "tester",
       label: "Testing",
       color: "#9b59b6",
+      on: {
+        [WorkflowEvent.PASS]: "toPromote",
+        [WorkflowEvent.FAIL]: { target: "toImprove", actions: [Action.REOPEN_ISSUE] },
+        [WorkflowEvent.REFINE]: "refining",
+        [WorkflowEvent.BLOCKED]: "refining",
+      },
+    },
+    toPromote: {
+      type: StateType.QUEUE,
+      role: "reviewer",
+      label: "To Promote",
+      color: "#1d76db",
+      priority: 2,
+      on: {
+        [WorkflowEvent.PICKUP]: "promoting",
+        [WorkflowEvent.SKIP]: "toAccept",
+        [WorkflowEvent.PROMOTED]: "toAccept",
+        [WorkflowEvent.FAIL]: "toImprove",
+        [WorkflowEvent.DEMOTED]: "toImprove",
+        [WorkflowEvent.BLOCKED]: "refining",
+      },
+    },
+    promoting: {
+      type: StateType.ACTIVE,
+      role: "reviewer",
+      label: "Promoting",
+      color: "#6ea8fe",
+      on: {
+        [WorkflowEvent.APPROVE]: "toAccept",
+        [WorkflowEvent.REJECT]: "toImprove",
+        [WorkflowEvent.BLOCKED]: "refining",
+      },
+    },
+    toAccept: {
+      type: StateType.QUEUE,
+      role: "tester",
+      label: "To Accept",
+      color: "#20c997",
+      priority: 2,
+      on: {
+        [WorkflowEvent.PICKUP]: "accepting",
+        [WorkflowEvent.SKIP]: { target: "done", actions: [Action.CLOSE_ISSUE] },
+        [WorkflowEvent.ACCEPTED]: { target: "done", actions: [Action.CLOSE_ISSUE] },
+        [WorkflowEvent.FAIL]: { target: "toImprove", actions: [Action.REOPEN_ISSUE] },
+        [WorkflowEvent.DEMOTED]: { target: "toImprove", actions: [Action.REOPEN_ISSUE] },
+        [WorkflowEvent.REFINE]: "refining",
+        [WorkflowEvent.BLOCKED]: "refining",
+      },
+    },
+    accepting: {
+      type: StateType.ACTIVE,
+      role: "tester",
+      label: "Accepting",
+      color: "#8ce0c4",
       on: {
         [WorkflowEvent.PASS]: { target: "done", actions: [Action.CLOSE_ISSUE] },
         [WorkflowEvent.FAIL]: { target: "toImprove", actions: [Action.REOPEN_ISSUE] },

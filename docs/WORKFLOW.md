@@ -1,6 +1,6 @@
 # DevClaw — Workflow Reference
 
-The issue lifecycle in DevClaw is a configurable state machine defined in `workflow.yaml`. This document covers the default pipeline, all state types, review policies, and the optional test phase.
+The issue lifecycle in DevClaw is a configurable state machine defined in `workflow.yaml`. This document covers the default pipeline, all state types, review policies, the optional test phase, and the optional delivery phases for candidate promotion and acceptance.
 
 For config file format and location, see [Configuration](CONFIGURATION.md).
 
@@ -12,7 +12,7 @@ For config file format and location, see [Configuration](CONFIGURATION.md).
 Planning → To Do → Doing → To Review → PR approved → Done (auto-merge + close)
 ```
 
-Human review, no test phase. Approved PRs are auto-merged and the issue is closed.
+Human review, no test phase, and delivery phases skipped by default. Approved PRs are auto-merged, test is auto-skipped, promotion is auto-skipped, acceptance is auto-skipped, and the issue is closed.
 
 ```mermaid
 stateDiagram-v2
