@@ -27,11 +27,11 @@ describe("gateway agent dispatch compatibility", () => {
     }) as unknown as RunCommand;
 
     const sessionKey =
-      "agent:devclaw:subagent:firstlight-architect-junior-judi";
-    await sendToAgent(sessionKey, "Research issue #902", {
+      "agent:devclaw:subagent:example-project-architect-junior-worker-a";
+    await sendToAgent(sessionKey, "Research issue #101", {
       agentId: "devclaw",
-      projectName: "Firstlight",
-      issueId: 902,
+      projectName: "Example Project",
+      issueId: 101,
       role: "architect",
       level: "junior",
       slotIndex: 0,
@@ -41,7 +41,7 @@ describe("gateway agent dispatch compatibility", () => {
       extraSystemPrompt: "Architect instructions",
       runCommand,
       notifyTarget: {
-        channelId: "-100123",
+        channelId: "-1000000000000",
         channel: "telegram",
         accountId: "default",
         messageThreadId: 42,
@@ -62,14 +62,14 @@ describe("gateway agent dispatch compatibility", () => {
     const params = JSON.parse(calls[0]?.argv[5] ?? "{}");
     assert.deepEqual(params, {
       idempotencyKey:
-        `devclaw-Firstlight-902-architect-junior-0-To Research-${sessionKey}`,
+        `devclaw-Example Project-101-architect-junior-0-To Research-${sessionKey}`,
       agentId: "devclaw",
       sessionKey,
-      message: "Research issue #902",
+      message: "Research issue #101",
       deliver: false,
       lane: "subagent",
       extraSystemPrompt: "Architect instructions",
-      to: "-100123",
+      to: "-1000000000000",
       channel: "telegram",
       accountId: "default",
       threadId: "42",
@@ -98,7 +98,7 @@ describe("gateway agent dispatch compatibility", () => {
       subagent: {
         async run(params: Record<string, unknown>) {
           subagentCalls.push(params);
-          return { runId: "run-firstlight-902" };
+          return { runId: "run-example-project-101" };
         },
       },
     } as unknown as PluginRuntime;
@@ -106,48 +106,48 @@ describe("gateway agent dispatch compatibility", () => {
       throw new Error("legacy gateway CLI should not be called");
     }) as unknown as RunCommand;
     const sessionKey =
-      "agent:devclaw:subagent:firstlight-architect-junior-judi";
+      "agent:devclaw:subagent:example-project-architect-junior-worker-a";
 
-    const acceptance = await sendToAgent(sessionKey, "Research issue #902", {
+    const acceptance = await sendToAgent(sessionKey, "Research issue #101", {
       agentId: "devclaw",
-      projectName: "Firstlight",
-      issueId: 902,
+      projectName: "Example Project",
+      issueId: 101,
       role: "architect",
       level: "junior",
       slotIndex: 0,
       fromLabel: "To Research",
       workspaceDir: "C:/devclaw-test",
       model: "openai/gpt-5.5",
-      sessionLabel: "Firstlight architect junior Judi",
+      sessionLabel: "Example Project architect junior Worker A",
       sessionPatchTimeoutMs: 30_000,
       extraSystemPrompt: "Architect instructions",
       runCommand,
       runtime,
-      parentSessionKey: "agent:devclaw:telegram:group:-100123:topic:42",
+      parentSessionKey: "agent:devclaw:telegram:group:-1000000000000:topic:42",
     });
 
     assert.deepEqual(acceptance, {
       transport: "plugin-runtime",
-      runId: "run-firstlight-902",
+      runId: "run-example-project-101",
     });
     assert.deepEqual(gatewayCalls, [{
       method: "sessions.patch",
       params: {
         key: sessionKey,
         model: "openai/gpt-5.5",
-        label: "Firstlight architect junior Judi",
-        spawnedBy: "agent:devclaw:telegram:group:-100123:topic:42",
+        label: "Example Project architect junior Worker A",
+        spawnedBy: "agent:devclaw:telegram:group:-1000000000000:topic:42",
       },
       options: { timeoutMs: 30_000 },
     }]);
     assert.deepEqual(subagentCalls, [{
       sessionKey,
-      message: "Research issue #902",
+      message: "Research issue #101",
       extraSystemPrompt: "Architect instructions",
       lane: "subagent",
       deliver: false,
       idempotencyKey:
-        `devclaw-Firstlight-902-architect-junior-0-To Research-${sessionKey}`,
+        `devclaw-Example Project-101-architect-junior-0-To Research-${sessionKey}`,
     }]);
     assert.equal("spawnedBy" in subagentCalls[0]!, false);
   });
@@ -156,17 +156,17 @@ describe("gateway agent dispatch compatibility", () => {
     assert.equal(
       buildMainOrchestratorSessionKey("devclaw", {
         channel: "telegram",
-        channelId: "-100123",
+        channelId: "-1000000000000",
       }),
-      "agent:devclaw:telegram:group:-100123",
+      "agent:devclaw:telegram:group:-1000000000000",
     );
     assert.equal(
       buildMainOrchestratorSessionKey("devclaw", {
         channel: "telegram",
-        channelId: "-100123",
+        channelId: "-1000000000000",
         messageThreadId: 42,
       }),
-      "agent:devclaw:telegram:group:-100123:topic:42",
+      "agent:devclaw:telegram:group:-1000000000000:topic:42",
     );
   });
 
@@ -193,7 +193,7 @@ describe("gateway agent dispatch compatibility", () => {
 
     await assertConfiguredModelAvailable("openai/gpt-5.5", {
       runtime,
-      projectName: "Firstlight",
+      projectName: "Example Project",
       role: "architect",
       level: "junior",
     });
@@ -219,11 +219,11 @@ describe("gateway agent dispatch compatibility", () => {
     await assert.rejects(
       assertConfiguredModelAvailable("anthropic/claude-sonnet-4-5", {
         runtime,
-        projectName: "Firstlight",
+        projectName: "Example Project",
         role: "architect",
         level: "junior",
       }),
-      /Configured model unavailable for Firstlight architect\/junior: anthropic\/claude-sonnet-4-5/,
+      /Configured model unavailable for Example Project architect\/junior: anthropic\/claude-sonnet-4-5/,
     );
   });
 
@@ -268,9 +268,9 @@ describe("gateway agent dispatch compatibility", () => {
     } as unknown as PluginRuntime;
 
     await assert.rejects(
-      sendToAgent("agent:devclaw:subagent:firstlight-architect-junior-judi", "Task", {
-        projectName: "Firstlight",
-        issueId: 902,
+      sendToAgent("agent:devclaw:subagent:example-project-architect-junior-worker-a", "Task", {
+        projectName: "Example Project",
+        issueId: 101,
         role: "architect",
         level: "junior",
         workspaceDir: "C:/devclaw-test",

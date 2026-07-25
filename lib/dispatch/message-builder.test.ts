@@ -9,55 +9,55 @@ const architectRole = {
 
 const topicRouting = {
   channel: "telegram",
-  channelId: "-100123",
-  accountId: "firstlight",
-  messageThreadId: 902,
+  channelId: "-1000000000000",
+  accountId: "sample-account",
+  messageThreadId: 101,
 };
 
 describe("worker task routing contract", () => {
   it("includes the channel, account, topic, and exact work_finish routing", () => {
     const message = buildTaskMessage({
-      projectName: "Firstlight",
+      projectName: "Example Project",
       routing: topicRouting,
       role: "architect",
-      issueId: 902,
+      issueId: 101,
       issueTitle: "Research worker lifecycle",
       issueDescription: "Validate OpenClaw 2026.7 dispatch.",
-      issueUrl: "https://example.com/issues/902",
-      repo: "yaqub0r/firstlight",
+      issueUrl: "https://example.invalid/issues/101",
+      repo: "example/example-project",
       baseBranch: "main",
       resolvedRole: architectRole,
     });
 
     assert.match(message, /`channel`: "telegram"/);
-    assert.match(message, /`channelId`: "-100123"/);
-    assert.match(message, /`accountId`: "firstlight"/);
-    assert.match(message, /`messageThreadId`: 902/);
-    assert.match(message, /"channelId": "-100123"/);
-    assert.match(message, /"messageThreadId": 902/);
+    assert.match(message, /`channelId`: "-1000000000000"/);
+    assert.match(message, /`accountId`: "sample-account"/);
+    assert.match(message, /`messageThreadId`: 101/);
+    assert.match(message, /"channelId": "-1000000000000"/);
+    assert.match(message, /"messageThreadId": 101/);
     assert.match(message, /Valid `result` values: "done", "blocked"/);
   });
 
   it("keeps the same topic routing on conflict-fix dispatches", () => {
     const message = buildConflictFixMessage({
-      projectName: "Firstlight",
+      projectName: "Example Project",
       routing: topicRouting,
       role: "developer",
-      issueId: 902,
+      issueId: 101,
       issueTitle: "Resolve conflict",
-      issueUrl: "https://example.com/issues/902",
-      repo: "yaqub0r/firstlight",
+      issueUrl: "https://example.invalid/issues/101",
+      repo: "example/example-project",
       baseBranch: "main",
       resolvedRole: architectRole,
       prFeedback: {
-        url: "https://example.com/pull/902",
-        branchName: "issue/902",
+        url: "https://example.invalid/pull/101",
+        branchName: "issue/101",
         reason: "merge_conflict",
         comments: [],
       },
     });
 
-    assert.match(message, /"channelId": "-100123"/);
-    assert.match(message, /"messageThreadId": 902/);
+    assert.match(message, /"channelId": "-1000000000000"/);
+    assert.match(message, /"messageThreadId": 101/);
   });
 });

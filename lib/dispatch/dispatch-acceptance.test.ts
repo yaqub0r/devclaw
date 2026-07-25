@@ -16,7 +16,7 @@ describe("dispatch launch acceptance", () => {
   it("rolls the issue back and leaves the worker inactive when launch is rejected", async () => {
     harness = await createTestHarness();
     harness.provider.seedIssue({
-      iid: 902,
+      iid: 201,
       title: "Research worker launch",
       labels: ["To Do"],
     });
@@ -38,10 +38,10 @@ describe("dispatch launch acceptance", () => {
         workspaceDir: harness.workspaceDir,
         agentId: "devclaw",
         project: harness.project,
-        issueId: 902,
+        issueId: 201,
         issueTitle: "Research worker launch",
         issueDescription: "Validate rollback",
-        issueUrl: "https://example.com/issues/902",
+        issueUrl: "https://example.invalid/issues/201",
         role: "developer",
         level: "medior",
         fromLabel: "To Do",
@@ -53,7 +53,7 @@ describe("dispatch launch acceptance", () => {
       /gateway rejected subagent launch/,
     );
 
-    const issue = await harness.provider.getIssue(902);
+    const issue = await harness.provider.getIssue(201);
     assert.equal(issue.labels.includes("To Do"), true);
     assert.equal(issue.labels.includes("Doing"), false);
     assert.equal(issue.labels.some((label) => label.startsWith("developer:")), false);
@@ -70,7 +70,7 @@ describe("dispatch launch acceptance", () => {
   it("reuses the deterministic plugin-owned session for a returning issue", async () => {
     harness = await createTestHarness({ messageThreadId: 176 });
     harness.provider.seedIssue({
-      iid: 903,
+      iid: 202,
       title: "Reusable worker session",
       labels: ["To Do"],
     });
@@ -97,10 +97,10 @@ describe("dispatch launch acceptance", () => {
       workspaceDir: harness.workspaceDir,
       agentId: "devclaw",
       project: harness.project,
-      issueId: 903,
+      issueId: 202,
       issueTitle: "Reusable worker session",
       issueDescription: "Initial pass",
-      issueUrl: "https://example.com/issues/903",
+      issueUrl: "https://example.invalid/issues/202",
       role: "developer",
       level: "medior",
       fromLabel: "To Do",
@@ -118,20 +118,20 @@ describe("dispatch launch acceptance", () => {
       "developer",
       { level: "medior", slotIndex: 0 },
     );
-    await harness.provider.transitionLabel(903, "Doing", "To Improve");
+    await harness.provider.transitionLabel(202, "Doing", "To Improve");
     const returningProject = getProject(await harness.readProjects(), harness.channelId)!;
     const returningSlot = getRoleWorker(returningProject, "developer").levels.medior?.[0];
     assert.equal(returningSlot?.sessionKey, first.sessionKey);
-    assert.equal(returningSlot?.lastIssueId, "903");
+    assert.equal(returningSlot?.lastIssueId, "202");
 
     const second = await dispatchTask({
       workspaceDir: harness.workspaceDir,
       agentId: "devclaw",
       project: returningProject,
-      issueId: 903,
+      issueId: 202,
       issueTitle: "Reusable worker session",
       issueDescription: "Feedback pass",
-      issueUrl: "https://example.com/issues/903",
+      issueUrl: "https://example.invalid/issues/202",
       role: "developer",
       level: "medior",
       fromLabel: "To Improve",
@@ -161,7 +161,7 @@ describe("dispatch launch acceptance", () => {
   it("leaves the issue untouched when the configured catalog excludes its model", async () => {
     harness = await createTestHarness();
     harness.provider.seedIssue({
-      iid: 904,
+      iid: 203,
       title: "Unavailable worker model",
       labels: ["To Do"],
     });
@@ -188,10 +188,10 @@ describe("dispatch launch acceptance", () => {
         workspaceDir: harness.workspaceDir,
         agentId: "devclaw",
         project: harness.project,
-        issueId: 904,
+        issueId: 203,
         issueTitle: "Unavailable worker model",
         issueDescription: "Do not remove this issue from its queue.",
-        issueUrl: "https://example.com/issues/904",
+        issueUrl: "https://example.invalid/issues/203",
         role: "developer",
         level: "medior",
         fromLabel: "To Do",
@@ -203,7 +203,7 @@ describe("dispatch launch acceptance", () => {
       /Configured model unavailable/,
     );
 
-    const issue = await harness.provider.getIssue(904);
+    const issue = await harness.provider.getIssue(203);
     assert.equal(issue.labels.includes("To Do"), true);
     assert.equal(issue.labels.includes("Doing"), false);
     assert.equal(runCalled, false);

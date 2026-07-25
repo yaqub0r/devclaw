@@ -57,23 +57,23 @@ warnings or plugin initialization errors.
 
 ## 4. Recover and dispatch the smoke issue
 
-Use Firstlight issue `#902` if it remains available:
+Choose a disposable research issue in a project-bound chat or topic:
 
 1. Return it to `To Research`.
 2. Ensure its architect slot is inactive before dispatch.
-3. Trigger the normal Firstlight queue/heartbeat path from the project-bound
+3. Trigger the normal project queue/heartbeat path from the project-bound
    chat topic.
 4. Record the returned `runId` and deterministic child `sessionKey`.
 
 The child key should have this shape:
 
 ```text
-agent:<agent-id>:subagent:firstlight-architect-<level>-<worker-name>
+agent:<agent-id>:subagent:<project-slug>-architect-<level>-<worker-name>
 ```
 
 The launch is accepted only after `sessions.patch` and `runtime.subagent.run`
-both succeed. If either rejects, `#902` must remain or return to `To Research`
-and the architect slot must remain inactive.
+both succeed. If either rejects, the smoke issue must remain or return to
+`To Research` and the architect slot must remain inactive.
 
 ## 5. Verify lineage and routing
 
@@ -87,13 +87,13 @@ Confirm:
 
 - the child session key matches the key stored in DevClaw's worker slot;
 - the session model matches the project role/level model;
-- `spawnedBy` points to the Firstlight orchestrator session;
+- `spawnedBy` points to the correct project orchestrator session;
 - the orchestrator's `/subagents` view shows the worker under that parent;
 - the worker task contains `channel`, `channelId`, `accountId` when configured,
   and `messageThreadId` for a Telegram topic;
 - the worker calls `work_finish` with the same `channelId` and
-  `messageThreadId`, and the completion is applied to Firstlight rather than
-  another project in the same chat.
+  `messageThreadId`, and the completion is applied to the selected project
+  rather than another project in the same chat.
 
 For task-ledger-enabled gateways, also inspect the ledger:
 
@@ -111,8 +111,9 @@ Run these after the successful smoke dispatch:
    issue. DevClaw should reject it before label transition when the configured
    catalog is readable. The issue stays queued and the slot stays inactive.
 2. Restore the valid project model.
-3. Send `#902` through one feedback cycle. The second dispatch must reuse the
-   same child `sessionKey`, return a new `runId`, and retain its parent lineage.
+3. Send the smoke issue through one feedback cycle. The second dispatch must
+   reuse the same child `sessionKey`, return a new `runId`, and retain its
+   parent lineage.
 4. If practical, exercise the stalled-worker nudge. It must target the same
    deterministic child session without creating a replacement slot.
 
@@ -126,5 +127,5 @@ Return these items to the development side:
 - parent session key, child session key, and accepted run ID;
 - session metadata showing parent lineage;
 - `/subagents` or task-ledger evidence;
-- final state of `#902` and its architect slot;
+- final state of the smoke issue and its architect slot;
 - any gateway rejection or DevClaw rollback log.
