@@ -34,12 +34,12 @@ describe("notify", () => {
         issueUrl: "https://example.com/issues/7",
         role: "developer",
         level: "senior",
-        name: "firstlight",
+        name: "sample-project",
         sessionAction: "spawn",
       },
       {
         workspaceDir: tempDir,
-        channelId: "-100123",
+        channelId: "-1000000000000",
         channel: "telegram",
         runtime: { channel: {} } as any,
         runCommand: async (args, opts): Promise<SpawnResult> => {
@@ -67,7 +67,7 @@ describe("notify", () => {
       "telegram",
       "--target",
     ]);
-    assert.equal(calls[0]?.args[6], "-100123");
+    assert.equal(calls[0]?.args[6], "-1000000000000");
     assert.equal(calls[0]?.timeoutMs, 30_000);
   });
 
@@ -85,7 +85,7 @@ describe("notify", () => {
       },
       {
         workspaceDir: tempDir,
-        channelId: "-100123",
+        channelId: "-1000000000000",
         channel: "telegram",
         runtime: {
           channel: {
@@ -135,7 +135,7 @@ describe("notify", () => {
       },
       {
         workspaceDir: tempDir,
-        channelId: "-100123",
+        channelId: "-1000000000000",
         channel: "telegram",
         runtime: {
           channel: {
@@ -184,7 +184,7 @@ describe("notify", () => {
       },
       {
         workspaceDir: tempDir,
-        channelId: "-100123",
+        channelId: "-1000000000000",
         channel: "telegram",
         runtime: { channel: {} } as any,
       },

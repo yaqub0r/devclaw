@@ -44,7 +44,8 @@
   },
   "scripts": {
     "build": "node build.mjs",
-    "check": "node dev/regression/tests/plugin-tool-contract.mjs && tsc --noEmit",
+    "check": "node dev/regression/tests/plugin-tool-contract.mjs && npm run test:gateway-dispatch && tsc --noEmit",
+    "test:gateway-dispatch": "tsx --test lib/dispatch/session.test.ts lib/dispatch/message-builder.test.ts lib/dispatch/dispatch-acceptance.test.ts",
     "watch": "tsc --noEmit --watch",
     "regression:release": "bash dev/regression/tests/run-all.sh",
     "prepublishOnly": "npm run build"
@@ -56,9 +57,10 @@
     "@types/node": "^25.2.3",
     "cockatiel": "^3.2.1",
     "esbuild": "^0.25.0",
+    "tsx": "4.20.6",
     "typescript": "^5.9.3",
-    "yaml": "^2.8.2",
     "unique-names-generator": "^4.7.1",
+    "yaml": "^2.8.2",
     "zod": "^4.3.6"
   }
 }

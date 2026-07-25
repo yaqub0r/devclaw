@@ -77,8 +77,8 @@ describe("E2E bootstrap — agent:bootstrap hook", () => {
   });
 
   it("should resolve the project-specific orchestrator prompt from the real session key when bootstrap context omits chat scope", async () => {
-    h = await createTestHarness({ projectName: "firstlight", channelId: "-1000000000002", messageThreadId: 99 });
-    await h.writePrompt("orchestrator", "project-marker\nproject-step", "firstlight");
+    h = await createTestHarness({ projectName: "sample-project", channelId: "-1000000000002", messageThreadId: 99 });
+    await h.writePrompt("orchestrator", "project-marker\nproject-step", "sample-project");
     await h.writePrompt("orchestrator", "workspace-marker\nworkspace-step");
 
     const result = await h.simulateBootstrap("agent:devclaw:telegram:group:-1000000000002:topic:99", {
@@ -92,12 +92,12 @@ describe("E2E bootstrap — agent:bootstrap hook", () => {
   });
 
   it("should replace stale orchestrator.md content across repeated fresh bootstrap runs on the same topic key", async () => {
-    h = await createTestHarness({ projectName: "firstlight", channelId: "-1000000000002", messageThreadId: 7 });
-    const projectPrompt = path.join(h.workspaceDir, "devclaw", "projects", "firstlight", "prompts", "orchestrator.md");
+    h = await createTestHarness({ projectName: "sample-project", channelId: "-1000000000002", messageThreadId: 7 });
+    const projectPrompt = path.join(h.workspaceDir, "devclaw", "projects", "sample-project", "prompts", "orchestrator.md");
     const workspacePrompt = path.join(h.workspaceDir, "devclaw", "prompts", "orchestrator.md");
 
     await h.writePrompt("orchestrator", "workspace-marker\nworkspace-step");
-    await h.writePrompt("orchestrator", "project-marker\nproject-step", "firstlight");
+    await h.writePrompt("orchestrator", "project-marker\nproject-step", "sample-project");
 
     const first = await h.simulateBootstrap("agent:devclaw:telegram:group:-1000000000002:topic:7", {
       channel: "telegram",

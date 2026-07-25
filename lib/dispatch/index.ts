@@ -1,8 +1,8 @@
 /**
  * dispatch/index.ts — Core dispatch logic used by projectTick (heartbeat).
  *
- * Handles: session lookup, spawn/reuse via Gateway RPC, task dispatch via CLI,
- * state update (activateWorker), and audit logging.
+ * Handles: session lookup, plugin-owned subagent spawn/reuse (with a legacy
+ * Gateway CLI fallback), state update (activateWorker), and audit logging.
  */
 import type { PluginRuntime } from "openclaw/plugin-sdk";
 import type { RunCommand } from "../context.js";
@@ -25,7 +25,12 @@ import { loadRoleInstructions } from "./bootstrap-hook.js";
 import { slotName } from "../names.js";
 
 import { buildTaskMessage, buildConflictFixMessage, buildAnnouncement, formatSessionLabel } from "./message-builder.js";
-import { ensureSessionFireAndForget, sendToAgent, shouldClearSession } from "./session.js";
+import {
+  buildMainOrchestratorSessionKey,
+  sendToAgent,
+  shouldClearSession,
+} from "./session.js";
+import { assertConfiguredModelAvailable } from "./model-availability.js";
 import { acknowledgeComments, EYES_EMOJI } from "./acknowledge.js";
 import { recordAndApplyInterventionEvent } from "../orchestrator-intervention/engine.js";
 
@@ -48,10 +53,10 @@ export type DispatchOpts = {
   provider: import("../providers/provider.js").IssueProvider;
   /** Plugin config for model resolution and notification config */
   pluginConfig?: Record<string, unknown>;
-  /** Orchestrator's session key (used as spawnedBy for subagent tracking) */
-  sessionKey?: string;
   /** Plugin runtime for direct API access (avoids CLI subprocess timeouts) */
   runtime?: PluginRuntime;
+  /** Calling orchestrator session. Persisted as child lineage on OpenClaw 2026.7+. */
+  parentSessionKey?: string;
   /** Slot index within the role's worker slots (defaults to 0 for single-worker compat) */
   slotIndex?: number;
   /** Instance name for ownership labels (auto-claimed on dispatch if not already owned) */
@@ -63,6 +68,7 @@ export type DispatchOpts = {
 export type DispatchResult = {
   sessionAction: "spawn" | "send";
   sessionKey: string;
+  runId?: string;
   level: string;
   model: string;
   announcement: string;
@@ -74,12 +80,13 @@ export type DispatchResult = {
  * Flow:
  *   1. Resolve model, session key, build task message (setup — no side effects)
  *   2. Transition label (commitment point — issue leaves queue)
- *   3. Apply labels, send notification
- *   4. Ensure session (fire-and-forget) + send to agent
- *   5. Update worker state
+ *   3. Await native subagent launch acceptance (rollback label on rejection)
+ *   4. Update worker state
+ *   5. Apply labels, send notification
  *   6. Audit
  *
  * If setup fails, the issue stays in its queue untouched.
+ * If launch is rejected, the issue returns to its queue and the slot stays inactive.
  * On state update failure after dispatch: logs warning (session IS running).
  */
 export async function dispatchTask(
@@ -99,6 +106,13 @@ export async function dispatchTask(
   const resolvedRole = resolvedConfig.roles[role];
   const { timeouts, workflow } = resolvedConfig;
   const model = resolveModel(role, level, resolvedRole);
+  await assertConfiguredModelAvailable(model, {
+    runtime,
+    timeoutMs: timeouts.sessionPatchMs,
+    projectName: project.name,
+    role,
+    level,
+  });
   const roleWorker = getRoleWorker(project, role);
   const slot = roleWorker.levels[level]?.[slotIndex] ?? emptySlot();
   let existingSessionKey = slot.sessionKey;
@@ -153,6 +167,22 @@ export async function dispatchTask(
 
   const sessionAction = existingSessionKey ? "send" : "spawn";
 
+  // Resolve the issue-specific endpoint before constructing the task. The
+  // native subagent runtime does not accept channel/topic delivery fields, so
+  // this routing contract must travel in the worker message itself.
+  let issue: { labels: string[] } | undefined;
+  try {
+    issue = await provider.getIssue(issueId);
+  } catch {
+    // Fall back to the project's primary endpoint.
+  }
+  const notifyTarget = resolveNotifyChannel(issue?.labels ?? [], project.channels) ?? {
+    channelId: project.slug,
+    channel: "telegram",
+  };
+  const parentSessionKey = opts.parentSessionKey?.trim() ||
+    buildMainOrchestratorSessionKey(agentId ?? "main", notifyTarget);
+
   // Fetch comments to include in task context
   const comments = await provider.listComments(issueId);
 
@@ -168,17 +198,17 @@ export async function dispatchTask(
     attachmentContext = await formatAttachmentsForTask(workspaceDir, project.slug, issueId) || undefined;
   } catch { /* best-effort */ }
 
-  const primaryChannelId = project.channels[0]?.channelId ?? project.slug;
+  const primaryChannelId = notifyTarget.channelId;
   const isConflictFix = prFeedback?.reason === "merge_conflict";
   const taskMessage = isConflictFix && prFeedback
     ? buildConflictFixMessage({
-        projectName: project.name, channelId: primaryChannelId, role, issueId,
+        projectName: project.name, routing: notifyTarget, role, issueId,
         issueTitle, issueUrl,
         repo: project.repo, baseBranch: project.baseBranch,
         resolvedRole, prFeedback,
       })
     : buildTaskMessage({
-        projectName: project.name, channelId: primaryChannelId, role, issueId,
+        projectName: project.name, routing: notifyTarget, role, issueId,
         issueTitle, issueDescription, issueUrl,
         repo: project.repo, baseBranch: project.baseBranch,
         comments, resolvedRole, prContext, prFeedback, attachmentContext,
@@ -200,6 +230,67 @@ export async function dispatchTask(
     sessionKey,
   }).catch(() => {});
 
+  const sessionLabel = formatSessionLabel(project.name, role, level, botName);
+
+  // OpenClaw 2026.7+ resolves this promise after accepting the plugin-owned
+  // subagent run. Rejection returns the issue to its queue before any slot is
+  // marked active or worker-start notification is emitted.
+  let runId: string | undefined;
+  try {
+    const acceptance = await sendToAgent(sessionKey, taskMessage, {
+      agentId, projectName: project.name, issueId, role, level, slotIndex, fromLabel,
+      workspaceDir,
+      model,
+      sessionLabel,
+      sessionPatchTimeoutMs: timeouts.sessionPatchMs,
+      dispatchTimeoutMs: timeouts.dispatchMs,
+      extraSystemPrompt: roleInstructions.trim() || undefined,
+      runCommand: rc,
+      runtime,
+      parentSessionKey,
+      notifyTarget,
+    });
+    runId = acceptance.runId;
+  } catch (err) {
+    let rollbackError: unknown;
+    try {
+      await provider.transitionLabel(issueId, toLabel, fromLabel);
+    } catch (rollbackErr) {
+      rollbackError = rollbackErr;
+    }
+    await auditLog(workspaceDir, "dispatch_rejected", {
+      project: project.name,
+      issue: issueId,
+      role,
+      level,
+      sessionKey,
+      error: (err as Error).message ?? String(err),
+      rollbackError: rollbackError
+        ? ((rollbackError as Error).message ?? String(rollbackError))
+        : undefined,
+    }).catch(() => {});
+    if (rollbackError) {
+      throw new Error(
+        `Worker launch was rejected and queue rollback failed: ${(err as Error).message ?? String(err)}; rollback: ${(rollbackError as Error).message ?? String(rollbackError)}`,
+      );
+    }
+    throw err;
+  }
+
+  // Persist the accepted worker before secondary labels and notifications.
+  try {
+    await recordWorkerState(workspaceDir, project.slug, role, slotIndex, {
+      issueId, level, sessionKey, sessionAction, fromLabel, name: botName,
+    });
+  } catch (err) {
+    // Session is already dispatched — log warning but don't fail.
+    await auditLog(workspaceDir, "dispatch", {
+      project: project.name, issue: issueId, role,
+      warning: "State update failed after successful dispatch",
+      error: (err as Error).message, sessionKey, runId,
+    });
+  }
+
   // Mark issue + PR as managed and all consumed comments as seen (fire-and-forget)
   provider.reactToIssue(issueId, EYES_EMOJI).catch(() => {});
   provider.reactToPr(issueId, EYES_EMOJI).catch(() => {});
@@ -215,12 +306,10 @@ export async function dispatchTask(
   // IMPORTANT: Never pass state labels to removeLabels() — state transitions are
   // handled exclusively by transitionLabel(). Accidentally removing a state label
   // makes the issue invisible to the queue scanner. See #473 for context.
-  let issue: { labels: string[] } | undefined;
   try {
-    issue = await provider.getIssue(issueId);
     const stateLabels = getStateLabels(workflow);
 
-    const oldRoleLabels = issue.labels.filter((l) => l.startsWith(`${role}:`));
+    const oldRoleLabels = issue?.labels.filter((l) => l.startsWith(`${role}:`)) ?? [];
     const safeRoleLabels = filterNonStateLabels(oldRoleLabels, stateLabels);
     if (safeRoleLabels.length > 0) {
       await provider.removeLabels(issueId, safeRoleLabels);
@@ -229,32 +318,29 @@ export async function dispatchTask(
     await provider.ensureLabel(roleLabel, getRoleLabelColor(role));
     await provider.addLabel(issueId, roleLabel);
 
-    // Apply review routing label when role produces reviewable work (best-effort)
     if (producesReviewableWork(workflow, role)) {
       const reviewLabel = resolveReviewRouting(
         workflow.reviewPolicy ?? ReviewPolicy.HUMAN, level,
       );
-      const oldRouting = issue.labels.filter((l) => l.startsWith("review:"));
+      const oldRouting = issue?.labels.filter((l) => l.startsWith("review:")) ?? [];
       const safeRouting = filterNonStateLabels(oldRouting, stateLabels);
       if (safeRouting.length > 0) await provider.removeLabels(issueId, safeRouting);
       await provider.ensureLabel(reviewLabel, STEP_ROUTING_COLOR);
       await provider.addLabel(issueId, reviewLabel);
     }
 
-    // Apply test routing label when workflow has a test phase (best-effort)
     if (hasTestPhase(workflow)) {
       const testLabel = resolveTestRouting(
         workflow.testPolicy ?? TestPolicy.SKIP, level,
       );
-      const oldTestRouting = issue.labels.filter((l) => l.startsWith("test:"));
+      const oldTestRouting = issue?.labels.filter((l) => l.startsWith("test:")) ?? [];
       const safeTestRouting = filterNonStateLabels(oldTestRouting, stateLabels);
       if (safeTestRouting.length > 0) await provider.removeLabels(issueId, safeTestRouting);
       await provider.ensureLabel(testLabel, STEP_ROUTING_COLOR);
       await provider.addLabel(issueId, testLabel);
     }
 
-    // Apply owner label if issue is unclaimed (auto-claim on pickup)
-    if (opts.instanceName && !detectOwner(issue.labels)) {
+    if (opts.instanceName && !detectOwner(issue?.labels ?? [])) {
       const ownerLabel = getOwnerLabel(opts.instanceName);
       await provider.ensureLabel(ownerLabel, OWNER_LABEL_COLOR);
       await provider.addLabel(issueId, ownerLabel);
@@ -263,10 +349,8 @@ export async function dispatchTask(
     // Best-effort — label failure must not abort dispatch
   }
 
-  // Step 2: Send notification early (before session dispatch which can timeout)
-  // This ensures users see the notification even if gateway is slow
+  // Notify only after OpenClaw accepts the worker run.
   const notifyConfig = getNotificationConfig(pluginConfig);
-  const notifyTarget = resolveNotifyChannel(issue?.labels ?? [], project.channels);
   notify(
     {
       type: "workerStart",
@@ -296,37 +380,6 @@ export async function dispatchTask(
     }).catch(() => {});
   });
 
-  // Step 3: Ensure session exists (fire-and-forget — don't wait for gateway)
-  // Session key is deterministic, so we can proceed immediately
-  const sessionLabel = formatSessionLabel(project.name, role, level, botName);
-  ensureSessionFireAndForget(sessionKey, model, workspaceDir, rc, timeouts.sessionPatchMs, sessionLabel);
-
-  // Step 4: Send task to agent (fire-and-forget)
-  // Model is set on the session via sessions.patch (step 3), not on the agent RPC —
-  // the gateway's agent endpoint rejects unknown properties like 'model'.
-  sendToAgent(sessionKey, taskMessage, {
-    agentId, projectName: project.name, issueId, role, level, slotIndex, fromLabel,
-    orchestratorSessionKey: opts.sessionKey, workspaceDir,
-    dispatchTimeoutMs: timeouts.dispatchMs,
-    extraSystemPrompt: roleInstructions.trim() || undefined,
-    runCommand: rc,
-    notifyTarget,
-  });
-
-  // Step 5: Update worker state
-  try {
-    await recordWorkerState(workspaceDir, project.slug, role, slotIndex, {
-      issueId, level, sessionKey, sessionAction, fromLabel, name: botName,
-    });
-  } catch (err) {
-    // Session is already dispatched — log warning but don't fail
-    await auditLog(workspaceDir, "dispatch", {
-      project: project.name, issue: issueId, role,
-      warning: "State update failed after successful dispatch",
-      error: (err as Error).message, sessionKey,
-    });
-  }
-
   // Step 6: Audit
   await recordAndApplyInterventionEvent({
     workspaceDir,
@@ -346,7 +399,7 @@ export async function dispatchTask(
     fromState: fromLabel,
     toState: toLabel,
     source: "system",
-    data: { sessionAction, botName },
+    data: { sessionAction, botName, runId },
   }).catch(() => {});
 
   await auditDispatch(workspaceDir, {
@@ -357,7 +410,7 @@ export async function dispatchTask(
 
   const announcement = buildAnnouncement(level, role, sessionAction, issueId, issueTitle, issueUrl, resolvedRole, botName);
 
-  return { sessionAction, sessionKey, level, model, announcement };
+  return { sessionAction, sessionKey, runId, level, model, announcement };
 }
 
 async function recordWorkerState(

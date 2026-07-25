@@ -202,7 +202,7 @@ After adding, renaming, or removing states in workflow.yaml, run the \`sync_labe
 
 \`\`\`
 sync_labels                         # sync all projects
-sync_labels channelId=-100123       # sync one project
+sync_labels channelId=-1000000000000  # sync one project
 \`\`\``;
 }
 

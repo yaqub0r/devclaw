@@ -205,7 +205,7 @@ describe("readProjects migration", () => {
               levels: {
                 medior: [
                   { active: true, issueId: "5", sessionKey: "key-1", startTime: "2026-01-01T00:00:00Z" },
-                  { active: false, issueId: null, sessionKey: null, startTime: null },
+                  { active: false, issueId: null, sessionKey: "key-reusable", startTime: null, lastIssueId: "4" },
                 ],
               },
             },
@@ -223,6 +223,8 @@ describe("readProjects migration", () => {
     assert.strictEqual(rw.levels.medior[0]!.active, true);
     assert.strictEqual(rw.levels.medior[0]!.issueId, "5");
     assert.strictEqual(rw.levels.medior[1]!.active, false);
+    assert.strictEqual(rw.levels.medior[1]!.sessionKey, "key-reusable");
+    assert.strictEqual(rw.levels.medior[1]!.lastIssueId, "4");
 
     await fs.rm(tmpDir, { recursive: true });
   });

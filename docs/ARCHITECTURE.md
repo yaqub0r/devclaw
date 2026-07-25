@@ -87,34 +87,33 @@ Why per-level instead of switching models on one session:
 
 ### Plugin-controlled session lifecycle
 
-DevClaw controls the **full** session lifecycle end-to-end. The orchestrator agent never calls `sessions_spawn` or `sessions_send` — the plugin handles session creation and task dispatch internally using the OpenClaw CLI:
+DevClaw controls the **full** session lifecycle end-to-end. The orchestrator
+agent never calls `sessions_spawn` or `sessions_send`. On OpenClaw 2026.7+ the
+plugin uses the native plugin runtime while retaining DevClaw's deterministic
+session keys and reusable worker slots:
 
 ```
 Plugin dispatch (heartbeat → dispatchTask):
-  1. Assign level, look up session, decide spawn vs send
-  2. New session:  openclaw gateway call sessions.patch → create entry + set model
-                   openclaw gateway call agent → dispatch task
-  3. Existing:     openclaw gateway call agent → dispatch task to existing session
-  4. Update projects.json, write audit log
+  1. Assign level and verify the configured model catalog
+  2. Look up the deterministic worker session and decide spawn vs send
+  3. sessions.patch → set model, label, and spawnedBy parent lineage
+  4. runtime.subagent.run → launch against the deterministic session key
+  5. Require an accepted runId; roll the issue label back on rejection
+  6. Update projects.json and write the audit log
 ```
 
 The orchestrator's only job is to advance issues to the queue via `task_start`. The heartbeat handles everything else — level assignment, session creation, task dispatch, state update, audit logging — as deterministic plugin code.
 
 **Why this matters:** Previously the plugin returned instructions like `{ sessionAction: "spawn", model: "sonnet" }` and the agent had to correctly call `sessions_spawn` with the right params. This was the fragile handoff point where agents would forget `cleanup: "keep"`, use wrong models, or corrupt session state. Moving dispatch into the plugin eliminates that entire class of errors.
 
-**Session persistence:** Sessions created via `sessions.patch` persist indefinitely (no auto-cleanup). The plugin manages lifecycle explicitly through the `health` tool.
+**Session persistence:** Native subagent runs use a stable DevClaw-owned session
+key. `sessions.patch` persists the selected model and parent lineage, and the
+same key is reused when an issue returns through a feedback cycle. DevClaw's
+`projects.json` remains the source of truth for slot ownership and the health
+service manages stale or orphaned workers.
 
-**What we trade off vs. registered sub-agents:**
-
-| Feature | Sub-agent system | Plugin-controlled | DevClaw equivalent |
-|---|---|---|---|
-| Auto-reporting | Sub-agent reports to parent | No | Heartbeat polls for completion |
-| Concurrency control | `maxConcurrent` | No | Heartbeat checks `active` flag |
-| Lifecycle tracking | Parent-child registry | No | `projects.json` tracks all sessions |
-| Timeout detection | `runTimeoutSeconds` | No | `health` flags stale >2h |
-| Cleanup | Auto-archive | No | `health` manual cleanup |
-
-DevClaw provides equivalent guardrails for everything except auto-reporting, which the heartbeat handles.
+The pre-2026.7 CLI dispatch remains as a compatibility fallback. It does not
+provide synchronous launch acceptance or native run IDs.
 
 ## Roles
 
@@ -140,8 +139,8 @@ graph TB
 
     subgraph "OpenClaw Runtime"
         MS[Main Session<br/>orchestrator agent]
-        GW[Gateway RPC<br/>sessions.patch / sessions.list]
-        CLI[openclaw gateway call agent]
+        GW[Gateway RPC<br/>models.list / sessions.patch]
+        SUB[Plugin runtime<br/>subagent.run]
         DEV_J[DEVELOPER session<br/>junior]
         DEV_M[DEVELOPER session<br/>medior]
         DEV_S[DEVELOPER session<br/>senior]
@@ -184,13 +183,13 @@ graph TB
     WS -->|reads/writes| PJ
     WS -->|appends| AL
     WS -->|creates session| GW
-    WS -->|dispatches task| CLI
+    WS -->|dispatches task| SUB
 
     WF -->|transitions labels| GL
     WF -->|closes/reopens| GL
     WF -->|reads/writes| PJ
     WF -->|git pull| REPO
-    WF -->|tick dispatch| CLI
+    WF -->|tick dispatch| SUB
     WF -->|appends| AL
 
     TCR -->|creates issue| GL
@@ -209,11 +208,11 @@ graph TB
     PR -->|writes entry| PJ
     PR -->|appends| AL
 
-    CLI -->|sends task| DEV_J
-    CLI -->|sends task| DEV_M
-    CLI -->|sends task| DEV_S
-    CLI -->|sends task| TST_M
-    CLI -->|sends task| ARCH
+    SUB -->|sends task| DEV_J
+    SUB -->|sends task| DEV_M
+    SUB -->|sends task| DEV_S
+    SUB -->|sends task| TST_M
+    SUB -->|sends task| ARCH
 
     DEV_J -->|writes code, creates PRs| REPO
     DEV_M -->|writes code, creates PRs| REPO
@@ -232,7 +231,7 @@ sequenceDiagram
     participant MS as Main Session<br/>(orchestrator)
     participant DC as DevClaw Plugin
     participant GW as Gateway RPC
-    participant CLI as openclaw gateway call agent
+    participant SUB as Plugin runtime subagent
     participant DEV as DEVELOPER Session<br/>(medior)
     participant GL as Issue Tracker
 
@@ -255,11 +254,13 @@ sequenceDiagram
 
     Note over DC: Heartbeat picks up on next tick
     DC->>DC: resolve level "medior" → model ID
+    DC->>GW: models.list({ view: "configured" })
     DC->>DC: lookup developer.sessions.medior → null (first time)
     DC->>GL: transition label "To Do" → "Doing"
-    DC->>GW: sessions.patch({ key: new-session-key, model: "anthropic/claude-sonnet-4-5" })
-    DC->>CLI: openclaw gateway call agent --params { sessionKey, message }
-    CLI->>DEV: creates session, delivers task
+    DC->>GW: sessions.patch({ key, model, label, spawnedBy })
+    DC->>SUB: subagent.run({ sessionKey, message })
+    SUB->>DEV: creates session, delivers task
+    SUB-->>DC: { runId }
     DC->>DC: store session key in projects.json + append audit.log
 
     Note over DEV: Works autonomously — reads code, writes code, creates PR
@@ -280,15 +281,18 @@ On the **next DEVELOPER task** for this project that also assigns medior:
 sequenceDiagram
     participant MS as Main Session
     participant DC as DevClaw Plugin
-    participant CLI as openclaw gateway call agent
+    participant GW as Gateway RPC
+    participant SUB as Plugin runtime subagent
     participant DEV as DEVELOPER Session<br/>(medior, existing)
 
     MS->>DC: task_start({ issueId: 57, projectSlug: "my-app", level: "medior" })
     DC->>DC: resolve level "medior" → model ID
     DC->>DC: lookup developer.sessions.medior → existing key!
-    Note over DC: No sessions.patch needed — session already exists
-    DC->>CLI: openclaw gateway call agent --params { sessionKey, message }
-    CLI->>DEV: delivers task to existing session (has full codebase context)
+    DC->>DC: retain deterministic session key
+    DC->>GW: sessions.patch({ key, model, label, spawnedBy })
+    DC->>SUB: subagent.run({ sessionKey, message })
+    SUB->>DEV: delivers task to existing session (has full codebase context)
+    SUB-->>DC: { new runId }
     DC-->>MS: { success: true, announcement: "⚡ Sending DEVELOPER (medior) for #57" }
 ```
 
@@ -348,7 +352,7 @@ sequenceDiagram
     participant GL as Issue Tracker
     participant TIER as Level Resolver
     participant GW as Gateway RPC
-    participant CLI as openclaw gateway call agent
+    participant SUB as Plugin runtime subagent
     participant PJ as projects.json
     participant AL as audit.log
 
@@ -357,13 +361,17 @@ sequenceDiagram
     HB->>GL: getIssue(42)
     GL-->>HB: { title: "Add login page", labels: ["To Do"] }
     HB->>TIER: resolve "medior" → "anthropic/claude-sonnet-4-5"
+    HB->>GW: models.list({ view: "configured" })
     HB->>PJ: lookup developer.sessions.medior
     HB->>GL: transitionLabel(42, "To Do", "Doing")
-    alt New session
-        HB->>GW: sessions.patch({ key: new-key, model: "anthropic/claude-sonnet-4-5" })
+    HB->>GW: sessions.patch({ key, model, label, spawnedBy })
+    HB->>SUB: subagent.run({ sessionKey, message })
+    alt launch accepted
+        SUB-->>HB: { runId }
+        HB->>PJ: activateWorker + store session key
+    else launch rejected
+        HB->>GL: transitionLabel(42, "Doing", "To Do")
     end
-    HB->>CLI: openclaw gateway call agent --params { sessionKey, message }
-    HB->>PJ: activateWorker + store session key
     HB->>AL: append dispatch + model_selection
 ```
 
@@ -371,7 +379,7 @@ sequenceDiagram
 - `Issue Tracker`: label "To Do" → "Doing"
 - `projects.json`: workers.developer.active=true, issueId="42", level="medior", sessions.medior=key
 - `audit.log`: 2 entries (dispatch, model_selection)
-- `Session`: task message delivered to worker session via CLI
+- `Session`: task message delivered through the plugin-native subagent runtime
 
 ### Phase 4: DEVELOPER works
 
@@ -587,19 +595,19 @@ Every piece of data and where it lives:
 │  Review pass    → polls PR status, auto-merges approved PRs     │
 │  Config loader  → three-layer merge + Zod validation            │
 └─────────────────────────────────────────────────────────────────┘
-        ↕ atomic file I/O          ↕ OpenClaw CLI (plugin shells out)
+        ↕ atomic file I/O          ↕ OpenClaw plugin runtime
 ┌────────────────────────────────┐ ┌──────────────────────────────┐
-│ devclaw/projects.json          │ │ OpenClaw Gateway + CLI       │
+│ devclaw/projects.json          │ │ OpenClaw Gateway + runtime   │
 │                                │ │ (called by plugin, not agent)│
 │  Per project:                  │ │                              │
-│    workers:                    │ │  openclaw gateway call       │
-│      developer:                │ │    sessions.patch → create   │
-│        active, issueId, level  │ │    sessions.list  → health   │
+│    workers:                    │ │  gateway.request             │
+│      developer:                │ │    models.list → preflight   │
+│        active, issueId, level  │ │    sessions.patch → provision│
 │        sessions:               │ │    sessions.delete → cleanup │
 │          junior: <key>         │ │                              │
-│          medior: <key>         │ │  openclaw gateway call agent │
-│          senior: <key>         │ │    --params { sessionKey,    │
-│      tester:                   │ │      message, agentId }      │
+│          medior: <key>         │ │  runtime.subagent.run        │
+│          senior: <key>         │ │    { sessionKey, message }   │
+│      tester:                   │ │    → accepted runId          │
 │        active, issueId, level  │ │    → dispatches to session   │
 │        sessions:               │ │                              │
 │          junior: <key>         │ │                              │
@@ -737,8 +745,9 @@ See [CONFIGURATION.md](CONFIGURATION.md) for the full reference.
 |---|---|---|
 | Session dies mid-task | `health` checks via `sessions.list` Gateway RPC | `fix=true`: reverts label, clears active state. Next heartbeat picks up task again (creates fresh session for that level). |
 | gh/glab command fails | Cockatiel retry (3 attempts), then circuit breaker | Circuit opens after 5 consecutive failures, prevents hammering. Plugin catches and returns error. |
-| `openclaw gateway call agent` fails | Plugin catches error during dispatch | Plugin rolls back: reverts label, clears active state. Returns error. No orphaned state. |
-| `sessions.patch` fails | Plugin catches error during session creation | Plugin rolls back label transition. Returns error. |
+| `runtime.subagent.run` rejects | Plugin awaits native launch acceptance | Plugin rolls back the issue label and leaves the worker slot inactive. |
+| `sessions.patch` rejects | Plugin awaits model/session provisioning | Plugin rolls back the issue label and returns the gateway error. |
+| Configured model is absent | Preflight checks `models.list({ view: "configured" })` | Dispatch stops before label transition with an actionable project/role/level error. |
 | projects.json corrupted | Tool can't parse JSON | Manual fix needed. Atomic writes (temp+rename) prevent partial writes. File locking prevents concurrent races. |
 | Label out of sync | Heartbeat verifies label before transitioning | Throws error if label doesn't match expected state. |
 | Worker already active | Heartbeat checks `active` flag | Skips dispatch: role already active on project. Must complete current task first. |

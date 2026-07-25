@@ -109,6 +109,7 @@ export async function tick(opts: {
         runCommand,
         resolvedConfig.timeouts.stallTimeoutMinutes,
         agentId,
+        runtime,
       );
 
       // Review pass: transition issues whose PR check condition is met
