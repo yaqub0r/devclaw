@@ -23,7 +23,7 @@ describe("dispatch launch acceptance", () => {
     const runtime = {
       gateway: {
         async request() {
-          return {};
+          throw new Error("gateway.request must not be called");
         },
       },
       subagent: {
@@ -76,12 +76,24 @@ describe("dispatch launch acceptance", () => {
     });
     const runSessionKeys: string[] = [];
     const runMessages: string[] = [];
-    const gatewayCalls: Array<{ method: string; params?: Record<string, unknown> }> = [];
+    const sessionPatches: Array<Record<string, unknown>> = [];
     const runtime = {
       gateway: {
-        async request(method: string, params?: Record<string, unknown>) {
-          gatewayCalls.push({ method, params });
-          return {};
+        async request() {
+          throw new Error("gateway.request must not be called");
+        },
+      },
+      agent: {
+        session: {
+          async patchSessionEntry(params: {
+            update: (entry: Record<string, unknown>) => Record<string, unknown>;
+          } & Record<string, unknown>) {
+            sessionPatches.push({
+              ...params,
+              update: params.update({}),
+            });
+            return {};
+          },
         },
       },
       subagent: {
@@ -148,17 +160,16 @@ describe("dispatch launch acceptance", () => {
     assert.equal(runMessages.every((message) =>
       message.includes(`"messageThreadId": 176`)), true);
 
-    const sessionPatches = gatewayCalls.filter((call) => call.method === "sessions.patch");
     assert.equal(sessionPatches.length, 2);
     assert.equal(
       sessionPatches.every((call) =>
-        call.params?.spawnedBy ===
+        (call.update as Record<string, unknown>).spawnedBy ===
         `agent:devclaw:telegram:group:${harness!.channelId}:topic:176`),
       true,
     );
   });
 
-  it("leaves the issue untouched when the configured catalog excludes its model", async () => {
+  it("rolls the issue back when the host rejects its model override", async () => {
     harness = await createTestHarness();
     harness.provider.seedIssue({
       iid: 203,
@@ -168,17 +179,16 @@ describe("dispatch launch acceptance", () => {
     let runCalled = false;
     const runtime = {
       gateway: {
-        async request(method: string) {
-          assert.equal(method, "models.list");
-          return {
-            models: [{ provider: "google", id: "gemini-3-pro" }],
-          };
+        async request() {
+          throw new Error("gateway.request must not be called");
         },
       },
       subagent: {
-        async run() {
+        async run(params: Record<string, unknown>) {
           runCalled = true;
-          return { runId: "unexpected" };
+          assert.equal(typeof params.provider, "string");
+          assert.equal(typeof params.model, "string");
+          throw new Error("provider/model override is not authorized for this plugin subagent run.");
         },
       },
     } as unknown as PluginRuntime;
@@ -200,12 +210,12 @@ describe("dispatch launch acceptance", () => {
         runCommand: harness.runCommand,
         runtime,
       }),
-      /Configured model unavailable/,
+      /provider\/model override is not authorized/,
     );
 
     const issue = await harness.provider.getIssue(203);
     assert.equal(issue.labels.includes("To Do"), true);
     assert.equal(issue.labels.includes("Doing"), false);
-    assert.equal(runCalled, false);
+    assert.equal(runCalled, true);
   });
 });

@@ -113,12 +113,15 @@ type NativeSubagentRunParams = {
 };
 
 type NativeSubagentRuntime = {
-  gateway?: {
-    request<T = unknown>(
-      method: string,
-      params?: Record<string, unknown>,
-      options?: { timeoutMs?: number },
-    ): Promise<T>;
+  agent?: {
+    session?: {
+      patchSessionEntry(params: {
+        agentId?: string;
+        sessionKey: string;
+        preserveActivity?: boolean;
+        update: (entry: Record<string, unknown>) => Partial<Record<string, unknown>>;
+      }): Promise<unknown>;
+    };
   };
   subagent?: {
     run(params: NativeSubagentRunParams): Promise<{ runId: string }>;
@@ -129,6 +132,60 @@ export type AgentDispatchAcceptance = {
   transport: "plugin-runtime" | "gateway-cli";
   runId?: string;
 };
+
+function splitModelRef(model: string | undefined): {
+  provider?: string;
+  model?: string;
+} {
+  const normalized = model?.trim();
+  if (!normalized) return {};
+  const separator = normalized.indexOf("/");
+  if (separator <= 0 || separator === normalized.length - 1) {
+    return { model: normalized };
+  }
+  return {
+    provider: normalized.slice(0, separator),
+    model: normalized.slice(separator + 1),
+  };
+}
+
+async function patchNativeSessionMetadata(
+  runtime: NativeSubagentRuntime,
+  sessionKey: string,
+  opts: {
+    agentId?: string;
+    sessionLabel?: string;
+    parentSessionKey?: string;
+    workspaceDir: string;
+  },
+): Promise<void> {
+  const sessionRuntime = runtime.agent?.session;
+  const canRecordLineage =
+    /^agent:[^:]+:subagent:.+$/i.test(sessionKey) &&
+    !!opts.parentSessionKey?.trim();
+  if (!sessionRuntime?.patchSessionEntry || (!opts.sessionLabel && !canRecordLineage)) return;
+
+  try {
+    await sessionRuntime.patchSessionEntry({
+      agentId: opts.agentId,
+      sessionKey,
+      preserveActivity: true,
+      update: () => ({
+        ...(opts.sessionLabel ? { label: opts.sessionLabel } : {}),
+        ...(canRecordLineage ? { spawnedBy: opts.parentSessionKey!.trim() } : {}),
+      }),
+    });
+  } catch (err) {
+    // The run has already been accepted. Metadata is useful for operator
+    // visibility, but a failed cosmetic patch must not report the live worker
+    // as rejected or roll its issue back into the queue.
+    await auditLog(opts.workspaceDir, "dispatch_warning", {
+      step: "patchNativeSessionMetadata",
+      sessionKey,
+      error: (err as Error).message ?? String(err),
+    }).catch(() => {});
+  }
+}
 
 export function sendToSessionFireAndForget(
   sessionKey: string,
@@ -202,7 +259,7 @@ export async function sendToAgent(
     extraSystemPrompt?: string;
     runCommand: RunCommand;
     runtime?: PluginRuntime;
-    /** Main/orchestrator session recorded through sessions.patch lineage. */
+    /** Main/orchestrator session recorded through the public session store helper. */
     parentSessionKey?: string;
     /**
      * Legacy Gateway CLI only: forwarded as `to`, `channel`, `accountId`, and
@@ -215,33 +272,13 @@ export async function sendToAgent(
   const idempotencyKey =
     `devclaw-${opts.projectName}-${opts.issueId}-${opts.role}-${opts.level ?? "unknown"}-${opts.slotIndex ?? 0}-${opts.fromLabel ?? "unknown"}-${sessionKey}`;
   const nativeRuntime = opts.runtime as unknown as NativeSubagentRuntime | undefined;
-  const nativeSubagent = nativeRuntime?.subagent;
 
-  if (nativeSubagent?.run) {
-    // Keep model selection as persistent session state, matching DevClaw's
-    // reusable-worker behavior. Awaiting this request turns a rejected model
-    // or session patch into a launch failure that dispatchTask can roll back.
-    const canRecordLineage =
-      /^agent:[^:]+:subagent:.+$/i.test(sessionKey) &&
-      !!opts.parentSessionKey?.trim();
-    if (opts.model || opts.sessionLabel || canRecordLineage) {
-      if (!nativeRuntime?.gateway?.request) {
-        throw new Error("OpenClaw plugin runtime is missing gateway.request for session provisioning");
-      }
-      await nativeRuntime.gateway.request(
-        "sessions.patch",
-        {
-          key: sessionKey,
-          ...(opts.model ? { model: opts.model } : {}),
-          ...(opts.sessionLabel ? { label: opts.sessionLabel } : {}),
-          ...(canRecordLineage ? { spawnedBy: opts.parentSessionKey!.trim() } : {}),
-        },
-        { timeoutMs: opts.sessionPatchTimeoutMs },
-      );
-    }
-    const result = await nativeSubagent.run({
+  if (nativeRuntime?.subagent?.run) {
+    const modelOverride = splitModelRef(opts.model);
+    const result = await nativeRuntime.subagent.run({
       sessionKey,
       message: taskMessage,
+      ...modelOverride,
       extraSystemPrompt: opts.extraSystemPrompt,
       lane: "subagent",
       deliver: false,
@@ -250,6 +287,12 @@ export async function sendToAgent(
     if (!result?.runId) {
       throw new Error("OpenClaw accepted the subagent request without returning a runId");
     }
+    await patchNativeSessionMetadata(nativeRuntime, sessionKey, {
+      agentId: opts.agentId,
+      sessionLabel: opts.sessionLabel,
+      parentSessionKey: opts.parentSessionKey,
+      workspaceDir: opts.workspaceDir,
+    });
     return { transport: "plugin-runtime", runId: result.runId };
   }
 

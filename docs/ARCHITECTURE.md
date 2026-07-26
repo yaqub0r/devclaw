@@ -94,11 +94,11 @@ session keys and reusable worker slots:
 
 ```
 Plugin dispatch (heartbeat → dispatchTask):
-  1. Assign level and verify the configured model catalog
+  1. Assign level and resolve its configured provider/model
   2. Look up the deterministic worker session and decide spawn vs send
-  3. sessions.patch → set model, label, and spawnedBy parent lineage
-  4. runtime.subagent.run → launch against the deterministic session key
-  5. Require an accepted runId; roll the issue label back on rejection
+  3. runtime.subagent.run → launch with the deterministic key and model override
+  4. Require an accepted runId; roll the issue label back on rejection
+  5. Patch label/parent metadata through runtime.agent.session
   6. Update projects.json and write the audit log
 ```
 
@@ -107,10 +107,17 @@ The orchestrator's only job is to advance issues to the queue via `task_start`. 
 **Why this matters:** Previously the plugin returned instructions like `{ sessionAction: "spawn", model: "sonnet" }` and the agent had to correctly call `sessions_spawn` with the right params. This was the fragile handoff point where agents would forget `cleanup: "keep"`, use wrong models, or corrupt session state. Moving dispatch into the plugin eliminates that entire class of errors.
 
 **Session persistence:** Native subagent runs use a stable DevClaw-owned session
-key. `sessions.patch` persists the selected model and parent lineage, and the
+key. OpenClaw persists the per-run provider/model selection, and DevClaw uses
+the public session-store helper for the display label and parent lineage. The
 same key is reused when an issue returns through a feedback cycle. DevClaw's
 `projects.json` remains the source of truth for slot ownership and the health
 service manages stale or orphaned workers.
+
+Native third-party dispatch never uses `runtime.gateway.request`; OpenClaw
+2026.7 reserves that API for bundled or trusted official plugins. Hosts that
+use DevClaw's explicit worker models must authorize them with
+`plugins.entries.devclaw.subagent.allowModelOverride` and, preferably, a
+canonical `allowedModels` list.
 
 The pre-2026.7 CLI dispatch remains as a compatibility fallback. It does not
 provide synchronous launch acceptance or native run IDs.
@@ -139,7 +146,7 @@ graph TB
 
     subgraph "OpenClaw Runtime"
         MS[Main Session<br/>orchestrator agent]
-        GW[Gateway RPC<br/>models.list / sessions.patch]
+        META[Public session store<br/>label / parent metadata]
         SUB[Plugin runtime<br/>subagent.run]
         DEV_J[DEVELOPER session<br/>junior]
         DEV_M[DEVELOPER session<br/>medior]
@@ -230,7 +237,7 @@ sequenceDiagram
     participant TG as Telegram Channel
     participant MS as Main Session<br/>(orchestrator)
     participant DC as DevClaw Plugin
-    participant GW as Gateway RPC
+    participant META as Public session store
     participant SUB as Plugin runtime subagent
     participant DEV as DEVELOPER Session<br/>(medior)
     participant GL as Issue Tracker
@@ -254,13 +261,12 @@ sequenceDiagram
 
     Note over DC: Heartbeat picks up on next tick
     DC->>DC: resolve level "medior" → model ID
-    DC->>GW: models.list({ view: "configured" })
     DC->>DC: lookup developer.sessions.medior → null (first time)
     DC->>GL: transition label "To Do" → "Doing"
-    DC->>GW: sessions.patch({ key, model, label, spawnedBy })
-    DC->>SUB: subagent.run({ sessionKey, message })
+    DC->>SUB: subagent.run({ sessionKey, message, provider, model })
     SUB->>DEV: creates session, delivers task
     SUB-->>DC: { runId }
+    DC->>META: patchSessionEntry({ label, spawnedBy })
     DC->>DC: store session key in projects.json + append audit.log
 
     Note over DEV: Works autonomously — reads code, writes code, creates PR
@@ -281,7 +287,7 @@ On the **next DEVELOPER task** for this project that also assigns medior:
 sequenceDiagram
     participant MS as Main Session
     participant DC as DevClaw Plugin
-    participant GW as Gateway RPC
+    participant META as Public session store
     participant SUB as Plugin runtime subagent
     participant DEV as DEVELOPER Session<br/>(medior, existing)
 
@@ -289,10 +295,10 @@ sequenceDiagram
     DC->>DC: resolve level "medior" → model ID
     DC->>DC: lookup developer.sessions.medior → existing key!
     DC->>DC: retain deterministic session key
-    DC->>GW: sessions.patch({ key, model, label, spawnedBy })
-    DC->>SUB: subagent.run({ sessionKey, message })
+    DC->>SUB: subagent.run({ sessionKey, message, provider, model })
     SUB->>DEV: delivers task to existing session (has full codebase context)
     SUB-->>DC: { new runId }
+    DC->>META: patchSessionEntry({ label, spawnedBy })
     DC-->>MS: { success: true, announcement: "⚡ Sending DEVELOPER (medior) for #57" }
 ```
 
@@ -351,7 +357,7 @@ sequenceDiagram
     participant HB as Heartbeat
     participant GL as Issue Tracker
     participant TIER as Level Resolver
-    participant GW as Gateway RPC
+    participant META as Public session store
     participant SUB as Plugin runtime subagent
     participant PJ as projects.json
     participant AL as audit.log
@@ -361,13 +367,12 @@ sequenceDiagram
     HB->>GL: getIssue(42)
     GL-->>HB: { title: "Add login page", labels: ["To Do"] }
     HB->>TIER: resolve "medior" → "anthropic/claude-sonnet-4-5"
-    HB->>GW: models.list({ view: "configured" })
     HB->>PJ: lookup developer.sessions.medior
     HB->>GL: transitionLabel(42, "To Do", "Doing")
-    HB->>GW: sessions.patch({ key, model, label, spawnedBy })
-    HB->>SUB: subagent.run({ sessionKey, message })
+    HB->>SUB: subagent.run({ sessionKey, message, provider, model })
     alt launch accepted
         SUB-->>HB: { runId }
+        HB->>META: patchSessionEntry({ label, spawnedBy })
         HB->>PJ: activateWorker + store session key
     else launch rejected
         HB->>GL: transitionLabel(42, "Doing", "To Do")
@@ -600,16 +605,16 @@ Every piece of data and where it lives:
 │ devclaw/projects.json          │ │ OpenClaw Gateway + runtime   │
 │                                │ │ (called by plugin, not agent)│
 │  Per project:                  │ │                              │
-│    workers:                    │ │  gateway.request             │
-│      developer:                │ │    models.list → preflight   │
-│        active, issueId, level  │ │    sessions.patch → provision│
-│        sessions:               │ │    sessions.delete → cleanup │
+│    workers:                    │ │  runtime.agent.session       │
+│      developer:                │ │    patchSessionEntry metadata│
+│        active, issueId, level  │ │                              │
+│        sessions:               │ │  legacy CLI session cleanup  │
 │          junior: <key>         │ │                              │
 │          medior: <key>         │ │  runtime.subagent.run        │
-│          senior: <key>         │ │    { sessionKey, message }   │
-│      tester:                   │ │    → accepted runId          │
-│        active, issueId, level  │ │    → dispatches to session   │
-│        sessions:               │ │                              │
+│          senior: <key>         │ │    { sessionKey, message,    │
+│      tester:                   │ │      provider, model }       │
+│        active, issueId, level  │ │    → accepted runId          │
+│        sessions:               │ │    → dispatches to session   │
 │          junior: <key>         │ │                              │
 │          medior: <key>         │ │                              │
 │          senior: <key>         │ │                              │
@@ -746,8 +751,8 @@ See [CONFIGURATION.md](CONFIGURATION.md) for the full reference.
 | Session dies mid-task | `health` checks via `sessions.list` Gateway RPC | `fix=true`: reverts label, clears active state. Next heartbeat picks up task again (creates fresh session for that level). |
 | gh/glab command fails | Cockatiel retry (3 attempts), then circuit breaker | Circuit opens after 5 consecutive failures, prevents hammering. Plugin catches and returns error. |
 | `runtime.subagent.run` rejects | Plugin awaits native launch acceptance | Plugin rolls back the issue label and leaves the worker slot inactive. |
-| `sessions.patch` rejects | Plugin awaits model/session provisioning | Plugin rolls back the issue label and returns the gateway error. |
-| Configured model is absent | Preflight checks `models.list({ view: "configured" })` | Dispatch stops before label transition with an actionable project/role/level error. |
+| Model override policy rejects | OpenClaw rejects `runtime.subagent.run` before returning a `runId` | Plugin rolls back the issue label and leaves the worker slot inactive. |
+| Session metadata patch rejects | Public metadata helper fails after an accepted run | Plugin logs a warning; the already-running worker remains active. |
 | projects.json corrupted | Tool can't parse JSON | Manual fix needed. Atomic writes (temp+rename) prevent partial writes. File locking prevents concurrent races. |
 | Label out of sync | Heartbeat verifies label before transitioning | Throws error if label doesn't match expected state. |
 | Worker already active | Heartbeat checks `active` flag | Skips dispatch: role already active on project. Must complete current task first. |

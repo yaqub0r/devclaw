@@ -30,7 +30,6 @@ import {
   sendToAgent,
   shouldClearSession,
 } from "./session.js";
-import { assertConfiguredModelAvailable } from "./model-availability.js";
 import { acknowledgeComments, EYES_EMOJI } from "./acknowledge.js";
 import { recordAndApplyInterventionEvent } from "../orchestrator-intervention/engine.js";
 
@@ -106,13 +105,6 @@ export async function dispatchTask(
   const resolvedRole = resolvedConfig.roles[role];
   const { timeouts, workflow } = resolvedConfig;
   const model = resolveModel(role, level, resolvedRole);
-  await assertConfiguredModelAvailable(model, {
-    runtime,
-    timeoutMs: timeouts.sessionPatchMs,
-    projectName: project.name,
-    role,
-    level,
-  });
   const roleWorker = getRoleWorker(project, role);
   const slot = roleWorker.levels[level]?.[slotIndex] ?? emptySlot();
   let existingSessionKey = slot.sessionKey;
@@ -133,7 +125,7 @@ export async function dispatchTask(
   if (existingSessionKey && timeouts.sessionContextBudget < 1) {
     const shouldClear = await shouldClearSession(existingSessionKey, slot.issueId, issueId, timeouts, workspaceDir, project.name, rc);
     if (shouldClear) {
-      // Delete the gateway session (await to prevent race with later sessions.patch)
+      // Delete the gateway session (await to prevent a race with the next launch).
       await rc(
         ["openclaw", "gateway", "call", "sessions.delete", "--params", JSON.stringify({ key: existingSessionKey })],
         { timeoutMs: 10_000 },
@@ -157,7 +149,7 @@ export async function dispatchTask(
   // Clear stale session key if it doesn't match the current deterministic key
   // (handles migration from old numeric format like ...-0 to name-based ...-Cordelia)
   if (existingSessionKey && existingSessionKey !== sessionKey) {
-    // Delete the orphaned gateway session (await to prevent race with later sessions.patch)
+    // Delete the orphaned gateway session (await to prevent a race with the next launch).
     await rc(
       ["openclaw", "gateway", "call", "sessions.delete", "--params", JSON.stringify({ key: existingSessionKey })],
       { timeoutMs: 10_000 },
