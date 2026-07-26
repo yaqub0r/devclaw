@@ -4,6 +4,13 @@ import { createTestHarness } from "../testing/harness.js";
 import type { ToolContext } from "../types.js";
 import { normalizeRepoTarget, resolveToolProject } from "./helpers.js";
 
+const TEST_PROJECT = "example-project";
+const TEST_CHANNEL_ID = "-1000000000001";
+const OTHER_CHANNEL_ID = "-1000000000002";
+const TEST_ISSUE_ID = "42";
+const TEST_WORKER_SESSION =
+  "agent:devclaw:subagent:example-project-architect-junior-worker";
+
 describe("normalizeRepoTarget", () => {
   it("normalizes github https and ssh remotes", () => {
     assert.equal(normalizeRepoTarget("https://github.com/example-owner/example-repo.git"), "example-owner/example-repo");
@@ -21,17 +28,15 @@ describe("normalizeRepoTarget", () => {
 
 describe("native worker project resolution", () => {
   it("uses a registered worker session when the synthetic source channel is webchat", async () => {
-    const sessionKey =
-      "agent:devclaw:subagent:firstlight-architect-junior-judi";
     const harness = await createTestHarness({
-      projectName: "firstlight",
-      channelId: "-1003746138337",
+      projectName: TEST_PROJECT,
+      channelId: TEST_CHANNEL_ID,
       workers: {
         architect: {
           level: "junior",
           active: true,
-          issueId: "902",
-          sessionKey,
+          issueId: TEST_ISSUE_ID,
+          sessionKey: TEST_WORKER_SESSION,
         },
       },
     });
@@ -39,7 +44,7 @@ describe("native worker project resolution", () => {
     try {
       const toolContext: ToolContext = {
         workspaceDir: harness.workspaceDir,
-        sessionKey,
+        sessionKey: TEST_WORKER_SESSION,
         messageChannel: "webchat",
       };
 
@@ -49,7 +54,7 @@ describe("native worker project resolution", () => {
         harness.channelId,
       );
 
-      assert.strictEqual(project.slug, "firstlight");
+      assert.strictEqual(project.slug, TEST_PROJECT);
     } finally {
       await harness.cleanup();
     }
@@ -57,8 +62,8 @@ describe("native worker project resolution", () => {
 
   it("keeps synthetic webchat routing invalid for ordinary non-worker sessions", async () => {
     const harness = await createTestHarness({
-      projectName: "firstlight",
-      channelId: "-1003746138337",
+      projectName: TEST_PROJECT,
+      channelId: TEST_CHANNEL_ID,
     });
 
     try {
@@ -81,8 +86,8 @@ describe("native worker project resolution", () => {
 
   it("rejects worker-shaped session keys that are not registered to a slot", async () => {
     const harness = await createTestHarness({
-      projectName: "firstlight",
-      channelId: "-1003746138337",
+      projectName: TEST_PROJECT,
+      channelId: TEST_CHANNEL_ID,
     });
 
     try {
@@ -92,7 +97,7 @@ describe("native worker project resolution", () => {
           {
             workspaceDir: harness.workspaceDir,
             sessionKey:
-              "agent:devclaw:subagent:firstlight-architect-junior-forged",
+              "agent:devclaw:subagent:example-project-architect-junior-forged",
             messageChannel: "webchat",
           },
           harness.channelId,
@@ -105,17 +110,15 @@ describe("native worker project resolution", () => {
   });
 
   it("rejects registered worker sessions after their slot is inactive", async () => {
-    const sessionKey =
-      "agent:devclaw:subagent:firstlight-architect-junior-judi";
     const harness = await createTestHarness({
-      projectName: "firstlight",
-      channelId: "-1003746138337",
+      projectName: TEST_PROJECT,
+      channelId: TEST_CHANNEL_ID,
       workers: {
         architect: {
           level: "junior",
           active: false,
           issueId: null,
-          sessionKey,
+          sessionKey: TEST_WORKER_SESSION,
         },
       },
     });
@@ -126,7 +129,7 @@ describe("native worker project resolution", () => {
           harness.workspaceDir,
           {
             workspaceDir: harness.workspaceDir,
-            sessionKey,
+            sessionKey: TEST_WORKER_SESSION,
             messageChannel: "webchat",
           },
           harness.channelId,
@@ -139,17 +142,15 @@ describe("native worker project resolution", () => {
   });
 
   it("rejects a registered worker that supplies a route outside its project", async () => {
-    const sessionKey =
-      "agent:devclaw:subagent:firstlight-architect-junior-judi";
     const harness = await createTestHarness({
-      projectName: "firstlight",
-      channelId: "-1003746138337",
+      projectName: TEST_PROJECT,
+      channelId: TEST_CHANNEL_ID,
       workers: {
         architect: {
           level: "junior",
           active: true,
-          issueId: "902",
-          sessionKey,
+          issueId: TEST_ISSUE_ID,
+          sessionKey: TEST_WORKER_SESSION,
         },
       },
     });
@@ -160,10 +161,10 @@ describe("native worker project resolution", () => {
           harness.workspaceDir,
           {
             workspaceDir: harness.workspaceDir,
-            sessionKey,
+            sessionKey: TEST_WORKER_SESSION,
             messageChannel: "webchat",
           },
-          "-1000000000000",
+          OTHER_CHANNEL_ID,
         ),
         /No project found/,
       );
