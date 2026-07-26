@@ -46,6 +46,11 @@ function assertExactToolSet(label, actualToolNames) {
 }
 
 const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+assert.equal(
+  manifest.activation?.onStartup,
+  true,
+  "openclaw.plugin.json must activate at gateway startup so DevClaw services are started",
+);
 assert.ok(
   Array.isArray(manifest.contracts?.tools),
   "openclaw.plugin.json must declare contracts.tools",

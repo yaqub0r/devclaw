@@ -2,6 +2,9 @@
   "id": "devclaw",
   "name": "DevClaw",
   "description": "Multi-project dev/qa pipeline orchestration for OpenClaw. Developer tiers, atomic task management, session health, and audit logging.",
+  "activation": {
+    "onStartup": true
+  },
   "contracts": {
     "tools": [
       "task_start",
