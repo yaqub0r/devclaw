@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { PluginRuntime } from "openclaw/plugin-sdk";
 import type { RunCommand } from "../context.js";
-import { assertConfiguredModelAvailable } from "./model-availability.js";
 import { buildMainOrchestratorSessionKey, sendToAgent } from "./session.js";
 
 describe("gateway agent dispatch compatibility", () => {
@@ -78,21 +77,25 @@ describe("gateway agent dispatch compatibility", () => {
   });
 
   it("uses the 2026.7 plugin runtime and returns accepted run identity", async () => {
-    const gatewayCalls: Array<{
-      method: string;
-      params?: Record<string, unknown>;
-      options?: { timeoutMs?: number };
-    }> = [];
     const subagentCalls: Array<Record<string, unknown>> = [];
+    const sessionPatches: Array<Record<string, unknown>> = [];
     const runtime = {
       gateway: {
-        async request(
-          method: string,
-          params?: Record<string, unknown>,
-          options?: { timeoutMs?: number },
-        ) {
-          gatewayCalls.push({ method, params, options });
-          return {};
+        async request() {
+          throw new Error("gateway.request must not be called by an untrusted plugin");
+        },
+      },
+      agent: {
+        session: {
+          async patchSessionEntry(params: {
+            update: (entry: Record<string, unknown>) => Record<string, unknown>;
+          } & Record<string, unknown>) {
+            sessionPatches.push({
+              ...params,
+              update: params.update({}),
+            });
+            return {};
+          },
         },
       },
       subagent: {
@@ -130,26 +133,26 @@ describe("gateway agent dispatch compatibility", () => {
       transport: "plugin-runtime",
       runId: "run-example-project-101",
     });
-    assert.deepEqual(gatewayCalls, [{
-      method: "sessions.patch",
-      params: {
-        key: sessionKey,
-        model: "openai/gpt-5.5",
-        label: "Example Project architect junior Worker A",
-        spawnedBy: "agent:devclaw:telegram:group:-1000000000000:topic:42",
-      },
-      options: { timeoutMs: 30_000 },
-    }]);
     assert.deepEqual(subagentCalls, [{
       sessionKey,
       message: "Research issue #101",
+      provider: "openai",
+      model: "gpt-5.5",
       extraSystemPrompt: "Architect instructions",
       lane: "subagent",
       deliver: false,
       idempotencyKey:
         `devclaw-Example Project-101-architect-junior-0-To Research-${sessionKey}`,
     }]);
-    assert.equal("spawnedBy" in subagentCalls[0]!, false);
+    assert.deepEqual(sessionPatches, [{
+      agentId: "devclaw",
+      sessionKey,
+      preserveActivity: true,
+      update: {
+        label: "Example Project architect junior Worker A",
+        spawnedBy: "agent:devclaw:telegram:group:-1000000000000:topic:42",
+      },
+    }]);
   });
 
   it("derives stable main orchestrator keys for chat and topic lineage", () => {
@@ -170,99 +173,22 @@ describe("gateway agent dispatch compatibility", () => {
     );
   });
 
-  it("accepts a model present in the configured gateway catalog", async () => {
-    const calls: string[] = [];
-    const runtime = {
-      gateway: {
-        async request(method: string) {
-          calls.push(method);
-          return {
-            models: [
-              { provider: "openai", id: "gpt-5.5" },
-              { provider: "google", id: "gemini-3-pro" },
-            ],
-          };
-        },
-      },
-      subagent: {
-        async run() {
-          return { runId: "unused" };
-        },
-      },
-    } as unknown as PluginRuntime;
-
-    await assertConfiguredModelAvailable("openai/gpt-5.5", {
-      runtime,
-      projectName: "Example Project",
-      role: "architect",
-      level: "junior",
-    });
-    assert.deepEqual(calls, ["models.list"]);
-  });
-
-  it("rejects a definitively unavailable model with project context", async () => {
+  it("surfaces model override policy rejection from the native launch", async () => {
+    let gatewayCalled = false;
     const runtime = {
       gateway: {
         async request() {
-          return {
-            models: [{ provider: "google", id: "gemini-3-pro" }],
-          };
+          gatewayCalled = true;
+          throw new Error("gateway.request must not be called");
         },
       },
       subagent: {
-        async run() {
-          return { runId: "unused" };
-        },
-      },
-    } as unknown as PluginRuntime;
-
-    await assert.rejects(
-      assertConfiguredModelAvailable("anthropic/claude-sonnet-4-5", {
-        runtime,
-        projectName: "Example Project",
-        role: "architect",
-        level: "junior",
-      }),
-      /Configured model unavailable for Example Project architect\/junior: anthropic\/claude-sonnet-4-5/,
-    );
-  });
-
-  it("fails open when an older gateway does not expose a readable catalog", async () => {
-    const runtime = {
-      gateway: {
-        async request() {
-          throw new Error("unknown method: models.list");
-        },
-      },
-      subagent: {
-        async run() {
-          return { runId: "unused" };
-        },
-      },
-    } as unknown as PluginRuntime;
-
-    await assert.doesNotReject(
-      assertConfiguredModelAvailable("custom/private-model", {
-        runtime,
-        projectName: "Legacy",
-        role: "developer",
-        level: "medior",
-      }),
-    );
-  });
-
-  it("does not launch a worker when session provisioning is rejected", async () => {
-    let runCalled = false;
-    const runtime = {
-      gateway: {
-        async request() {
-          throw new Error("model is not allowed");
-        },
-      },
-      subagent: {
-        async run() {
-          runCalled = true;
-          return { runId: "unexpected" };
+        async run(params: Record<string, unknown>) {
+          assert.equal(params.provider, "anthropic");
+          assert.equal(params.model, "claude-sonnet-4-5");
+          throw new Error(
+            'model override "anthropic/claude-sonnet-4-5" is not allowlisted for plugin "devclaw".',
+          );
         },
       },
     } as unknown as PluginRuntime;
@@ -280,8 +206,43 @@ describe("gateway agent dispatch compatibility", () => {
         }) as unknown as RunCommand,
         runtime,
       }),
-      /model is not allowed/,
+      /is not allowlisted for plugin "devclaw"/,
     );
-    assert.equal(runCalled, false);
+    assert.equal(gatewayCalled, false);
+  });
+
+  it("keeps an accepted run accepted when the optional metadata patch fails", async () => {
+    const runtime = {
+      agent: {
+        session: {
+          async patchSessionEntry() {
+            throw new Error("metadata store unavailable");
+          },
+        },
+      },
+      subagent: {
+        async run() {
+          return { runId: "run-accepted" };
+        },
+      },
+    } as unknown as PluginRuntime;
+
+    await assert.doesNotReject(
+      sendToAgent("agent:devclaw:subagent:example-project-developer-medior-worker-a", "Task", {
+        agentId: "devclaw",
+        projectName: "Example Project",
+        issueId: 102,
+        role: "developer",
+        level: "medior",
+        workspaceDir: "C:/devclaw-test",
+        model: "openai/gpt-5.5",
+        sessionLabel: "Example Project developer medior Worker A",
+        parentSessionKey: "agent:devclaw:telegram:group:-1000000000000",
+        runCommand: (async () => {
+          throw new Error("legacy gateway CLI should not be called");
+        }) as unknown as RunCommand,
+        runtime,
+      }),
+    );
   });
 });
