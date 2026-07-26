@@ -5,8 +5,8 @@ import type { ToolContext } from "../types.js";
 import { normalizeRepoTarget, resolveToolProject } from "./helpers.js";
 
 const TEST_PROJECT = "example-project";
-const TEST_CHANNEL_ID = "-1000000000001";
-const OTHER_CHANNEL_ID = "-1000000000002";
+const TEST_CHANNEL_ID = "example-channel";
+const OTHER_CHANNEL_ID = "other-channel";
 const TEST_ISSUE_ID = "42";
 const TEST_WORKER_SESSION =
   "agent:devclaw:subagent:example-project-architect-junior-worker";

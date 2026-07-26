@@ -87,9 +87,10 @@ export async function resolveProject(
  * Resolve a tool call using trusted worker identity before chat transport scope.
  *
  * Native plugin subagent turns currently surface as `webchat`, even when the
- * worker belongs to a Telegram project. The deterministic session key and the
- * persisted worker slot are authoritative for those calls. Ordinary chat calls
- * retain the existing channel/account/topic-aware lookup.
+ * worker belongs to a project registered on another transport. The
+ * deterministic session key and persisted worker slot are authoritative for
+ * those calls. Ordinary chat calls retain the existing
+ * channel/account/topic-aware lookup.
  */
 export async function resolveToolProject(
   workspaceDir: string,

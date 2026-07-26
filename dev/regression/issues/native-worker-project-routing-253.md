@@ -5,16 +5,17 @@
 
 ## Change summary
 
-Native `runtime.subagent.run` turns do not inherit the Telegram transport in
-their tool context. DevClaw now resolves recognized worker calls from the
-deterministic session identity and its active persisted slot before consulting
-chat transport scope. The explicit route must still belong to that project.
+Native `runtime.subagent.run` turns do not inherit the project's registered
+transport in their tool context. DevClaw now resolves recognized worker calls
+from the deterministic session identity and its active persisted slot before
+consulting chat transport scope. The explicit route must still belong to that
+project.
 
 ## Triggering conditions
 
 - a worker is launched through the plugin-native subagent runtime
 - its tool context reports `messageChannel: "webchat"`
-- its task carries a Telegram `channelId`
+- its task carries the project's registered `channelId`
 - it calls a project tool such as `task_comment`, `task_create`, or
   `work_finish`
 
@@ -22,7 +23,7 @@ chat transport scope. The explicit route must still belong to that project.
 
 `npm run test:gateway-dispatch` verifies that:
 
-1. an active registered worker resolves its Telegram project despite the
+1. an active registered worker resolves its project despite the
    synthetic `webchat` source
 2. ordinary non-worker sessions retain channel-scoped resolution
 3. forged and inactive worker sessions are rejected
