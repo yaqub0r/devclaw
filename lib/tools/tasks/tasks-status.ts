@@ -9,7 +9,7 @@ import type { ToolContext } from "../../types.js";
 import type { PluginContext } from "../../context.js";
 import { log as auditLog } from "../../audit.js";
 import { getStateLabelsByType } from "../../services/queue.js";
-import { requireWorkspaceDir, resolveChannelId, resolveProject, resolveProvider } from "../helpers.js";
+import { requireWorkspaceDir, resolveChannelId, resolveToolProject, resolveProvider } from "../helpers.js";
 import { loadConfig } from "../../config/index.js";
 
 type IssueSummary = { id: number; title: string; url: string };
@@ -41,14 +41,7 @@ export function createTasksStatusTool(ctx: PluginContext) {
       const workspaceDir = requireWorkspaceDir(toolCtx);
       const channelId = resolveChannelId(toolCtx, params.channelId as string | undefined);
       const messageThreadId = params.messageThreadId as number | undefined;
-      const channelType = (toolCtx.messageChannel as string | undefined) ?? "telegram";
-      const accountId = toolCtx.agentAccountId as string | undefined;
-
-      const { project } = await resolveProject(workspaceDir, channelId, {
-        channel: channelType,
-        accountId,
-        messageThreadId,
-      });
+      const { project } = await resolveToolProject(workspaceDir, toolCtx, channelId, messageThreadId);
       const { provider } = await resolveProvider(project, ctx.runCommand);
 
       const projectConfig = await loadConfig(workspaceDir, project.name);

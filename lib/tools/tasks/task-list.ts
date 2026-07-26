@@ -8,7 +8,7 @@ import { jsonResult } from "../../json-result.js";
 import type { PluginContext } from "../../context.js";
 import type { ToolContext } from "../../types.js";
 import { log as auditLog } from "../../audit.js";
-import { requireWorkspaceDir, resolveChannelId, resolveProject, resolveProvider } from "../helpers.js";
+import { requireWorkspaceDir, resolveChannelId, resolveToolProject, resolveProvider } from "../helpers.js";
 import { loadWorkflow, StateType, findStateByLabel } from "../../workflow/index.js";
 
 export function createTaskListTool(ctx: PluginContext) {
@@ -57,13 +57,7 @@ export function createTaskListTool(ctx: PluginContext) {
       const search = params.search as string | undefined;
       const limit = (params.limit as number) ?? 20;
 
-      const channelType = (toolCtx.messageChannel as string | undefined) ?? "telegram";
-      const accountId = toolCtx.agentAccountId as string | undefined;
-      const { project } = await resolveProject(workspaceDir, channelId, {
-        channel: channelType,
-        accountId,
-        messageThreadId,
-      });
+      const { project } = await resolveToolProject(workspaceDir, toolCtx, channelId, messageThreadId);
       const { provider } = await resolveProvider(project, ctx.runCommand);
       const workflow = await loadWorkflow(workspaceDir, project.name);
 

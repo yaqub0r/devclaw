@@ -45,7 +45,7 @@
   "scripts": {
     "build": "node build.mjs",
     "check": "node dev/regression/tests/plugin-tool-contract.mjs && npm run test:gateway-dispatch && tsc --noEmit",
-    "test:gateway-dispatch": "tsx --test lib/dispatch/session.test.ts lib/dispatch/message-builder.test.ts lib/dispatch/dispatch-acceptance.test.ts",
+    "test:gateway-dispatch": "tsx --test lib/dispatch/session.test.ts lib/dispatch/message-builder.test.ts lib/dispatch/dispatch-acceptance.test.ts lib/tools/helpers.test.ts",
     "watch": "tsc --noEmit --watch",
     "regression:release": "bash dev/regression/tests/run-all.sh",
     "prepublishOnly": "npm run build"

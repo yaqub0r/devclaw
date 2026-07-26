@@ -11,7 +11,7 @@ import type { ToolContext } from "../../types.js";
 import { log as auditLog } from "../../audit.js";
 import { StateType, findStateByLabel, getCurrentStateLabel, getRoleLabelColor } from "../../workflow/index.js";
 import { loadConfig } from "../../config/index.js";
-import { requireWorkspaceDir, resolveChannelId, resolveProject, resolveProvider, autoAssignOwnerLabel, applyNotifyLabel } from "../helpers.js";
+import { requireWorkspaceDir, resolveChannelId, resolveToolProject, resolveProvider, autoAssignOwnerLabel, applyNotifyLabel } from "../helpers.js";
 
 export function createTaskSetLevelTool(ctx: PluginContext) {
   return (toolCtx: ToolContext) => ({
@@ -61,13 +61,7 @@ Examples:
       }
 
       const messageThreadId = params.messageThreadId as number | undefined;
-      const channelType = (toolCtx.messageChannel as string | undefined) ?? "telegram";
-      const accountId = toolCtx.agentAccountId as string | undefined;
-      const { project } = await resolveProject(workspaceDir, channelId, {
-        channel: channelType,
-        accountId,
-        messageThreadId,
-      });
+      const { project } = await resolveToolProject(workspaceDir, toolCtx, channelId, messageThreadId);
       const { provider, type: providerType } = await resolveProvider(project, ctx.runCommand);
       const resolvedConfig = await loadConfig(workspaceDir, project.name);
 

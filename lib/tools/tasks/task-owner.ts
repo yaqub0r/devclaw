@@ -8,7 +8,7 @@
 import { jsonResult } from "../../json-result.js";
 import type { PluginContext } from "../../context.js";
 import type { ToolContext } from "../../types.js";
-import { requireWorkspaceDir, resolveChannelId, resolveProject, resolveProvider } from "../helpers.js";
+import { requireWorkspaceDir, resolveChannelId, resolveToolProject, resolveProvider } from "../helpers.js";
 import { loadConfig } from "../../config/index.js";
 import { loadInstanceName } from "../../instance.js";
 import {
@@ -59,13 +59,7 @@ export function createTaskOwnerTool(ctx: PluginContext) {
       const workspaceDir = requireWorkspaceDir(toolCtx);
 
       const messageThreadId = params.messageThreadId as number | undefined;
-      const channelType = (toolCtx.messageChannel as string | undefined) ?? "telegram";
-      const accountId = toolCtx.agentAccountId as string | undefined;
-      const { project } = await resolveProject(workspaceDir, channelId, {
-        channel: channelType,
-        accountId,
-        messageThreadId,
-      });
+      const { project } = await resolveToolProject(workspaceDir, toolCtx, channelId, messageThreadId);
       const { provider } = await resolveProvider(project, ctx.runCommand);
       const resolvedConfig = await loadConfig(workspaceDir, project.name);
       const instanceName = await loadInstanceName(

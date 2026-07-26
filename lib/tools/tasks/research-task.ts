@@ -19,7 +19,7 @@ import type { StateLabel } from "../../providers/provider.js";
 import { getRoleWorker, countActiveSlots } from "../../projects/index.js";
 import { dispatchTask } from "../../dispatch/index.js";
 import { log as auditLog } from "../../audit.js";
-import { requireWorkspaceDir, resolveChannelId, resolveProject, resolveProvider, autoAssignOwnerLabel, applyNotifyLabel } from "../helpers.js";
+import { requireWorkspaceDir, resolveChannelId, resolveToolProject, resolveProvider, autoAssignOwnerLabel, applyNotifyLabel } from "../helpers.js";
 import { loadConfig } from "../../config/index.js";
 import { getActiveLabel } from "../../workflow/index.js";
 import { selectLevel } from "../../roles/model-selector.js";
@@ -103,13 +103,7 @@ Example:
       if (!title) throw new Error("title is required");
       if (!description) throw new Error("description is required — provide detailed background context for the architect");
 
-      const channelType = (toolCtx.messageChannel as string | undefined) ?? "telegram";
-      const accountId = toolCtx.agentAccountId as string | undefined;
-      const { project } = await resolveProject(workspaceDir, channelId, {
-        channel: channelType,
-        accountId,
-        messageThreadId,
-      });
+      const { project } = await resolveToolProject(workspaceDir, toolCtx, channelId, messageThreadId);
       const { provider } = await resolveProvider(project, ctx.runCommand);
       const pluginConfig = ctx.pluginConfig;
       const role = "architect";

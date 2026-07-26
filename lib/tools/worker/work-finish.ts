@@ -16,7 +16,7 @@ import { getRoleWorker, resolveRepoPath, findSlotByIssue } from "../../projects/
 import { executeCompletion, getRule } from "../../services/pipeline.js";
 import { log as auditLog } from "../../audit.js";
 import { DATA_DIR } from "../../setup/migrate-layout.js";
-import { requireWorkspaceDir, resolveChannelId, resolveProject, resolveProvider } from "../helpers.js";
+import { requireWorkspaceDir, resolveChannelId, resolveToolProject, resolveProvider } from "../helpers.js";
 import { getAllRoleIds, isValidResult, getCompletionResults } from "../../roles/index.js";
 import { loadWorkflow } from "../../workflow/index.js";
 
@@ -223,13 +223,7 @@ export function createWorkFinishTool(ctx: PluginContext) {
       }
 
       // Resolve project + worker
-      const channelType = (toolCtx.messageChannel as string | undefined) ?? "telegram";
-      const accountId = toolCtx.agentAccountId as string | undefined;
-      const { project } = await resolveProject(workspaceDir, channelId, {
-        channel: channelType,
-        accountId,
-        messageThreadId,
-      });
+      const { project } = await resolveToolProject(workspaceDir, toolCtx, channelId, messageThreadId);
       const roleWorker = getRoleWorker(project, role);
 
       // Find the first active slot across all levels that matches this session.

@@ -26,7 +26,7 @@ import {
 } from "../../workflow/index.js";
 import { getLevelsForRole } from "../../roles/index.js";
 import { loadConfig } from "../../config/index.js";
-import { requireWorkspaceDir, resolveChannelId, resolveProject, resolveProvider, autoAssignOwnerLabel, applyNotifyLabel } from "../helpers.js";
+import { requireWorkspaceDir, resolveChannelId, resolveToolProject, resolveProvider, autoAssignOwnerLabel, applyNotifyLabel } from "../helpers.js";
 import { recordAndApplyInterventionEvent } from "../../orchestrator-intervention/engine.js";
 
 export function createTaskStartTool(ctx: PluginContext) {
@@ -70,13 +70,7 @@ Examples:
       const workspaceDir = requireWorkspaceDir(toolCtx);
 
       const messageThreadId = params.messageThreadId as number | undefined;
-      const channelType = (toolCtx.messageChannel as string | undefined) ?? "telegram";
-      const accountId = toolCtx.agentAccountId as string | undefined;
-      const { project } = await resolveProject(workspaceDir, channelId, {
-        channel: channelType,
-        accountId,
-        messageThreadId,
-      });
+      const { project } = await resolveToolProject(workspaceDir, toolCtx, channelId, messageThreadId);
       const { provider } = await resolveProvider(project, ctx.runCommand);
       const resolvedConfig = await loadConfig(workspaceDir, project.name);
       const workflow = resolvedConfig.workflow;

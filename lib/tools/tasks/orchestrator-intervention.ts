@@ -2,7 +2,7 @@ import { jsonResult } from "../../json-result.js";
 import type { PluginContext } from "../../context.js";
 import type { ToolContext } from "../../types.js";
 import { log as auditLog } from "../../audit.js";
-import { requireWorkspaceDir, resolveChannelId, resolveProject } from "../helpers.js";
+import { requireWorkspaceDir, resolveChannelId, resolveToolProject } from "../helpers.js";
 import { deleteInterventionPolicy, loadInterventionStore, upsertInterventionPolicy } from "../../orchestrator-intervention/store.js";
 import { readInterventionEvents } from "../../orchestrator-intervention/timeline.js";
 import {
@@ -82,13 +82,7 @@ Supported action types: ${ORCHESTRATOR_INTERVENTION_ACTION_TYPES.join(", ")}`,
       const action = params.action as "set_policy" | "delete_policy" | "list_policies" | "get_events";
       const workspaceDir = requireWorkspaceDir(toolCtx);
       const messageThreadId = params.messageThreadId as number | undefined;
-      const channelType = (toolCtx.messageChannel as string | undefined) ?? "telegram";
-      const accountId = toolCtx.agentAccountId as string | undefined;
-      const { project } = await resolveProject(workspaceDir, channelId, {
-        channel: channelType,
-        accountId,
-        messageThreadId,
-      });
+      const { project } = await resolveToolProject(workspaceDir, toolCtx, channelId, messageThreadId);
 
       if (action === "list_policies") {
         const store = await loadInterventionStore(workspaceDir, project.slug);
