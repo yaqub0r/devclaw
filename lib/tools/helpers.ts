@@ -19,6 +19,7 @@ import { createProvider, type ProviderWithType } from "../providers/index.js";
 import { loadConfig } from "../config/index.js";
 import { loadInstanceName } from "../instance.js";
 import { getOwnerLabel, OWNER_LABEL_COLOR, getNotifyLabel, NOTIFY_LABEL_PREFIX, NOTIFY_LABEL_COLOR } from "../workflow/index.js";
+import { parseDevClawSessionKey } from "../dispatch/session-key.js";
 
 /**
  * Require workspaceDir from context or throw a clear error.
@@ -49,17 +50,30 @@ export function resolveChannelId(_ctx: ToolContext, explicitChannelId?: string):
 export async function resolveProject(
   workspaceDir: string,
   channelId: string,
-  opts?: { channel?: string; accountId?: string; messageThreadId?: number | string | null },
+  opts?: {
+    channel?: string;
+    accountId?: string;
+    messageThreadId?: number | string | null;
+    sessionKey?: string;
+  },
 ): Promise<{ data: ProjectsData; project: Project }> {
   const data = await readProjects(workspaceDir);
-  const project = opts
-    ? getProject(data, {
-        channelId,
-        channel: opts.channel,
-        accountId: opts.accountId,
-        messageThreadId: opts.messageThreadId,
-      })
-    : getProject(data, channelId);
+  const workerResolution = resolveWorkerSessionProject(
+    data,
+    opts?.sessionKey,
+    channelId,
+    opts?.messageThreadId,
+  );
+  const project = workerResolution.recognized
+    ? workerResolution.project
+    : opts
+      ? getProject(data, {
+          channelId,
+          channel: opts.channel,
+          accountId: opts.accountId,
+          messageThreadId: opts.messageThreadId,
+        })
+      : getProject(data, channelId);
   if (!project) {
     throw new Error(
       `No project found for "${channelId}". ` +
@@ -67,6 +81,70 @@ export async function resolveProject(
     );
   }
   return { data, project };
+}
+
+/**
+ * Resolve a tool call using trusted worker identity before chat transport scope.
+ *
+ * Native plugin subagent turns currently surface as `webchat`, even when the
+ * worker belongs to a project registered on another transport. The
+ * deterministic session key and persisted worker slot are authoritative for
+ * those calls. Ordinary chat calls retain the existing
+ * channel/account/topic-aware lookup.
+ */
+export async function resolveToolProject(
+  workspaceDir: string,
+  toolCtx: ToolContext,
+  channelId: string,
+  messageThreadId?: number | string | null,
+): Promise<{ data: ProjectsData; project: Project }> {
+  return resolveProject(workspaceDir, channelId, {
+    channel: toolCtx.messageChannel ?? "telegram",
+    accountId: toolCtx.agentAccountId,
+    messageThreadId,
+    sessionKey: toolCtx.sessionKey,
+  });
+}
+
+function resolveWorkerSessionProject(
+  data: ProjectsData,
+  sessionKey: string | undefined,
+  channelId: string,
+  messageThreadId?: number | string | null,
+): { recognized: boolean; project?: Project } {
+  if (!sessionKey) return { recognized: false };
+
+  const identity = parseDevClawSessionKey(sessionKey);
+  if (!identity) return { recognized: false };
+
+  const project = getProject(data, identity.projectName);
+  if (!project) return { recognized: true };
+
+  const normalizedSessionKey = sessionKey.toLowerCase();
+  const roleWorker = project.workers[identity.role];
+  const sessionIsActive = roleWorker
+    ? Object.values(roleWorker.levels).some((slots) =>
+        slots.some((slot) =>
+          slot.active &&
+          slot.sessionKey?.toLowerCase() === normalizedSessionKey
+        ),
+      )
+    : false;
+  if (!sessionIsActive) return { recognized: true };
+
+  const routeBelongsToProject =
+    (project.slug === channelId && messageThreadId == null) ||
+    project.channels.some((channel) =>
+      channel.channelId === channelId &&
+      (
+        messageThreadId == null ||
+        channel.messageThreadId == null ||
+        String(channel.messageThreadId) === String(messageThreadId)
+      ),
+    );
+  if (!routeBelongsToProject) return { recognized: true };
+
+  return { recognized: true, project };
 }
 
 /**

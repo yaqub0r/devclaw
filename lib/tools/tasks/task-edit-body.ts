@@ -14,7 +14,7 @@ import type { ToolContext } from "../../types.js";
 import { log as auditLog } from "../../audit.js";
 import { loadConfig } from "../../config/index.js";
 import { getInitialStateLabel, getCurrentStateLabel } from "../../workflow/index.js";
-import { requireWorkspaceDir, resolveChannelId, resolveProject, resolveProvider, autoAssignOwnerLabel, applyNotifyLabel } from "../helpers.js";
+import { requireWorkspaceDir, resolveChannelId, resolveToolProject, resolveProvider, autoAssignOwnerLabel, applyNotifyLabel } from "../helpers.js";
 
 export function createTaskEditBodyTool(ctx: PluginContext) {
   return (toolCtx: ToolContext) => ({
@@ -78,13 +78,7 @@ Examples:
         throw new Error("At least one of 'title' or 'body' must be provided.");
       }
 
-      const channelType = (toolCtx.messageChannel as string | undefined) ?? "telegram";
-      const accountId = toolCtx.agentAccountId as string | undefined;
-      const { project } = await resolveProject(workspaceDir, channelId, {
-        channel: channelType,
-        accountId,
-        messageThreadId,
-      });
+      const { project } = await resolveToolProject(workspaceDir, toolCtx, channelId, messageThreadId);
       const { provider, type: providerType } = await resolveProvider(project, ctx.runCommand);
 
       // Determine editable states from per-project workflow config.

@@ -13,24 +13,11 @@ import path from "node:path";
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
 import type { PluginContext } from "../context.js";
 import { getProject, readProjects } from "../projects/index.js";
-import { getSessionKeyRolePattern } from "../roles/index.js";
 import { DATA_DIR } from "../setup/migrate-layout.js";
 import { DEFAULT_ORCHESTRATOR_INSTRUCTIONS, DEFAULT_ROLE_INSTRUCTIONS } from "../setup/templates.js";
+import { parseDevClawSessionKey } from "./session-key.js";
 
-export function parseDevClawSessionKey(
-  sessionKey: string,
-): { projectName: string; role: string } | null {
-  const rolePattern = getSessionKeyRolePattern();
-  const newMatch = sessionKey.match(
-    new RegExp(`:subagent:(.+)-(${rolePattern})-[^-]+-[^-]+$`),
-  );
-  if (newMatch) return { projectName: newMatch[1], role: newMatch[2] };
-  const legacyMatch = sessionKey.match(
-    new RegExp(`:subagent:(.+)-(${rolePattern})-[^-]+$`),
-  );
-  if (legacyMatch) return { projectName: legacyMatch[1], role: legacyMatch[2] };
-  return null;
-}
+export { parseDevClawSessionKey } from "./session-key.js";
 
 export type PromptInstructionsResult = {
   content: string;
